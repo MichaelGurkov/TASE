@@ -1,0 +1,101 @@
+---
+title: "Work outline"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+
+```{r Set_parameters}
+
+filepath = paste0("C:\\Users\\internet\\Documents\\Data\\TASE\\",
+                     "TASE_Liquidity\\quarterly regression updated.csv")
+
+```
+
+
+```{r Import_data}
+
+library(tidyverse)
+
+library(xts)
+
+library(stargazer)
+
+df = read.csv(filepath)
+
+delisted_firms = unique(df$MSP_HVR[df$delisted == 1])
+
+df = df %>% 
+  mutate(DATE = as.yearqtr(DATE, format = "%d/%m/%Y")) %>% 
+  group_by(MSP_HVR) %>% 
+  mutate(delisted = cumsum(delisted))
+
+
+
+```
+
+\section{Introduction}
+
+The purpose of the work is to identify the reasons
+of firm's delistings from trade. The method is a logit regression that evaluates firm's characteristics in a sample
+that consists of delisted firms and matched trading firms.
+
+\section{Empirical specification}
+
+\begin{equation}
+Pr(Delisting) = \alpha  + 
+\beta_{1} Leverage +
+\beta_{2} MB + 
+\beta_{3} ROA + 
+\beta_{4} Insider \hspace{5pt} ownership
+\end{equation}
+
+
+\section{Descriptive Stats}
+
+The sample consists of `r length(unique(df$MSP_HVR))` firms,
+out of which `r length(unique(df$MSP_HVR[df$delisted == 1]))` delisted from trading. The sample period is `r paste(range(df$DATE, na.rm = TRUE), collapse = "-")`
+
+```{r desc_stat, eval=FALSE}
+
+stat_table = df %>% 
+  ungroup() %>% 
+  select(delisted,erh_shuk,minuf_aroh) %>% 
+  group_by(delisted) %>% 
+  summarise_all(mean, na.rm = TRUE) %>% 
+  filter(complete.cases(.)) %>% 
+  t() %>% 
+  as.data.frame() %>% 
+  setNames(c("Control","Delisted")) %>% 
+  slice(-1)
+
+```
+
+
+```{r output_summary, results="asis"}
+
+stargazer(df %>% 
+            ungroup() %>% 
+            select(delisted,erh_shuk,minuf_aroh),
+          header = FALSE,
+          omit.summary.stat = c("p25","p75","n"))
+
+```
+
+
+\subsection{Raw variables}
+The data file has a set of id variables that identify the company and its
+industry. There are financial variables that specify the company's market value,
+its turnover, assets, profit (net and gross), equity, liabilities and leverage.
+The are indicators variables that identify dual listing, recession periods, IPO
+year (and date). There are dates of the start and end of trading.
+
+\subsection{Calculated variables}
+
+Amihud's illiquiduty measure, size classification of the companies according to
+market value : core (30 largest comps), mid (31-100 largest) and the rest.
+Hirshman-Herfindal index and ownership variables: inside ownership and free
+float. There are trading period variables (duration)
