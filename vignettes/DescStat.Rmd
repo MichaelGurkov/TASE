@@ -12,13 +12,15 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 
 ```{r Set_parameters}
 
+
+
 filepath = paste0(sub("Desktop","",file.path(Sys.getenv("USERPROFILE"),
                                              "Desktop",fsep="\\")),
                   "Documents\\Data\\TASE\\",
-                     "TASE_Liquidity\\quarterly regression updated.csv")
+                     "TASE_Liquidity\\Fin_Report_oracle_query.csv")
 
 
-x_vars = c("Leverage","MB","Insider_Ownership")
+x_vars = c("Leverage","MB","Insider_Ownership","ROA")
 
 ```
 
@@ -33,6 +35,17 @@ library(stargazer)
 
 df = read.csv(filepath)
 
+
+# Rename vars
+
+df = df %>% 
+  rename(Total_Assets = TOTAL__BALANCE,
+         Total_Liabilities = TOTAL__LIABILITIES,
+         Total_Equity = BI_STKHOLD_EQUITY_MINO_INT,
+         Total_Revenue = TOTAL__REVENUE,
+         Operating_Profit = OPERATING__PROFIT)
+
+
 delisted_firms = unique(df$MSP_HVR[df$delisted == 1])
 
 df = df %>% 
@@ -40,23 +53,19 @@ df = df %>%
   group_by(MSP_HVR) %>% 
   mutate(delisted = cumsum(delisted))
 
-# Rename vars
 
-df = df %>% 
-  rename(Total_Assets = sh_necs,
-         Total_Liabilities = sh_hth,
-         Market_value = erh_shuk,
-         Insider_Ownership = public_share,
-         Turnover = mhzr_shk,
-         Total_Equity = honazmi,
-         Total_Revenue = sh_hahn)
 
 
 # Mutate variables
 
-df = df %>% 
-  mutate(Leverage = Total_Assets / Total_Liabilities,
-         MB = Market_value / Total_Equity)
+# df = df %>% 
+#   mutate(Leverage = Total_Assets / Total_Liabilities) %>% 
+#   mutate(MB = Market_value / Total_Equity) %>% 
+#   mutate(ROA = Operational_Profit / Total_Assets) %>% 
+#   mutate(Size_log = log(Market_value)) %>% 
+#   mutate(Insider_Ownership - public_share) %>% 
+#   mutate(Turnover_log = log(Turnover)) %>% 
+#   mutate(Capex2sales = )
 
 
 
