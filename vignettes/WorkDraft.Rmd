@@ -27,68 +27,70 @@ load_all()
 
 ```{r Set_parameters}
 
-filepath = paste0(sub("Desktop","",file.path(Sys.getenv("USERPROFILE"),
-                                             "Desktop",fsep="\\")),
-                  "Documents\\Data\\TASE\\",
-                     "TASE_Liquidity\\Fin_Report_oracle_query.csv")
-
 
 x_vars = c("Leverage","MB","Insider_Ownership","ROA")
 
 ```
 
 
+```{r Import_market_data}
 
+if(file.exists(paste0("C:\\Users\\internet\\Documents\\Data\\TASE\\",
+                      "TASE_Liquidity\\market_df.RDS"))){
+  
+  market_df = read_rds(paste0("C:\\Users\\internet\\Documents\\Data\\TASE\\",
+                      "TASE_Liquidity\\market_df.RDS"))
+  
 
-```{r Import_data}
-
-df = impo
-
-
-# Rename vars
-
-df = df %>% 
-  rename(Total_Assets = TOTAL__BALANCE,
-         Total_Liabilities = TOTAL__LIABILITIES,
-         Total_Equity = BI_STKHOLD_EQUITY_MINO_INT,
-         Total_Revenue = TOTAL__REVENUE,
-         Operating_Profit = OPERATING__PROFIT)
-
-
-delisted_firms = unique(df$MSP_HVR[df$delisted == 1])
-
-df = df %>% 
-  mutate(DATE = as.yearqtr(DATE, format = "%d/%m/%Y")) %>% 
-  group_by(MSP_HVR) %>% 
-  mutate(delisted = cumsum(delisted))
-
-
-
-
-# Mutate variables
-
-# df = df %>% 
-#   mutate(Leverage = Total_Assets / Total_Liabilities) %>% 
-#   mutate(MB = Market_value / Total_Equity) %>% 
-#   mutate(ROA = Operational_Profit / Total_Assets) %>% 
-#   mutate(Size_log = log(Market_value)) %>% 
-#   mutate(Insider_Ownership - public_share) %>% 
-#   mutate(Turnover_log = log(Turnover)) %>% 
-#   mutate(Capex2sales = )
-
-
-
+} else {
+  
+  market_df = read_rds(paste0("C:\\Users\\internet\\Documents\\Data\\TASE\\Market Data",
+                          "\\Market_data_stocks_2001-2019.Rds")) %>% 
+    get.market.variables()
+  
+}
 
 
 ```
 
 
-```{r Run_regression}
+```{r Import_finrep_data}
 
-logit_res = glm(formula = formula(paste("delisted ~",
-                                        paste0(x_vars, collapse = "+"))),
-                family = binomial(link = "logit"),
-                data = df)
+if(file.exists(paste0("C:\\Users\\internet\\Documents\\Data\\TASE\\",
+                            "TASE_Liquidity\\finrep_df.RDS"))){
+  
+  finrep_df = read_rds(paste0("C:\\Users\\internet\\Documents\\Data\\TASE\\",
+                            "TASE_Liquidity\\finrep_df.RDS"))
+  
+} else {
+  
+  finrep_df = import.boi.finrep.data() %>% 
+  mutate_if(((!names(.) %in% c("TASE_branch","TASE_ID")) & !is.numeric(.)),
+            as.numeric) %>% 
+  select(Date, TASE_ID, TASE_branch, Operating_Profit,Net_Profit,
+         Equity,Revenue,Total_Assets, Total_Liabilities, Capex_CashFlow,
+         Operating_CashFlow) %>% 
+  mutate(Capex_to_sales = Capex_CashFlow / Revenue) %>% 
+  mutate(ROA = Operating_Profit / Total_Assets) %>% 
+  mutate(Free_CashFlow = Operating_CashFlow / Total_Assets)
+  
+  
+}
+
+```
+
+
+```{r process_data}
+
+df = full_join(finrep_df, market_df, by = c("Date" = "Date",
+                                            "TASE_ID" = "Comp_ID"))
+
+df = df %>% 
+  mutate(MB = Market_Cap / Equity) %>% 
+  mutate(Market_Cap_log = log(Market_Cap)) %>% 
+  mutate(Turnover_log = log(Turnover))
+
+rm(finrep_df, market_df)
 
 ```
 
@@ -115,27 +117,5 @@ Where:
 
 \section{Descriptive Stats}
 
-The sample consists of `r #length(unique(df$MSP_HVR))` firms,
-out of which `r #length(unique(df$MSP_HVR[df$delisted == 1]))` delisted from trading. The sample period is `r #paste(range(df$DATE, na.rm = TRUE), collapse = "-")`
-
-```{r desc_stat, results="asis"}
-
-stargazer(df %>% 
-            ungroup() %>% 
-            select(delisted,x_vars) %>% 
-            as.data.frame(),
-          header = FALSE,
-          omit.summary.stat = c("p25","p75","n"))
-
-```
-
-
 \section{Results}
-
-```{r output_regression, results="asis"}
-
-stargazer(logit_res, header = FALSE, dep.var.labels = "Delisted")
-
-```
-
 

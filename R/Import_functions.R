@@ -19,8 +19,8 @@ import.boi.finrep.data = function(filepath = NULL){
                 "Entity_ID","Total_Assets","Current_Assets","Cash_Equivalent",
                 "Non_Current_Assets","Total_Liabilities","Current_Liabilities",
                 "Non_current_Liabilities","Equity","Minority_rights","Revenue",
-                "Total_Cost","Operational_Profit", "Financing_cost","Profit_before_tax",
-                "Tax","Net_Profit","Minority_Profit", "Operational_CashFlow",
+                "Total_Cost","Operating_Profit", "Financing_cost","Profit_before_tax",
+                "Tax","Net_Profit","Minority_Profit", "Operating_CashFlow",
                 "Capex_CashFlow","Financial_CashFlow")
 
   df = temp_df %>%
@@ -70,3 +70,4 @@ import.TASE.comps_status = function(filepath = NULL){
 }
 
 
+#` This function
