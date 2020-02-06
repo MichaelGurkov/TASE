@@ -41,6 +41,8 @@ import.boi.finrep.data = function(filepath = NULL){
 #' @import readxl
 #'
 #' @import dplyr
+#'
+#' @import xts
 
 import.TASE.comps_status = function(filepath = NULL){
 
