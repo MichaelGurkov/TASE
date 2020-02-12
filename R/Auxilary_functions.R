@@ -45,7 +45,8 @@ get.market.variables = function(market_df){
     select(-DATE_VALUE)%>%
     rename(Sec_ID = SECURITY_IDENT_NUM_TASE, Close = CLOSE_RATE,
            Market_Cap = MARKET_VALUE, Turnover = TURNOVER,
-           Comp_ID = TASE_ISSUER_ID)
+           Comp_ID = TASE_ISSUER_ID,
+           Public_Share = PUBLIC_HOLDING_PERCENT)
 
   illiq_df_list = lapply(split(market_df[,c("Date","Close","Turnover")], market_df$Comp_ID),
                          calculate.iiliq)
@@ -74,9 +75,11 @@ get.market.variables = function(market_df){
     mutate(Comp_ID = as.character(Comp_ID)) %>%
     group_by(Date, Comp_ID, Sec_ID) %>%
     summarise(Market_Cap = mean(Market_Cap, na.rm = TRUE),
-              Turnover = mean(Turnover, na.rm = TRUE))
+              Turnover = mean(Turnover, na.rm = TRUE),
+              Public_Share = mean(Public_Share, na.rm = TRUE))
 
   df = full_join(df, illiq_df, by = c("Date" = "Date", "Comp_ID" = "Comp_ID"))
+
 
   return(df)
 
