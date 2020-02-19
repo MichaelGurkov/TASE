@@ -27,8 +27,9 @@ load_all()
 
 ```{r Set_parameters}
 
-
-x_vars = c("Leverage","MB","Insider_Ownership","ROA")
+x_vars = c("Illiq","Market_Cap_log","Turnover_log","Public_Share","HHI","IPO",
+           "Total_Assets","Operating_Profit","Revenue","Net_Profit","Equity",
+           "Total_Liabilities","Leverage")
 
 ```
 
@@ -65,7 +66,7 @@ if(file.exists(paste0("C:\\Users\\internet\\Documents\\Data\\TASE\\",
 } else {
   
   finrep_df = import.boi.finrep.data() %>% 
-  mutate_if(((!names(.) %in% c("TASE_branch","TASE_ID")) & !is.numeric(.)),
+  mutate_if(((!names(.) %in% c("Date","TASE_branch","TASE_ID")) & !is.numeric(.)),
             as.numeric) %>% 
   select(Date, TASE_ID, TASE_branch, Operating_Profit,Net_Profit,
          Equity,Revenue,Total_Assets, Total_Liabilities, Capex_CashFlow,
@@ -88,9 +89,51 @@ df = full_join(finrep_df, market_df, by = c("Date" = "Date",
 df = df %>% 
   mutate(MB = Market_Cap / Equity) %>% 
   mutate(Market_Cap_log = log(Market_Cap)) %>% 
-  mutate(Turnover_log = log(Turnover))
+  mutate(Turnover_log = log(Turnover)) %>% 
+  mutate(Leverage = Total_Liabilities / Total_Assets)
+
 
 rm(finrep_df, market_df)
+
+```
+
+
+```{r import_old_data}
+
+old_df = import.old.regression.data()
+
+merged_df = full_join(df,old_df[,names(old_df)[names(old_df) %in% names(df)]],
+                      by = c("Date","TASE_ID"), suffix = c("_new","_old")) 
+
+final_df = merged_df
+
+for(varname in grep("_new$",names(final_df),value = TRUE)){
+  
+  main_var = sym(varname)
+  
+  backup_var = sym(str_replace(varname,"new","old"))
+  
+  final_df = final_df %>% 
+    mutate(!!varname := coalesce(!!main_var,!!backup_var))
+  
+  rm(main_var, backup_var)
+
+}
+
+final_df = final_df %>% 
+  select(-ends_with("_old")) %>% 
+  rename_at(.vars = vars(ends_with("_new")),.funs = list(~str_remove(.,"_new")))
+  
+
+# Test for data completness
+
+if(length(x_vars[!x_vars %in% names(final_df)]) > 0){
+  
+  message(paste("The following variables are missing:", paste0(x_vars[!x_vars %in% names(df)],
+                                                               collapse = ",")))
+  
+}
+
 
 ```
 
@@ -116,6 +159,22 @@ Where:
 
 
 \section{Descriptive Stats}
+
+```{r df_stat,results='asis'}
+
+stargazer(df, header = FALSE, omit.summary.stat = c("p25","p75","sd"))
+
+```
+
+
+
+```{r final_df_stat,results='asis'}
+
+stargazer(final_df,header = FALSE, omit.summary.stat = c("p25","p75","sd"))
+
+```
+
+
 
 \section{Results}
 
