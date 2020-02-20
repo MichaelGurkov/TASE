@@ -3,3 +3,20 @@
 Market data comes from TASE\footnote{BOI source} and includes closing price, market capitalization
 and trading volume at daily frequency. Market capitalization and trading volume are converted to
 quarterly frequency by taking quarterly averages.
+
+\subsection
+
+The Amihud Illiquidity measure is calculated as 
+\begin{equation*}
+	Illiq = \frac{1}{T} \sum_{t=1}^{T} \frac{|Return_{t}|}{Turnover_{t}}
+	\end{equation*}
+
+\subsection{Variables table}
+
+```{r output_vars_table, results='asis'}
+
+stargazer(read.csv("C:\\Users\\internet\\Documents\\TASE\\Variables_Table.csv"),
+          header = FALSE, summary = FALSE)
+
+```
+
