@@ -62,6 +62,25 @@ Number of listed companies has been declining since it peaked at 2007-2008, ther
 on the exchange.The average number has been `r mean(status_df$End_Year[status_df$Sector == "Total"])`
 companies.
 
+```{r plot_net_new_comps_evolution}
+
+ggplot(status_df %>% 
+  filter(Sector == "Total") %>% 
+  select(Year, Issued_Comps, Delisted_Comps) %>% 
+  mutate(Net_New_Comps = Issued_Comps - Delisted_Comps) %>% 
+  mutate(Delisted_Comps = -1 * Delisted_Comps) %>% 
+  gather(key = Indicator, value = Comps_Num, -Year,-Net_New_Comps)) + 
+  geom_col(aes(x = Year, y = Comps_Num, fill = Indicator)) +
+  geom_line(aes(x = Year,group = 1, y = Net_New_Comps, color = "Net new comps")) + 
+  scale_color_manual(values = "black") + 
+  # geom_hline(yintercept = 0, linetype = "dashed") + 
+  labs(x = "", y = "") + 
+  theme_bw() + 
+  theme(legend.position = "bottom",legend.title = element_blank(),
+        axis.text.x = element_text(angle = 90))
+
+```
+
 
 ```{r plot_comps_evolution_by_sectype}
 

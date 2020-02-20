@@ -5,12 +5,14 @@ output: pdf_document
 
 ```{r setup, include=FALSE,}
 
-knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, eval = FALSE)
 
 ```
 
 
-```{r Load_libraries}
+```{r Load_libraries, eval=TRUE}
+
+setwd("C:\\Users\\internet\\Documents\\TASE\\vignettes")
 
 library(devtools)
 
@@ -71,7 +73,7 @@ if(file.exists(paste0("C:\\Users\\internet\\Documents\\Data\\TASE\\",
   select(Date, TASE_ID, TASE_branch, Operating_Profit,Net_Profit,
          Equity,Revenue,Total_Assets, Total_Liabilities, Capex_CashFlow,
          Operating_CashFlow) %>% 
-  mutate(Capex_to_sales = Capex_CashFlow / Revenue) %>% 
+  mutate(Capex_to_revenue = Capex_CashFlow / Revenue) %>% 
   mutate(ROA = Operating_Profit / Total_Assets) %>% 
   mutate(Free_CashFlow = Operating_CashFlow / Total_Assets)
   
@@ -177,4 +179,10 @@ stargazer(final_df,header = FALSE, omit.summary.stat = c("p25","p75","sd"))
 
 
 \section{Results}
+
+\section{Appendix}
+
+```{r ,child="Appendix.Rmd", eval = TRUE}
+
+```
 
