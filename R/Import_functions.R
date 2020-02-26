@@ -25,7 +25,19 @@ import.boi.finrep.data = function(filepath = NULL){
   df = temp_df %>%
     slice(-1) %>%
     setNames(names_vec) %>%
-    mutate(Date = as.yearqtr(Date, format = "Q%q/%Y"))
+    mutate(Date = as.yearqtr(Date, format = "Q%q/%Y")) %>%
+    mutate(TASE_branch = factor(TASE_branch))
+
+  levels(df$TASE_branch) = list("Biomed" = "ביומד",
+                                "Insurance" = "ביטוח",
+                                "Banks" = "בנקים",
+                                "Investment_Holdings" = "השקעה ואחזקות",
+                                "Technology" = "טכנולוגיה",
+                                "Services" = "מסחר ושרותים",
+                                "Real_estate" = "נדל\"ן ובינוי",
+                                "Fin_services" = "שרותים פיננסיים",
+                                "Industry" = "תעשיה")
+
 
   return(df)
 
