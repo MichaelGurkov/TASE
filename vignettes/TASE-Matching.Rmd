@@ -1,0 +1,78 @@
+
+```{r Import_comps_status_df}
+
+comps_status_df = read.csv("C:\\Users\\internet\\Documents\\Data\\BOI\\TASE Comps list.csv",
+                           stringsAsFactors = FALSE) %>% 
+  rename(TASE_ID = 1) %>% 
+  mutate(TASE_ID = as.character(TASE_ID)) %>% 
+  mutate(Delisting_date = if_else(condition = grepl("/",Delisting_date),
+                             true = as.Date(Delisting_date, format = "%d/%m/%Y"),
+                             false = as.Date(Delisting_date, format = "%d.%m.%Y"))) %>% 
+  mutate(YearQtr = as.yearqtr(Delisting_date))
+
+tender_offer_comps = comps_status_df$TASE_ID[comps_status_df$Delisting_reason == "Tender_Offer"]
+
+trading_comps = comps_status_df$TASE_ID[comps_status_df$Delisted == 0]
+
+```
+
+
+```{r match_delisted_and_control}
+
+df.delisted = comps_status_df %>% 
+  filter(Delisting_reason == "Tender_Offer") %>% 
+  select(TASE_ID,YearQtr) %>% 
+  left_join(df %>% 
+              select(TASE_ID,Date, TASE_branch, Total_Assets),
+            by = c("TASE_ID" = "TASE_ID", "YearQtr" = "Date")) %>% 
+  filter(complete.cases(.))
+
+
+
+match_comp = function(yearqtr,tase_branch,total_assets){
+
+  temp_trading_firm = df %>%
+    select(TASE_ID, TASE_branch, Total_Assets, Date) %>%
+    filter(TASE_ID %in% trading_comps) %>%
+    filter(Date == yearqtr, TASE_branch == tase_branch) %>%
+    mutate(Asset_diff = abs(Total_Assets/total_assets - 1)) %>%
+    arrange(Asset_diff) %>%
+    slice(1)
+
+  if(temp_trading_firm$Asset_diff <= 0.3){
+
+    return(temp_trading_firm$TASE_ID)
+
+  } else {
+
+    return(NA)
+  }
+
+
+
+}
+
+
+control_delisted_pairs = lapply(1:nrow(df.delisted), function(temp_row){
+  
+  temp_df = data.frame(Delisted_ID = df.delisted$TASE_ID[temp_row],
+                       Control_ID = match_comp(yearqtr = df.delisted$YearQtr[temp_row],
+                                               tase_branch = df.delisted$TASE_branch[temp_row],
+                                               total_assets = df.delisted$Total_Assets[temp_row]))
+  
+  return(temp_df)
+  
+  
+}) %>% 
+  bind_rows()
+
+```
+
+
+
+```{r summary_control_vs_delisted}
+
+df
+
+```
+
