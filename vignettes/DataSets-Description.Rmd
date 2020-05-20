@@ -1,0 +1,39 @@
+---
+title: "Datasets Description"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE,}
+
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, eval = FALSE)
+
+```
+
+```{r}
+
+library(tidyverse)
+
+library(lubridate)
+
+```
+
+
+
+\subsection{TASE companies list}
+
+```{r}
+
+tase_comps_list = read.csv(paste0("C:\\Users\\internet\\OneDrive - Bank Of Israel\\Data",
+                           "\\TASE liquidity\\TASE Comps list.csv"),
+                           stringsAsFactors = FALSE)
+
+tase_comps_list = tase_comps_list %>% 
+  rename(TASE_ID = 1) %>% 
+  mutate(Delisting_date = parse_date(Delisting_date,format = "%d%.%m%.%Y"))
+
+
+
+
+```
+

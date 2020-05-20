@@ -84,3 +84,4 @@ get.market.variables = function(market_df){
   return(df)
 
 }
+

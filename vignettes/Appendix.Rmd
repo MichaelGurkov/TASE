@@ -4,7 +4,7 @@ Market data comes from TASE\footnote{BOI source} and includes closing price, mar
 and trading volume at daily frequency. Market capitalization and trading volume are converted to
 quarterly frequency by taking quarterly averages.
 
-\subsection
+<!-- \subsection{} -->
 
 The Amihud Illiquidity measure is calculated as 
 \begin{equation*}
