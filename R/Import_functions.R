@@ -91,26 +91,39 @@ import.TASE.comps_status = function(filepath = NULL){
 
 import.old.regression.data = function(filepath = NULL){
 
-  if(is.null(filepath)){filepath = paste0(file.path(Sys.getenv("USERPROFILE"),"Documents",
-                                                    fsep="\\"),
-                                          "\\Data\\TASE\\TASE_Liquidity",
-                                          "\\quarterly regression updated.csv")}
+  if(is.null(filepath)){filepath = paste0(
+    file.path(Sys.getenv("USERPROFILE"),
+              fsep="\\"),
+    "\\OneDrive - Bank Of Israel\\Data",
+    "\\TASE liquidity\\quarterly regression updated.csv")}
 
   temp_df = read.csv(filepath, encoding = "UTF-8", stringsAsFactors = FALSE)
 
   temp_df = temp_df %>%
-    rename(TASE_ID = MSP_HVR, TASE_branch = ANAF_HVR, Date = DATE,
-           Illiq = illq, Market_Cap = erh_shuk, Turnover = mhzr_shk,
-           Public_Share = public_share, Total_Assets = sh_necs, Operating_Profit = rvh_tefulli,
-           Net_Profit = rvh_naki, Revenue = sh_hahn, Equity = honazmi, Leverage = minuf_aroh,
+    rename(TASE_ID = MSP_HVR,
+           TASE_branch = ANAF_HVR,
+           Date = DATE,
+           Illiq = illq,
+           Market_Cap = erh_shuk,
+           Turnover = mhzr_shk,
+           Public_Share = public_share,
+           Total_Assets = sh_necs,
+           Operating_Profit = rvh_tefulli,
+           Net_Profit = rvh_naki,
+           Revenue = sh_hahn,
+           Equity = honazmi,
+           Leverage = minuf_aroh,
            Total_Liabilities = sh_hth) %>%
     mutate(Date = as.yearqtr(Date, format = "%d/%m/%Y")) %>%
-    mutate(TASE_ID = as.character(TASE_ID), TASE_branch = as.character(TASE_branch)) %>%
+    mutate(TASE_ID = as.character(TASE_ID),
+           TASE_branch = as.character(TASE_branch)) %>%
     mutate_at(.vars = vars(Total_Assets, Total_Liabilities,
-                           Revenue, Net_Profit, Operating_Profit, Equity,
-                           ),.funs = list(~./1000)) %>%
+                           Revenue, Net_Profit, Operating_Profit, Equity),
+              .funs = list(~./1000)) %>%
     mutate(Public_Share = Public_Share * 100)
 
   return(temp_df)
 
 }
+
+

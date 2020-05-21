@@ -31,14 +31,16 @@ load_all()
 
 status_df = import.TASE.comps_status()
 
-tase = inner_join(read.csv("C:\\Users\\internet\\Documents\\Data\\TASE\\TA_35_2000_2019.csv",
+tase = inner_join(read.csv(paste0(file.path(Sys.getenv("USERPROFILE"),"Documents",
+                 fsep="\\"),"\\Data\\TASE\\TA_35_2000_2019.csv"),
                 stringsAsFactors = FALSE) %>% 
   setNames(c("Date","Basis","Open","Close","High","Low","Market_Cap")) %>% 
   mutate(Date = as.Date(Date, format = "%d/%m/%Y")) %>% 
   select(Date,Close) %>% 
   group_by(Year = format(Date,"%Y")) %>% 
   summarise(Avg_Close_35 = mean(Close)),
-  read.csv("C:\\Users\\internet\\Documents\\Data\\TASE\\TA_125_2000_2019.csv",
+  read.csv(paste0(file.path(Sys.getenv("USERPROFILE"),"Documents",
+                 fsep="\\"),"\\Data\\TASE\\TA_125_2000_2019.csv"),
                 stringsAsFactors = FALSE) %>% 
   setNames(c("Date","Basis","Open","Close","High","Low","Market_Cap")) %>% 
   mutate(Date = as.Date(Date, format = "%d/%m/%Y")) %>% 
