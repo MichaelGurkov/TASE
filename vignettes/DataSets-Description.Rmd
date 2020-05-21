@@ -6,26 +6,98 @@ output: pdf_document
 
 ```{r setup, include=FALSE,}
 
-knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, eval = FALSE)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 
 ```
 
-```{r}
+
+```{r load_libraries}
+
+library(devtools)
 
 library(tidyverse)
 
+library(xts)
+
 library(lubridate)
+
+library(stargazer)
+
+load_all()
 
 ```
 
+
+```{r set_parameters}
+
+x_vars = c("Illiq","Market_Cap_log","Turnover_log","Public_Share","HHI","IPO",
+           "Total_Assets","Operating_Profit","Revenue","Net_Profit","Equity",
+           "Total_Liabilities","Leverage")
+
+
+```
+
+
+\subsection{Current dataset}
+
+
+```{r Import_final_df}
+
+final_df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
+                      "\\OneDrive - Bank Of Israel\\Data\\",
+                      "TASE liquidity\\final_df.RDS"))
+
+final_df = final_df %>% 
+  select(Date, any_of(x_vars)) %>% 
+  mutate_if(is.numeric,.funs = ~ifelse(abs(.) == Inf,NA,.))
+ 
+
+```
+
+
+This dataset was constructed by complementing the initial dataset (data that was gather in previous work) with data form BOI (MOS) database. The data time period is `r paste0(range(final_df$Date), collapse = "-")` at quarterly frequency. The dataset is not balanced, the issue seems to be with market variables (Public Share, Turnover and Market Cap).
+
+
+
+```{r summary_final_df, results='asis'}
+
+stargazer(final_df, summary = TRUE, header = FALSE, digits = 2)
+
+```
+
+
+\subsection{Old dataset}
+
+
+```{r Import_old_dataset}
+
+old_df = import.old.regression.data()
+
+old_df = old_df %>% 
+  select(Date, any_of(x_vars))
+
+
+```
+
+
+A dataset that was gathered . The data time period is `r paste0(range(old_df$Date), collapse = "-")` at quarterly frequency.
+
+```{r summary_old_df, results='asis'}
+
+stargazer(old_df %>% 
+            select(-Date), summary = TRUE, header = FALSE, digits = 2)
+
+```
 
 
 \subsection{TASE companies list}
 
 ```{r}
 
-tase_comps_list = read.csv(paste0("C:\\Users\\internet\\OneDrive - Bank Of Israel\\Data",
-                           "\\TASE liquidity\\TASE Comps list.csv"),
+tase_comps_list = read.csv(paste0(file.path(Sys.getenv("USERPROFILE"),
+                                            fsep="\\"),
+                                  "\\OneDrive - Bank Of Israel\\Data",
+                                  "\\TASE liquidity\\TASE Comps list.csv"),
                            stringsAsFactors = FALSE)
 
 tase_comps_list = tase_comps_list %>% 
@@ -33,7 +105,69 @@ tase_comps_list = tase_comps_list %>%
   mutate(Delisting_date = parse_date(Delisting_date,format = "%d%.%m%.%Y"))
 
 
+delisted_comps = sum(tase_comps_list$Delisted)
+
+delisted_dates = sum(!is.na(tase_comps_list$Delisting_date))
+
+```
+
+The data set includes  TASE companies. We have data on the company status (delisted or nor), the date when the company was delisted and the reason for delisting. The dataset is incomplete : there are a total of `r nrow(tase_comps_list)` companies, `r delisted_comps` if them were delisted. We have a delisting date for `r delisted_dates` of the companies.
+
+\subsection{Financial reports}
+
+```{r Import_data}
+
+finrep_df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),
+                                            fsep="\\"),
+                                  "\\OneDrive - Bank Of Israel\\Data",
+                                  "\\TASE liquidity\\finrep_df.Rds"))
+
+finrep = finrep_df %>% 
+  filter_at(vars(Capex_to_revenue,Free_CashFlow,ROA),
+            .vars_predicate = all_vars(is.finite(.)))
 
 
 ```
+
+This dataset has data on financial reports of TASE companies. The data time period is `r paste0(range(finrep_df$Date), collapse = "-")` at quarterly frequency.
+
+```{r summary_df, results='asis'}
+
+stargazer(finrep %>% 
+            select(-Date, -TASE_ID,-TASE_branch),
+          summary = TRUE, header = FALSE, digits = 2)
+
+```
+
+
+\subsection{Market data}
+
+```{r Import_market_data}
+
+market_df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),
+                                            fsep="\\"),
+                                  "\\OneDrive - Bank Of Israel\\Data",
+                                  "\\TASE liquidity\\market_df.Rds"))
+
+market_df = market_df %>%
+  ungroup() %>% 
+  filter_at(vars(Market_Cap, Turnover, Illiq),
+            .vars_predicate = all_vars(is.finite(.)))
+
+
+
+```
+
+A dataset with market data (market capitalization, turnover) that allows to calculate Amihud's iiliquidity measure. The data time period is `r paste0(range(market_df$Date), collapse = "-")` at quarterly frequency.
+
+```{r summary_market_df, results='asis'}
+
+stargazer(market_df %>% 
+            select(-Date, -Comp_ID, - Sec_ID) %>% 
+            as.data.frame() %>% 
+            mutate_at(vars(Market_Cap, Turnover),.funs = list(~. * 10 ^ (-3))),
+          summary = TRUE, header = FALSE, digits = 2)
+
+```
+
 

@@ -13,7 +13,7 @@ The Amihud Illiquidity measure is calculated as
 
 \subsection{Variables table}
 
-```{r output_vars_table, results='asis'}
+```{r output_vars_table, results='asis', eval=FALSE}
 
 stargazer(read.csv("C:\\Users\\internet\\Documents\\TASE\\Variables_Table.csv"),
           header = FALSE, summary = FALSE)

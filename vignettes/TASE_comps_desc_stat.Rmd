@@ -31,14 +31,18 @@ load_all()
 
 status_df = import.TASE.comps_status()
 
-tase = inner_join(read.csv("C:\\Users\\internet\\Documents\\Data\\TASE\\TA_35_2000_2019.csv",
-                stringsAsFactors = FALSE) %>% 
+tase = inner_join(read.csv(paste0(file.path(Sys.getenv("USERPROFILE"),
+                 fsep="\\"),"\\OneDrive - Bank Of Israel\\Data\\",
+                 "TASE liquidity\\TA_35_2000_2019.csv"),
+                 stringsAsFactors = FALSE) %>% 
   setNames(c("Date","Basis","Open","Close","High","Low","Market_Cap")) %>% 
   mutate(Date = as.Date(Date, format = "%d/%m/%Y")) %>% 
   select(Date,Close) %>% 
   group_by(Year = format(Date,"%Y")) %>% 
   summarise(Avg_Close_35 = mean(Close)),
-  read.csv("C:\\Users\\internet\\Documents\\Data\\TASE\\TA_125_2000_2019.csv",
+  read.csv(paste0(file.path(Sys.getenv("USERPROFILE"),
+                 fsep="\\"),"\\OneDrive - Bank Of Israel\\Data\\",
+                 "TASE liquidity\\TA_125_2000_2019.csv"),
                 stringsAsFactors = FALSE) %>% 
   setNames(c("Date","Basis","Open","Close","High","Low","Market_Cap")) %>% 
   mutate(Date = as.Date(Date, format = "%d/%m/%Y")) %>% 
@@ -137,7 +141,8 @@ decreased significantly while new sectors such as technology and biomed entered 
 
 delisted_comps_plot = ggplot(status_df %>% 
                                filter(Sector == "Total"),
-                             aes(x = Year, y = Delisted_Comps, label = Delisted_Comps)) + 
+                             aes(x = Year, y = Delisted_Comps,
+                                 label = Delisted_Comps)) + 
   geom_col(width = 0.7) + 
   geom_text(aes(x = Year, y = Delisted_Comps), vjust = -1,
             color = "magenta", size = 3) + 
@@ -172,5 +177,21 @@ rm(temp_df)
 
 ```
 
-
 We can see that the peak in delisting companies took place in 2012-2014 period, 2018 was also a year with significant delisting activity. The delisting activity seems to take place during market drops (the correlation between TA 125 and delisting companies is `r round(del_cor,2)`)
+
+
+```{r plot_delisting_comps_by_type}
+
+ggplot(status_df %>% 
+         filter(Sector %in% c("Total Shares","Total Bonds")),
+       aes(x = Year,y = Delisted_Comps, fill = Sector)) + 
+  geom_col(position = "dodge") + 
+  labs(x = "", y = "", title = "Delisted companies by instrument") + 
+  theme_bw() + 
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle = 90))
+
+```
+

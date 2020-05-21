@@ -1,18 +1,18 @@
 ---
 title: "Work outline"
+header-includes:
+   - \usepackage{xcolor}
 output: pdf_document
 ---
 
 ```{r setup, include=FALSE,}
 
-knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, eval = FALSE)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 
 ```
 
 
-```{r Load_libraries, eval=TRUE}
-
-setwd("C:\\Users\\internet\\Documents\\TASE\\vignettes")
+```{r Load_libraries}
 
 library(devtools)
 
@@ -36,13 +36,29 @@ x_vars = c("Illiq","Market_Cap_log","Turnover_log","Public_Share","HHI","IPO",
 ```
 
 
-```{r Import_market_data}
+```{r Import_data}
 
-if(file.exists(paste0("C:\\Users\\internet\\Documents\\Data\\TASE\\",
-                      "TASE_Liquidity\\market_df.RDS"))){
+df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
+                     "\\OneDrive - Bank Of Israel\\Data\\TASE",
+                     " liquidity\\final_df.RDS"))
+
+df = df %>% 
+  select(Date, any_of(x_vars)) %>% 
+  mutate_if(is.numeric,.funs = ~ifelse(abs(.) == Inf,NA,.))
+
+
+```
+
+
+```{r Import_market_data, eval=FALSE}
+
+if(file.exists(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
+                      "\\OneDrive - Bank Of Israel\\Data\\",
+                      "TASE liquidity\\market_df.RDS"))){
   
-  market_df = read_rds(paste0("C:\\Users\\internet\\Documents\\Data\\TASE\\",
-                      "TASE_Liquidity\\market_df.RDS"))
+  market_df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
+                      "\\OneDrive - Bank Of Israel\\Data\\",
+                      "TASE liquidity\\market_df.RDS"))
   
 
 } else {
@@ -57,13 +73,15 @@ if(file.exists(paste0("C:\\Users\\internet\\Documents\\Data\\TASE\\",
 ```
 
 
-```{r Import_finrep_data}
+```{r Import_finrep_data, eval=FALSE}
 
-if(file.exists(paste0("C:\\Users\\internet\\Documents\\Data\\TASE\\",
-                            "TASE_Liquidity\\finrep_df.RDS"))){
+if(file.exists(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
+                      "\\OneDrive - Bank Of Israel\\Data\\",
+                      "TASE liquidity\\finrep_df.RDS"))){
   
-  finrep_df = read_rds(paste0("C:\\Users\\internet\\Documents\\Data\\TASE\\",
-                            "TASE_Liquidity\\finrep_df.RDS"))
+  finrep_df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
+                      "\\OneDrive - Bank Of Israel\\Data\\",
+                      "TASE liquidity\\finrep_df.RDS"))
   
 } else {
   
@@ -83,7 +101,7 @@ if(file.exists(paste0("C:\\Users\\internet\\Documents\\Data\\TASE\\",
 ```
 
 
-```{r process_data}
+```{r process_data, eval=FALSE}
 
 df = full_join(finrep_df, market_df, by = c("Date" = "Date",
                                             "TASE_ID" = "Comp_ID"))
@@ -100,7 +118,7 @@ rm(finrep_df, market_df)
 ```
 
 
-```{r import_old_data}
+```{r import_old_data, eval=FALSE}
 
 old_df = import.old.regression.data()
 
@@ -129,13 +147,14 @@ final_df = final_df %>%
 
 # Test for data completness
 
-if(length(x_vars[!x_vars %in% names(final_df)]) > 0){
-  
-  message(paste("The following variables are missing:", paste0(x_vars[!x_vars %in% names(df)],
-                                                               collapse = ",")))
-  
-}
-
+# if(length(x_vars[!x_vars %in% names(final_df)]) > 0){
+#   
+#   message(paste("The following variables are missing:",
+#                 paste0(x_vars[!x_vars %in% names(df)],
+#                        collapse = ",")))
+#   
+# }
+# 
 
 ```
 
@@ -159,22 +178,50 @@ that consists of delisted firms and matched trading firms.
 
 Where:
 
+\begin{itemize}
+  \item
+  \textcolor{red}{InsiderOwnership - currently using }
+
+\end{itemize}
+
 
 \section{Descriptive Stats}
 
+\subsection{Financial reports and market data}
+
+This dataset was constructed by complementing the initial dataset (data that was gather in previous work) with data form BOI (MOS) database. The data time period is `r paste0(range(df$Date), collapse = "-")` at quarterly frequency. The dataset is not balanced, the issue seems to be with market variables (Public Share, Turnover and Market Cap).
+
+
 ```{r df_stat,results='asis'}
 
-stargazer(df, header = FALSE, omit.summary.stat = c("p25","p75","sd"))
+stargazer(df, header = FALSE,
+          omit.summary.stat = c("p25","p75"), digits = 2)
 
 ```
 
+\subsection{TASE companies status data}
 
 
-```{r final_df_stat,results='asis'}
+```{r Import_tase_comps_list}
 
-stargazer(final_df,header = FALSE, omit.summary.stat = c("p25","p75","sd"))
+tase_comps_list = read.csv(paste0(file.path(Sys.getenv("USERPROFILE"),
+                                            fsep="\\"),
+                                  "\\OneDrive - Bank Of Israel\\Data",
+                                  "\\TASE liquidity\\TASE Comps list.csv"),
+                           stringsAsFactors = FALSE)
+
+tase_comps_list = tase_comps_list %>% 
+  rename(TASE_ID = 1) %>% 
+  mutate(Delisting_date = parse_date(Delisting_date,format = "%d%.%m%.%Y"))
+
+
+delisted_comps = sum(tase_comps_list$Delisted)
+
+delisted_dates = sum(!is.na(tase_comps_list$Delisting_date))
 
 ```
+
+The data set includes  TASE companies. We have data on the company status (delisted or nor), the date when the company was delisted and the reason for delisting. The dataset is incomplete : there are a total of `r nrow(tase_comps_list)` companies, `r delisted_comps` of them were delisted. We have a delisting date for `r delisted_dates` of the companies.
 
 
 
@@ -182,7 +229,7 @@ stargazer(final_df,header = FALSE, omit.summary.stat = c("p25","p75","sd"))
 
 \section{Appendix}
 
-```{r ,child="Appendix.Rmd", eval = TRUE}
+```{r ,child="Appendix.Rmd", eval = FALSE}
 
 ```
 
