@@ -34,8 +34,9 @@ status_df = import.TASE.comps_status()
 tase = inner_join(read.csv(paste0(file.path(Sys.getenv("USERPROFILE"),
                  fsep="\\"),"\\OneDrive - Bank Of Israel\\Data\\",
                  "TASE liquidity\\TA_35_2000_2019.csv"),
-                 stringsAsFactors = FALSE) %>% 
-  setNames(c("Date","Basis","Open","Close","High","Low","Market_Cap")) %>% 
+                 stringsAsFactors = FALSE) %>%  
+                   setNames(c("Date","Basis","Open","Close",
+                              "High","Low","Market_Cap")) %>% 
   mutate(Date = as.Date(Date, format = "%d/%m/%Y")) %>% 
   select(Date,Close) %>% 
   group_by(Year = format(Date,"%Y")) %>% 
@@ -43,12 +44,12 @@ tase = inner_join(read.csv(paste0(file.path(Sys.getenv("USERPROFILE"),
   read.csv(paste0(file.path(Sys.getenv("USERPROFILE"),
                  fsep="\\"),"\\OneDrive - Bank Of Israel\\Data\\",
                  "TASE liquidity\\TA_125_2000_2019.csv"),
-                stringsAsFactors = FALSE) %>% 
-  setNames(c("Date","Basis","Open","Close","High","Low","Market_Cap")) %>% 
-  mutate(Date = as.Date(Date, format = "%d/%m/%Y")) %>% 
-  select(Date,Close) %>% 
-  group_by(Year = format(Date,"%Y")) %>% 
-  summarise(Avg_Close_125 = mean(Close)))
+           stringsAsFactors = FALSE) %>% 
+    setNames(c("Date","Basis","Open","Close","High","Low","Market_Cap")) %>% 
+    mutate(Date = as.Date(Date, format = "%d/%m/%Y")) %>% 
+    select(Date,Close) %>% 
+    group_by(Year = format(Date,"%Y")) %>% 
+    summarise(Avg_Close_125 = mean(Close)))
 
 ```
 
