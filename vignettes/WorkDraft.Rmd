@@ -189,7 +189,7 @@ Where:
 
 \subsection{Financial reports and market data}
 
-This dataset was constructed by complementing the initial dataset (data that was gather in previous work) with data form BOI (MOS) database. The data time period is `r paste0(range(df$Date), collapse = "-")` at quarterly frequency. The dataset is not balanced, the issue seems to be with market variables (Public Share, Turnover and Market Cap).
+This dataset was constructed by complementing the initial dataset (data that was gathered in previous work) with data form BOI (MOS) database. The data time period is `r paste0(range(df$Date), collapse = "-")` at quarterly frequency. The dataset is not balanced, the issue seems to be with market variables (Public Share, Turnover and Market Cap).
 
 
 ```{r df_stat,results='asis'}
@@ -221,7 +221,7 @@ delisted_dates = sum(!is.na(tase_comps_list$Delisting_date))
 
 ```
 
-The data set includes  TASE companies. We have data on the company status (delisted or nor), the date when the company was delisted and the reason for delisting. The dataset is incomplete : there are a total of `r nrow(tase_comps_list)` companies, `r delisted_comps` of them were delisted. We have a delisting date for `r delisted_dates` of the companies.
+The data set includes  TASE companies. We have data on the company status (delisted or nor), the date when the company was delisted and the reason for delisting. There are a total of `r nrow(tase_comps_list)` companies with `r delisted_comps` of them were delisted\footnote{According to TASE reports there were 576 delisted shares}. We have a delisting date for only `r delisted_dates` of the companies (delisting dates start from is `r as.yearqtr(min(tase_comps_list$Delisting_date, na.rm = TRUE))`).
 
 
 
