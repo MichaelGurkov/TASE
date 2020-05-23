@@ -180,7 +180,8 @@ Where:
 
 \begin{itemize}
   \item
-  \textcolor{red}{InsiderOwnership - currently using }
+  \textcolor{red}{InsiderOwnership - currently using Public share (1-free float),
+  maybe try your algorithm controlling shareholder data?}
 
 \end{itemize}
 
@@ -190,7 +191,7 @@ Where:
 \subsection{Financial reports and market data}
 
 
-This dataset was constructed by complementing the initial dataset (data that was gathered in previous work) with data form BOI (MOS) database. The data time period is `r paste0(range(df$Date), collapse = "-")` at quarterly frequency. The dataset is not balanced, the issue seems to be with market variables (Public Share, Turnover and Market Cap).
+This data set was constructed by complementing the initial data set (data that was gathered in previous work) with data form BOI (MOS) database. The data time period is `r paste0(range(df$Date), collapse = "-")` at quarterly frequency. The data set is not balanced, the issue seems to be with market variables (Public Share, Turnover and Market Cap).
 
 
 
@@ -206,31 +207,29 @@ stargazer(df, header = FALSE,
 
 ```{r Import_tase_comps_list}
 
-tase_comps_list = read.csv(paste0(file.path(Sys.getenv("USERPROFILE"),
-                                            fsep="\\"),
-                                  "\\OneDrive - Bank Of Israel\\Data",
-                                  "\\TASE liquidity\\TASE Comps list.csv"),
-                           stringsAsFactors = FALSE)
-
-tase_comps_list = tase_comps_list %>% 
-  rename(TASE_ID = 1) %>% 
-  mutate(Delisting_date = parse_date(Delisting_date,format = "%d%.%m%.%Y"))
+tase_comps_list = read_csv(paste0("C:\\Users\\Misha\\OneDrive - ",
+                                  "Bank Of Israel\\Data\\TASE liquidity",
+                                  "\\TASE Comps list_revised.csv"))
 
 
 delisted_comps = sum(tase_comps_list$Delisted)
 
-delisted_dates = sum(!is.na(tase_comps_list$Delisting_date))
+delisted_dates = sum(!is.na(tase_comps_list$Delisting_Date))
+
+
+
 
 ```
 
 
 The data set includes  TASE companies. We have data on the company status (delisted or nor), the date when the company was delisted and the reason for delisting. There are a total of `r nrow(tase_comps_list)` companies with `r delisted_comps` of them were delisted\footnote{According to TASE reports there were 576 delisted shares}. We have a delisting date for only `r delisted_dates` of the companies (delisting dates start from is `r as.yearqtr(min(tase_comps_list$Delisting_date, na.rm = TRUE))`).
 
+There is another data set (from your previous work) that has delisting dates for
+`r sum(!is.na(tase_comps_list$Delisting_Date_old))` (19 of them identified by name only) and perhaps can be used to complement the main data set but the delisting dates are quite different (few quarters some times few years). \textcolor{red}{Need to decide whether verify (case by case) or go on with using one of the data sets}
 
+<!-- \section{Results} -->
 
-\section{Results}
-
-\section{Appendix}
+<!-- \section{Appendix} -->
 
 ```{r ,child="Appendix.Rmd", eval = FALSE}
 
