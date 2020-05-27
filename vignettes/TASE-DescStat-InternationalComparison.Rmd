@@ -1,0 +1,98 @@
+
+```{r}
+library(tidyverse)
+
+```
+
+
+
+```{r Import_data}
+
+exchanges_list = read_csv(paste0("C:\\Users\\internet\\OneDrive - Bank Of Israel\\",
+                                 "Data\\TASE liquidity\\OECD_Exchange_list.csv"))
+exchanges_vec = exchanges_list %>%
+  select(-Country) %>%
+  unlist()
+
+exchanges_vec = exchanges_vec[!is.na(exchanges_vec)]
+
+
+wfe_df = read_csv(paste0("C:\\Users\\internet\\OneDrive - Bank Of Israel",
+                         "\\Data\\TASE liquidity\\WFE\\Stocks_Data.csv"))
+
+wfe_df = wfe_df %>%
+  filter(ExchangeName %in% exchanges_vec)
+
+```
+
+
+\subsection{Delistings}
+
+```{r delisting_comps}
+
+delistings_criteria = c("Total Equity Market - Number of delistings (Domestic)",
+                        "Total Equity Market - Number of delistings (Foreign)",
+                        "Total Equity Market - Number of delistings (Total)")
+
+
+delisting_df = wfe_df %>% 
+  rename(Indicator = `Indicator Name`) %>% 
+  filter(Indicator %in% c(delistings_criteria,
+                          "Total Equity Market - Number of listed companies (Total)")) %>% 
+  mutate(Indicator = gsub("Total Equity Market - Number of listed companies (Total)",
+                          "(Total_Comps)",Indicator, fixed = TRUE)) %>% 
+  mutate(Indicator = str_extract(Indicator,pattern = "\\(.*\\)")) %>% 
+  mutate(Indicator = str_remove_all(Indicator,"\\)")) %>% 
+  mutate(Indicator = str_remove_all(Indicator,"\\(")) %>% 
+  select(Year, Indicator, ExchangeName, Value) %>% 
+  spread(key = Indicator,value = Value) %>% 
+  mutate_at(vars(-Year,-ExchangeName),~as.numeric(.)) %>% 
+  mutate_at(vars(-Year,-ExchangeName,-Total_Comps),.funs = list(~ (. / Total_Comps) * 100) ) %>% 
+  gather(key = Indicator,value = Value,-Year,-ExchangeName)
+    
+    
+  
+
+
+```
+
+
+
+```{r delisting_comps_by_year}
+
+ggplot(delisting_df %>%
+         filter(Indicator == "Total") %>% 
+         group_by(Year) %>% 
+         summarise(Avg_Value = mean(Value, na.rm = TRUE)) %>% 
+         mutate(Avg_Value = na_if(Avg_Value,Inf)),
+       aes(x = Year, y = Avg_Value)) + 
+  geom_col() + 
+  labs(x = "", y = "Percent", title = "Share of delisting by Year") + 
+  theme_bw() + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+
+```{r delisting_comps_by_comp}
+
+ggplot(delisting_df %>%
+         filter(Indicator == "Total") %>% 
+         group_by(ExchangeName) %>% 
+         summarise(Avg_Value = mean(Value, na.rm = TRUE)) %>% 
+         mutate(Avg_Value = na_if(Avg_Value,Inf)) %>% 
+         filter(complete.cases(.)),
+       aes(x = reorder(ExchangeName,Avg_Value), y = Avg_Value,
+           fill = ifelse(ExchangeName == "Tel-Aviv Stock Exchange", "Israel", "Other"))) + 
+  geom_col() + 
+  scale_fill_manual(values = c("magenta", "grey")) + 
+  coord_flip() + 
+  labs(x = "", y = "Percent",
+       title = "Share of delisting by Exchange \n (2000 - 2019)") + 
+  theme_bw() + 
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+
+```
+
+\subsection{}

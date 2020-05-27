@@ -1,18 +1,34 @@
 
-```{r Import_comps_status_df}
 
-comps_status_df = read.csv("C:\\Users\\internet\\Documents\\Data\\BOI\\TASE Comps list.csv",
-                           stringsAsFactors = FALSE) %>% 
-  rename(TASE_ID = 1) %>% 
-  mutate(TASE_ID = as.character(TASE_ID)) %>% 
-  mutate(Delisting_date = if_else(condition = grepl("/",Delisting_date),
-                             true = as.Date(Delisting_date, format = "%d/%m/%Y"),
-                             false = as.Date(Delisting_date, format = "%d.%m.%Y"))) %>% 
-  mutate(YearQtr = as.yearqtr(Delisting_date))
+```{r Import_tase_comps_list}
 
-tender_offer_comps = comps_status_df$TASE_ID[comps_status_df$Delisting_reason == "Tender_Offer"]
+tase_comps_list = read_csv(paste0(file.path(Sys.getenv("USERPROFILE"),
+                                            fsep="\\"),"\\OneDrive - ",
+                                  "Bank Of Israel\\Data\\TASE liquidity",
+                                  "\\TASE Comps list_revised.csv"))
 
-trading_comps = comps_status_df$TASE_ID[comps_status_df$Delisted == 0]
+tase_comps_list = tase_comps_list %>% 
+  mutate(Delisting_Date_coalesce = coalesce(Delisting_Date_old, Delisting_Date)) %>% 
+  select(-Delisting_Date_old, Delisting_Date)
+
+
+
+```
+
+
+```{r Import_main_df}
+
+x_vars = c("Illiq","Market_Cap_log","Turnover_log","Public_Share","HHI","IPO",
+           "Total_Assets","Operating_Profit","Revenue","Net_Profit","Equity",
+           "Total_Liabilities","Leverage")
+
+df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
+                     "\\OneDrive - Bank Of Israel\\Data\\TASE",
+                     " liquidity\\final_df.RDS"))
+
+df = df %>% 
+  select(Date, any_of(x_vars)) %>% 
+  mutate_if(is.numeric,.funs = ~ifelse(abs(.) == Inf,NA,.))
 
 ```
 

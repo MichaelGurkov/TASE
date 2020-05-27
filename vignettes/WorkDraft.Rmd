@@ -207,15 +207,14 @@ stargazer(df, header = FALSE,
 
 ```{r Import_tase_comps_list}
 
-tase_comps_list = read_csv(paste0("C:\\Users\\Misha\\OneDrive - ",
+tase_comps_list = read_csv(paste0(file.path(Sys.getenv("USERPROFILE"),
+                                            fsep="\\"),"\\OneDrive - ",
                                   "Bank Of Israel\\Data\\TASE liquidity",
                                   "\\TASE Comps list_revised.csv"))
 
-
-delisted_comps = sum(tase_comps_list$Delisted)
-
-delisted_dates = sum(!is.na(tase_comps_list$Delisting_Date))
-
+tase_comps_list = tase_comps_list %>% 
+  mutate(Delisting_Date_coalesce = coalesce(Delisting_Date_old, Delisting_Date)) %>% 
+  select(-Delisting_Date_old, Delisting_Date)
 
 
 

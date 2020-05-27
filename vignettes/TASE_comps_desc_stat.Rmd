@@ -196,3 +196,60 @@ ggplot(status_df %>%
 
 ```
 
+
+```{r plot_delisting_comps_by_sector}
+
+ggplot(status_df %>% 
+         filter(!str_detect(Sector,"Total")),
+       aes(x = Year,y = Delisted_Comps, fill = Sector)) + 
+  geom_col(position = "stack") + 
+  labs(x = "", y = "", title = "Delisted companies by sector") + 
+  scale_fill_brewer(palette = "Set3") +
+  theme_bw() + 
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle = 90))
+
+```
+
+
+
+\section{International Comparison}
+
+```{r Import_international_exchanges}
+
+
+wfe_df = read_csv(paste0("C:\\Users\\internet\\OneDrive - Bank Of Israel\\Data",
+                     "\\TASE liquidity\\WFE\\Number_of_listed_comps.csv"))
+
+wfe_df = wfe_df %>% 
+  filter(ExchangeName %in% c("Japan Exchange Group Tokyo",
+                             "Deutsche Boerse AG",
+                             "Taiwan Stock Exchange",
+                             "BME Spanish Exchanges",
+                             "Euronext Brussels",
+                             "NYSE",
+                             "Singapore Exchange",
+                             "NASDAQ OMX Nordic Stockholm",
+                             "Athens Stock Exchange",
+                             "Korea Exchange",
+                             "Tel-Aviv Stock Exchange",
+                             "LSE Group")) %>% 
+  filter(`Indicator Name` == "Total Equity Market - Number of listed companies (Total)") %>% 
+  select(-`Indicator Name`, -Region,-CurrencyName,-DataType) %>% 
+  unite(Date, Month,Year, sep = "-") %>% 
+  mutate(Date = as.yearmon(Date, format = "%B-%Y"))
+
+```
+
+
+```{r plot_listed_comps}
+
+ggplot(x,
+       aes(x = Date, y = Value)) + 
+  geom_col() + 
+  theme_minimal()
+
+```
+
