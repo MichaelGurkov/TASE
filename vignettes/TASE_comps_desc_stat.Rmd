@@ -220,8 +220,11 @@ ggplot(status_df %>%
 ```{r Import_international_exchanges}
 
 
-wfe_df = read_csv(paste0("C:\\Users\\internet\\OneDrive - Bank Of Israel\\Data",
-                     "\\TASE liquidity\\WFE\\Number_of_listed_comps.csv"))
+wfe_df = read_csv(
+  paste0(file.path(Sys.getenv("USERPROFILE"),
+                 fsep="\\"),
+          "\\OneDrive - Bank Of Israel\\Data",
+         "\\TASE liquidity\\WFE\\Number_of_listed_comps.csv"))
 
 wfe_df = wfe_df %>% 
   filter(ExchangeName %in% c("Japan Exchange Group Tokyo",
@@ -244,12 +247,7 @@ wfe_df = wfe_df %>%
 ```
 
 
-```{r plot_listed_comps}
-
-ggplot(x,
-       aes(x = Date, y = Value)) + 
-  geom_col() + 
-  theme_minimal()
+```{r child="TASE-DescStat-InternationalComparison.Rmd"}
 
 ```
 

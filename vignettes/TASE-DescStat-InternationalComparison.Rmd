@@ -1,15 +1,20 @@
 
-```{r}
+```{r load_libraries}
+
 library(tidyverse)
+
+library(cowplot)
 
 ```
 
 
+```{r Import_wfe_data}
 
-```{r Import_data}
-
-exchanges_list = read_csv(paste0("C:\\Users\\internet\\OneDrive - Bank Of Israel\\",
+exchanges_list = read_csv(paste0(file.path(Sys.getenv("USERPROFILE"),
+                                           fsep="\\"),
+                                 "\\OneDrive - Bank Of Israel\\",
                                  "Data\\TASE liquidity\\OECD_Exchange_list.csv"))
+
 exchanges_vec = exchanges_list %>%
   select(-Country) %>%
   unlist()
@@ -17,11 +22,17 @@ exchanges_vec = exchanges_list %>%
 exchanges_vec = exchanges_vec[!is.na(exchanges_vec)]
 
 
-wfe_df = read_csv(paste0("C:\\Users\\internet\\OneDrive - Bank Of Israel",
+wfe_df = read_csv(paste0(file.path(Sys.getenv("USERPROFILE"),
+                                           fsep="\\"),
+                         "\\OneDrive - Bank Of Israel",
                          "\\Data\\TASE liquidity\\WFE\\Stocks_Data.csv"))
 
 wfe_df = wfe_df %>%
-  filter(ExchangeName %in% exchanges_vec)
+  filter(ExchangeName %in% exchanges_vec) %>% 
+  rename(Indicator = `Indicator Name`) %>% 
+  mutate(Indicator = str_remove_all(Indicator,"Total Equity Market - ")) %>% 
+  mutate(Value = str_remove_all(Value,"[,%]")) %>% 
+  mutate(Value = as.numeric(Value))
 
 ```
 
@@ -30,16 +41,17 @@ wfe_df = wfe_df %>%
 
 ```{r delisting_comps}
 
-delistings_criteria = c("Total Equity Market - Number of delistings (Domestic)",
-                        "Total Equity Market - Number of delistings (Foreign)",
-                        "Total Equity Market - Number of delistings (Total)")
+delistings_criteria = c("Number of delistings (Domestic)",
+                        "Number of delistings (Foreign)",
+                        "Number of delistings (Total)")
 
 
 delisting_df = wfe_df %>% 
-  rename(Indicator = `Indicator Name`) %>% 
   filter(Indicator %in% c(delistings_criteria,
-                          "Total Equity Market - Number of listed companies (Total)")) %>% 
-  mutate(Indicator = gsub("Total Equity Market - Number of listed companies (Total)",
+                          paste0("Number",
+                                 " of listed companies (Total)"))) %>% 
+  mutate(Indicator = gsub(paste0("Number",
+                                 " of listed companies (Total)"),
                           "(Total_Comps)",Indicator, fixed = TRUE)) %>% 
   mutate(Indicator = str_extract(Indicator,pattern = "\\(.*\\)")) %>% 
   mutate(Indicator = str_remove_all(Indicator,"\\)")) %>% 
@@ -47,7 +59,8 @@ delisting_df = wfe_df %>%
   select(Year, Indicator, ExchangeName, Value) %>% 
   spread(key = Indicator,value = Value) %>% 
   mutate_at(vars(-Year,-ExchangeName),~as.numeric(.)) %>% 
-  mutate_at(vars(-Year,-ExchangeName,-Total_Comps),.funs = list(~ (. / Total_Comps) * 100) ) %>% 
+  mutate_at(vars(-Year,-ExchangeName,-Total_Comps),
+            .funs = list(~ (. / Total_Comps) * 100) ) %>% 
   gather(key = Indicator,value = Value,-Year,-ExchangeName)
     
     
@@ -55,7 +68,6 @@ delisting_df = wfe_df %>%
 
 
 ```
-
 
 
 ```{r delisting_comps_by_year}
@@ -74,8 +86,7 @@ ggplot(delisting_df %>%
 ```
 
 
-
-```{r delisting_comps_by_comp}
+```{r delisting_comps_by_exchange}
 
 ggplot(delisting_df %>%
          filter(Indicator == "Total") %>% 
@@ -84,7 +95,8 @@ ggplot(delisting_df %>%
          mutate(Avg_Value = na_if(Avg_Value,Inf)) %>% 
          filter(complete.cases(.)),
        aes(x = reorder(ExchangeName,Avg_Value), y = Avg_Value,
-           fill = ifelse(ExchangeName == "Tel-Aviv Stock Exchange", "Israel", "Other"))) + 
+           fill = ifelse(ExchangeName == "Tel-Aviv Stock Exchange",
+                         "Israel", "Other"))) + 
   geom_col() + 
   scale_fill_manual(values = c("magenta", "grey")) + 
   coord_flip() + 
@@ -95,4 +107,123 @@ ggplot(delisting_df %>%
 
 ```
 
-\subsection{}
+\subsection{Liquidity}
+
+```{r liquidity_df}
+
+liquidity_criteria = c("Number of shares traded (Total)",
+                       "Share turnover velocity",
+                       "Number of trading participants",
+                       paste0("Number",
+                              " of trades (Reported Trades)"))
+
+liquidity_df = wfe_df %>% 
+  filter(Indicator %in% liquidity_criteria) %>% 
+  mutate(Indicator = str_remove_all(Indicator,"\\(.*\\)"))
+  
+
+
+
+
+```
+
+
+```{r liquidity_by_year_grid}
+
+ggplot(liquidity_df %>% 
+         group_by(Year,Indicator) %>% 
+         summarise(Avg_Val = mean(Value, na.rm = TRUE)),
+       aes(x = Year, y = Avg_Val)) + 
+  geom_col() + 
+  labs(x = "", y = "", title = "Liquidity metrics by Year") + 
+  facet_wrap(~Indicator, scales = "free") + 
+  theme_bw() + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+```{r share_turnover_by_year_}
+
+ggplot(liquidity_df %>% 
+         filter(Indicator == "Share turnover velocity") %>% 
+         group_by(Year) %>% 
+         summarise(Avg_Val = mean(Value, na.rm = TRUE)) %>% 
+         ungroup() %>% 
+         mutate(Year = as.character(Year)),
+       aes(x = Year, y = Avg_Val)) + 
+  geom_col() + 
+  labs(x = "", y = "", title = "Share turnover velocity") + 
+  theme_bw() + 
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+```
+
+
+
+```{r liquidity_by_exchange_grid, eval=FALSE}
+
+plots_list = lapply(unique(liquidity_df$Indicator),
+                    function(temp_ind){
+  
+  temp_plot = ggplot(liquidity_df %>% 
+                       filter(Indicator == temp_ind) %>% 
+                       group_by(ExchangeName) %>% 
+                       summarise(Avg_Val = mean(Value,
+                                                na.rm = TRUE)) %>% 
+                       ungroup() %>% 
+                       filter(Avg_Val > 0)
+           ,
+       aes(x = reorder(ExchangeName, Avg_Val),
+           y = Avg_Val,
+           fill = if_else(ExchangeName == "Tel-Aviv Stock Exchange",
+                          "Israel","Other"))) + 
+  geom_col() + 
+  coord_flip() + 
+  scale_fill_manual(values = c("Israel" = "magenta",
+                               "Other" = "grey")) + 
+  labs(x = "", y = "", title = temp_ind) + 
+  theme_bw() + 
+  theme(axis.text.y = element_text(size = 3),
+        legend.position = "none")
+  
+  
+  return(temp_plot)
+  
+  
+  
+  
+  
+})
+
+
+plot_grid(plotlist = plots_list,nrow = 2,ncol = 2)
+
+```
+
+
+```{r share_turnover_by_exchange}
+
+ggplot(liquidity_df %>% 
+         filter(Indicator == "Share turnover velocity") %>% 
+         group_by(ExchangeName) %>% 
+         summarise(Avg_Val = mean(Value,na.rm = TRUE)) %>% 
+         ungroup() %>% 
+         filter(Avg_Val > 0),
+       aes(x = reorder(ExchangeName, Avg_Val),
+           y = Avg_Val,
+           fill = if_else(ExchangeName == "Tel-Aviv Stock Exchange",
+                          "Israel","Other"))) + 
+  geom_col() + 
+  coord_flip() + 
+  scale_fill_manual(values = c("Israel" = "magenta",
+                               "Other" = "grey")) + 
+  labs(x = "", y = "", title = "Share turnover velocity") + 
+  theme_bw() + 
+  theme(axis.text.y = element_text(size = 5),
+        legend.position = "none",
+        plot.title = element_text(hjust = 0.5))
+ 
+```
+

@@ -48,7 +48,11 @@ get.market.variables = function(market_df){
            Comp_ID = TASE_ISSUER_ID,
            Public_Share = PUBLIC_HOLDING_PERCENT)
 
-  illiq_df_list = lapply(split(market_df[,c("Date","Close","Turnover")], market_df$Comp_ID),
+  market_df = market_df %>%
+    mutate(Market_Cap = Market_Cap * 10 ^ (-3))
+
+  illiq_df_list = lapply(split(market_df[,c("Date","Close","Turnover")],
+                               market_df$Comp_ID),
                          calculate.iiliq)
 
   illiq_df = lapply(names(illiq_df_list), function(temp_name){
