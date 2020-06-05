@@ -1,98 +1,152 @@
 
-```{r}
-library(tidyverse)
+```{r Import_wfe_data}
+
+exchanges_list = read_csv(paste0(file.path(Sys.getenv("USERPROFILE"),
+                                           fsep="\\"),
+                                 "\\OneDrive - Bank Of Israel\\",
+                                 "Data\\TASE liquidity\\",
+                                 "OECD_Exchange_list.csv"))
+
+wfe_df = read_csv(paste0(file.path(Sys.getenv("USERPROFILE"),
+                                           fsep="\\"),
+                         "\\OneDrive - Bank Of Israel",
+                         "\\Data\\TASE liquidity\\WFE\\Stocks_Data.csv"))
+
+wfe_df = wfe_df %>%
+  rename_all(tolower) %>% 
+  rename(indicator = `indicator name`) %>% 
+  mutate_at(.vars = vars(value), as.numeric) %>% 
+  filter(!is.na(value))
+
+wfe_df = wfe_df %>% 
+  filter(exchangename %in% exchanges_list$Exchange_1)
 
 ```
 
 
 
-```{r Import_data}
+```{r balance_df}
 
-exchanges_list = read_csv(paste0("C:\\Users\\internet\\OneDrive - Bank Of Israel\\",
-                                 "Data\\TASE liquidity\\OECD_Exchange_list.csv"))
-exchanges_vec = exchanges_list %>%
-  select(-Country) %>%
-  unlist()
-
-exchanges_vec = exchanges_vec[!is.na(exchanges_vec)]
-
-
-wfe_df = read_csv(paste0("C:\\Users\\internet\\OneDrive - Bank Of Israel",
-                         "\\Data\\TASE liquidity\\WFE\\Stocks_Data.csv"))
-
-wfe_df = wfe_df %>%
-  filter(ExchangeName %in% exchanges_vec)
+balance_df = wfe_df %>% 
+  filter(indicator %in% c(
+    "Total Equity Market - Number of listed companies (Total)",
+    "Total Equity Market - Number of delistings (Total)",
+    "Total Equity Market - Number of new listings (Domestic Total) (Total)",
+    "Total Equity Market - Number of new listings (Foreign Total) (Total)")) %>% 
+  mutate(indicator = str_remove_all(indicator,
+                                    "Total Equity Market - Number of ")) %>% 
+  mutate(indicator = str_remove_all(indicator, " \\(Total\\)")) %>% 
+  mutate(indicator = str_replace_all(indicator,pattern = "\\s","_")) %>% 
+  pivot_wider(id_cols = c(indicator,year,exchangename),
+              names_from = indicator,values_from = value) %>% 
+  mutate(new_listings = `new_listings_(Domestic_Total)` + 
+           `new_listings_(Foreign_Total)`) %>% 
+  select(-`new_listings_(Domestic_Total)`,-`new_listings_(Foreign_Total)`) 
+  
+  
+  # Calculate changes in comps
+  
+  balance_df = balance_df %>% 
+  group_by(exchangename) %>% 
+  arrange(year) %>% 
+  mutate(listed_change = c(NA, diff(listed_companies))) %>% 
+  mutate(issue_change = new_listings - delistings) %>% 
+  ungroup()
 
 ```
 
 
 \subsection{Delistings}
 
-```{r delisting_comps}
-
-delistings_criteria = c("Total Equity Market - Number of delistings (Domestic)",
-                        "Total Equity Market - Number of delistings (Foreign)",
-                        "Total Equity Market - Number of delistings (Total)")
-
-
-delisting_df = wfe_df %>% 
-  rename(Indicator = `Indicator Name`) %>% 
-  filter(Indicator %in% c(delistings_criteria,
-                          "Total Equity Market - Number of listed companies (Total)")) %>% 
-  mutate(Indicator = gsub("Total Equity Market - Number of listed companies (Total)",
-                          "(Total_Comps)",Indicator, fixed = TRUE)) %>% 
-  mutate(Indicator = str_extract(Indicator,pattern = "\\(.*\\)")) %>% 
-  mutate(Indicator = str_remove_all(Indicator,"\\)")) %>% 
-  mutate(Indicator = str_remove_all(Indicator,"\\(")) %>% 
-  select(Year, Indicator, ExchangeName, Value) %>% 
-  spread(key = Indicator,value = Value) %>% 
-  mutate_at(vars(-Year,-ExchangeName),~as.numeric(.)) %>% 
-  mutate_at(vars(-Year,-ExchangeName,-Total_Comps),.funs = list(~ (. / Total_Comps) * 100) ) %>% 
-  gather(key = Indicator,value = Value,-Year,-ExchangeName)
-    
-    
-  
-
-
-```
-
-
 
 ```{r delisting_comps_by_year}
 
-ggplot(delisting_df %>%
-         filter(Indicator == "Total") %>% 
-         group_by(Year) %>% 
-         summarise(Avg_Value = mean(Value, na.rm = TRUE)) %>% 
-         mutate(Avg_Value = na_if(Avg_Value,Inf)),
-       aes(x = Year, y = Avg_Value)) + 
+ggplot(balance_df %>% 
+         group_by(year) %>% 
+         summarise(delistings_share = sum(delistings, na.rm = TRUE) /
+                     sum(listed_companies, na.rm = TRUE)),
+       aes(x = as.character(year), y = delistings_share)) + 
   geom_col() + 
   labs(x = "", y = "Percent", title = "Share of delisting by Year") + 
   theme_bw() + 
-  theme(plot.title = element_text(hjust = 0.5))
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle = 90, vjust = 0.5))
 
 ```
 
+Delisting activity peak is at 2007-2011 probably reflects both the Global Financial Crises and Europe's sovereign debt crises.
 
 
 ```{r delisting_comps_by_comp}
 
-ggplot(delisting_df %>%
-         filter(Indicator == "Total") %>% 
-         group_by(ExchangeName) %>% 
-         summarise(Avg_Value = mean(Value, na.rm = TRUE)) %>% 
-         mutate(Avg_Value = na_if(Avg_Value,Inf)) %>% 
-         filter(complete.cases(.)),
-       aes(x = reorder(ExchangeName,Avg_Value), y = Avg_Value,
-           fill = ifelse(ExchangeName == "Tel-Aviv Stock Exchange", "Israel", "Other"))) + 
+ggplot(balance_df %>% 
+         group_by(exchangename, year) %>% 
+         summarise(delistings_share = delistings / listed_companies,
+                   .groups = "drop") %>% 
+         group_by(exchangename) %>% 
+         summarise(avg_delist_share = mean(delistings_share, na.rm = TRUE),
+                   .groups = "drop") %>% 
+         filter(complete.cases(.)) %>% 
+         filter(is.finite(avg_delist_share)),
+       aes(x = reorder(exchangename,avg_delist_share), y = avg_delist_share,
+           fill = if_else(exchangename == "Tel-Aviv Stock Exchange",
+                          "Israel", "Other"))) + 
   geom_col() + 
-  scale_fill_manual(values = c("magenta", "grey")) + 
+  scale_fill_manual(values = c("Israel" = "lightblue", "Other" = "lightgrey")) + 
   coord_flip() + 
-  labs(x = "", y = "Percent",
-       title = "Share of delisting by Exchange \n (2000 - 2019)") + 
+  labs(x = "", y = "Percent", title = "Share of delisting by Exchange") + 
   theme_bw() + 
-  theme(legend.position = "none", plot.title = element_text(hjust = 0.5))
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  theme(legend.position = "none")
 
 ```
 
-\subsection{}
+Israel is characterized by relatively low delisting rate (lower third) among OECD exchanges
+ 
+\subsection{Issues}
+
+
+```{r listed_comps_by_year}
+
+ggplot(balance_df %>% 
+         group_by(year) %>% 
+         summarise(new_listings_share = sum(new_listings, na.rm = TRUE) /
+                     sum(listed_companies, na.rm = TRUE)) %>% 
+         filter(is.finite(new_listings_share)),
+       aes(x = year, y = new_listings_share)) + 
+  geom_col() + 
+  labs(x = "", y = "Percent", title = "Share of new listings by Year") + 
+  theme_bw() + 
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+```
+
+
+```{r issued_comps_by_comp}
+
+ggplot(balance_df %>% 
+         group_by(exchangename, year) %>% 
+         summarise(new_listings_share = new_listings / listed_companies,
+                   .groups = "drop") %>% 
+         group_by(exchangename) %>% 
+         summarise(avg_new_listings_share = mean(new_listings_share,
+                                                 na.rm = TRUE),
+                   .groups = "drop") %>% 
+         filter(complete.cases(.)) %>% 
+         filter(is.finite(avg_new_listings_share)),
+       aes(x = reorder(exchangename,avg_new_listings_share),
+           y = avg_new_listings_share,
+           fill = if_else(exchangename == "Tel-Aviv Stock Exchange",
+                          "Israel", "Other"))) + 
+  geom_col() + 
+  scale_fill_manual(values = c("Israel" = "lightblue", "Other" = "lightgrey")) + 
+  coord_flip() + 
+  labs(x = "", y = "Percent", title = "Share of new listings share by Exchange") + 
+  theme_bw() + 
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  theme(legend.position = "none")
+
+```
+
+Similar to delisting activity Israel's issuence activity seems to be relatively low (lower third) among OECD exchanges

@@ -64,7 +64,8 @@ comps_evolution_plot = ggplot(status_df %>%
             color = "magenta", size = 3) + 
   labs(x = "", y = "", title = "Number of listed companies in TASE") + 
   theme_bw() + 
-  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 90))
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle = 90, vjust = 0.5))
 
 y_range = ggplot_build(comps_evolution_plot)$layout$panel_params[[1]]$y.range
 
@@ -97,7 +98,7 @@ ggplot(status_df %>%
   labs(x = "", y = "") + 
   theme_bw() + 
   theme(legend.position = "bottom",legend.title = element_blank(),
-        axis.text.x = element_text(angle = 90))
+        axis.text.x = element_text(angle = 90, vjust = 0.5))
 
 ```
 
@@ -111,7 +112,7 @@ ggplot(status_df %>%
   labs(x = "", y = "", title = "Number of listed companies in TASE") + 
   theme_bw() + 
   theme(plot.title = element_text(hjust = 0.5), legend.position = "bottom",
-        axis.text.x = element_text(angle = 90))
+        axis.text.x = element_text(angle = 90, vjust = 0.5))
 
 ```
 
@@ -127,7 +128,7 @@ ggplot(status_df %>%
   labs(x = "", y = "", title = "Number of listed companies in TASE \n (by sector)") + 
   theme_bw() + 
   theme(plot.title = element_text(hjust = 0.5), legend.position = "bottom",
-        axis.text.x = element_text(angle = 90), legend.title = element_blank())
+        axis.text.x = element_text(angle = 90, vjust = 0.5), legend.title = element_blank())
 
 ```
 
@@ -149,7 +150,7 @@ delisted_comps_plot = ggplot(status_df %>%
             color = "magenta", size = 3) + 
   labs(x = "", y = "", title = "Number of delisted companies") + 
   theme_bw() + 
-  theme(axis.text.x = element_text(angle = 90), plot.title = element_text(hjust = 0.5))
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5), plot.title = element_text(hjust = 0.5))
 
 y_range = ggplot_build(delisted_comps_plot)$layout$panel_params[[1]]$y.range
 
@@ -192,7 +193,7 @@ ggplot(status_df %>%
   theme(legend.position = "bottom",
         legend.title = element_blank(),
         plot.title = element_text(hjust = 0.5),
-        axis.text.x = element_text(angle = 90))
+        axis.text.x = element_text(angle = 90, vjust = 0.5))
 
 ```
 
@@ -209,7 +210,7 @@ ggplot(status_df %>%
   theme(legend.position = "bottom",
         legend.title = element_blank(),
         plot.title = element_text(hjust = 0.5),
-        axis.text.x = element_text(angle = 90))
+        axis.text.x = element_text(angle = 90, vjust = 0.5))
 
 ```
 
@@ -217,39 +218,7 @@ ggplot(status_df %>%
 
 \section{International Comparison}
 
-```{r Import_international_exchanges}
-
-
-wfe_df = read_csv(paste0("C:\\Users\\internet\\OneDrive - Bank Of Israel\\Data",
-                     "\\TASE liquidity\\WFE\\Number_of_listed_comps.csv"))
-
-wfe_df = wfe_df %>% 
-  filter(ExchangeName %in% c("Japan Exchange Group Tokyo",
-                             "Deutsche Boerse AG",
-                             "Taiwan Stock Exchange",
-                             "BME Spanish Exchanges",
-                             "Euronext Brussels",
-                             "NYSE",
-                             "Singapore Exchange",
-                             "NASDAQ OMX Nordic Stockholm",
-                             "Athens Stock Exchange",
-                             "Korea Exchange",
-                             "Tel-Aviv Stock Exchange",
-                             "LSE Group")) %>% 
-  filter(`Indicator Name` == "Total Equity Market - Number of listed companies (Total)") %>% 
-  select(-`Indicator Name`, -Region,-CurrencyName,-DataType) %>% 
-  unite(Date, Month,Year, sep = "-") %>% 
-  mutate(Date = as.yearmon(Date, format = "%B-%Y"))
-
-```
-
-
-```{r plot_listed_comps}
-
-ggplot(x,
-       aes(x = Date, y = Value)) + 
-  geom_col() + 
-  theme_minimal()
+```{r child="TASE-DescStat-InternationalComparison.Rmd"}
 
 ```
 
