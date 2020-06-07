@@ -43,20 +43,13 @@ x_vars = c("Illiq","Market_Cap_log","Turnover_log","Public_Share","HHI","IPO",
 
 ```{r Import_final_df}
 
-final_filepath = paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
-                       "\\OneDrive - Bank Of Israel\\Data\\",
-                       "TASE liquidity\\final_df.RDS")
+final_df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
+                      "\\OneDrive - Bank Of Israel\\Data\\",
+                      "TASE liquidity\\final_df.RDS"))
 
-if(file.exists(final_filepath)){
-  
-  final_df = read_rds(final_filepath)
-  
-} else {
-  
-  final_df = import.augmented.data()
-
-}
-
+final_df = final_df %>% 
+  select(Date, any_of(x_vars)) %>% 
+  mutate_if(is.numeric,.funs = ~ifelse(abs(.) == Inf,NA,.))
  
 
 ```
@@ -68,9 +61,7 @@ This dataset was constructed by complementing the initial dataset (data that was
 
 ```{r summary_final_df, results='asis'}
 
-stargazer(final_df, summary = TRUE, header = FALSE, digits = 2,
-          omit.summary.stat = c("p25","p75","sd"),
-          title = "Final (augmented) df")
+stargazer(final_df, summary = TRUE, header = FALSE, digits = 2)
 
 ```
 
@@ -82,6 +73,9 @@ stargazer(final_df, summary = TRUE, header = FALSE, digits = 2,
 
 old_df = import.old.regression.data()
 
+old_df = old_df %>% 
+  select(Date, any_of(x_vars))
+
 
 ```
 
@@ -91,12 +85,33 @@ A dataset that was gathered . The data time period is `r paste0(range(old_df$Dat
 ```{r summary_old_df, results='asis'}
 
 stargazer(old_df %>% 
-            select(-Date), summary = TRUE, header = FALSE, digits = 2,
-          omit.summary.stat = c("p25","p75","sd"),
-          title = "Old (initial) df")
+            select(-Date), summary = TRUE, header = FALSE, digits = 2)
 
 ```
 
+
+\subsection{TASE companies list}
+
+```{r}
+
+tase_comps_list = read.csv(paste0(file.path(Sys.getenv("USERPROFILE"),
+                                            fsep="\\"),
+                                  "\\OneDrive - Bank Of Israel\\Data",
+                                  "\\TASE liquidity\\TASE Comps list.csv"),
+                           stringsAsFactors = FALSE)
+
+tase_comps_list = tase_comps_list %>% 
+  rename(TASE_ID = 1) %>% 
+  mutate(Delisting_date = parse_date(Delisting_date,format = "%d%.%m%.%Y"))
+
+
+delisted_comps = sum(tase_comps_list$Delisted)
+
+delisted_dates = sum(!is.na(tase_comps_list$Delisting_date))
+
+```
+
+The data set includes  TASE companies. We have data on the company status (delisted or nor), the date when the company was delisted and the reason for delisting. The dataset is incomplete : there are a total of `r nrow(tase_comps_list)` companies, `r delisted_comps` if them were delisted. We have a delisting date for `r delisted_dates` of the companies.
 
 \subsection{Financial reports}
 
@@ -120,9 +135,7 @@ This dataset has data on financial reports of TASE companies. The data time peri
 
 stargazer(finrep %>% 
             select(-Date, -TASE_ID,-TASE_branch),
-          summary = TRUE, header = FALSE, digits = 2,
-          omit.summary.stat = c("p25","p75","sd"),
-          title = "Financial Reports df")
+          summary = TRUE, header = FALSE, digits = 2)
 
 ```
 
@@ -151,34 +164,10 @@ A dataset with market data (market capitalization, turnover) that allows to calc
 
 stargazer(market_df %>% 
             select(-Date, -Comp_ID, - Sec_ID) %>% 
-            as.data.frame(),
-          summary = TRUE, header = FALSE, digits = 2,
-          omit.summary.stat = c("p25","p75","sd"),
-          title = "Market Data")
+            as.data.frame() %>% 
+            mutate_at(vars(Market_Cap, Turnover),.funs = list(~. * 10 ^ (-3))),
+          summary = TRUE, header = FALSE, digits = 2)
 
 ```
 
 
-
-\subsection{TASE companies list}
-
-```{r}
-
-tase_comps_list = read.csv(paste0(file.path(Sys.getenv("USERPROFILE"),
-                                            fsep="\\"),
-                                  "\\OneDrive - Bank Of Israel\\Data",
-                                  "\\TASE liquidity\\TASE Comps list.csv"),
-                           stringsAsFactors = FALSE)
-
-tase_comps_list = tase_comps_list %>% 
-  rename(TASE_ID = 1) %>% 
-  mutate(Delisting_date = parse_date(Delisting_date,format = "%d%.%m%.%Y"))
-
-
-delisted_comps = sum(tase_comps_list$Delisted)
-
-delisted_dates = sum(!is.na(tase_comps_list$Delisting_date))
-
-```
-
-The data set includes  TASE companies. We have data on the company status (delisted or nor), the date when the company was delisted and the reason for delisting. The dataset is incomplete : there are a total of `r nrow(tase_comps_list)` companies, `r delisted_comps` if them were delisted. We have a delisting date for `r delisted_dates` of the companies.

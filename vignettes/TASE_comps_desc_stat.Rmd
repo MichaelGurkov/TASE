@@ -218,38 +218,6 @@ ggplot(status_df %>%
 
 \section{International Comparison}
 
-
-```{r Import_international_exchanges}
-
-
-wfe_df = read_csv(
-  paste0(file.path(Sys.getenv("USERPROFILE"),
-                 fsep="\\"),
-          "\\OneDrive - Bank Of Israel\\Data",
-         "\\TASE liquidity\\WFE\\Number_of_listed_comps.csv"))
-
-wfe_df = wfe_df %>% 
-  filter(ExchangeName %in% c("Japan Exchange Group Tokyo",
-                             "Deutsche Boerse AG",
-                             "Taiwan Stock Exchange",
-                             "BME Spanish Exchanges",
-                             "Euronext Brussels",
-                             "NYSE",
-                             "Singapore Exchange",
-                             "NASDAQ OMX Nordic Stockholm",
-                             "Athens Stock Exchange",
-                             "Korea Exchange",
-                             "Tel-Aviv Stock Exchange",
-                             "LSE Group")) %>% 
-  filter(`Indicator Name` == "Total Equity Market - Number of listed companies (Total)") %>% 
-  select(-`Indicator Name`, -Region,-CurrencyName,-DataType) %>% 
-  unite(Date, Month,Year, sep = "-") %>% 
-  mutate(Date = as.yearmon(Date, format = "%B-%Y"))
-
-```
-
-
->>>>>>> 6015991a6cc7e5f9aab4cce421f82a89ccf4c66c
 ```{r child="TASE-DescStat-InternationalComparison.Rmd"}
 
 ```

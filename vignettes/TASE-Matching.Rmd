@@ -27,20 +27,10 @@ df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
                      " liquidity\\final_df.RDS"))
 
 df = df %>% 
-  select(Date,TASE_ID,TASE_branch,Sec_ID, any_of(x_vars)) %>% 
+  select(Date, any_of(x_vars)) %>% 
   mutate_if(is.numeric,.funs = ~ifelse(abs(.) == Inf,NA,.))
 
 ```
-
-
-```{r}
-
-start_dates = df %>% 
-  group_by(TASE_ID) %>% 
-  summarise(Min_Date = min(Date,na.rm = TRUE))
-
-```
-
 
 
 ```{r match_delisted_and_control}
