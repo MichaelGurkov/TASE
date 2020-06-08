@@ -149,4 +149,4 @@ ggplot(balance_df %>%
 
 ```
 
-Similar to delisting activity Israel's issuence activity seems to be relatively low (lower third) among OECD exchanges
+Similar to delisting activity Israel's issuance activity seems to be relatively low (lower third) among OECD exchanges

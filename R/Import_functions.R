@@ -20,7 +20,7 @@ import.boi.finrep.data = function(filepath = NULL){
                 "Non_current_Liabilities","Equity","Minority_rights","Revenue",
                 "Total_Cost","Operating_Profit", "Financing_cost","Profit_before_tax",
                 "Tax","Net_Profit","Minority_Profit", "Operating_CashFlow",
-                "Capex_CashFlow","Financial_CashFlow")
+                " _CashFlow","Financial_CashFlow")
 
   df = temp_df %>%
     slice(-1) %>%
@@ -121,6 +121,13 @@ import.old.regression.data = function(filepath = NULL){
                            Revenue, Net_Profit, Operating_Profit, Equity),
               .funs = list(~./1000)) %>%
     mutate(Public_Share = Public_Share * 100)
+
+
+  # Add new variables
+
+  temp_augmented_df = temp_df %>%
+
+
 
   return(temp_df)
 
