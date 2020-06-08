@@ -14,13 +14,17 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 
 ```{r Load_libraries}
 
+library(haven)
+
 library(devtools)
 
 library(tidyverse)
 
-library(xts)
+library(lubridate)
 
 library(stargazer)
+
+library(texreg)
 
 load_all()
 
@@ -29,132 +33,45 @@ load_all()
 
 ```{r Set_parameters}
 
-x_vars = c("Illiq","Market_Cap_log","Turnover_log","Public_Share","HHI","IPO",
-           "Total_Assets","Operating_Profit","Revenue","Net_Profit","Equity",
-           "Total_Liabilities","Leverage")
+params_list = list()
+
+params_list$x_vars = tolower(c("Illiq","Market_Cap_log","Turnover_log",
+                               "Insider_ownership","HHI","IPO","Total_Assets",
+                               "Operating_Profit","Revenue","Net_Profit",
+                               "Equity","Total_Liabilities","Leverage"))
+
+params_list$reg_vars = c("delisted","leverage","mb","capex_sales","roa",
+                         "free_cash_flow","insider_ownership","size",
+                         "log_trade_volume","illq")
 
 ```
 
 
 ```{r Import_data}
 
-df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
+raw_df = read_dta(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
                      "\\OneDrive - Bank Of Israel\\Data\\TASE",
-                     " liquidity\\final_df.RDS"))
+                     " liquidity\\Stata files\\TASE panel.dta"))
 
-df = df %>% 
-  select(Date, any_of(x_vars)) %>% 
-  mutate_if(is.numeric,.funs = ~ifelse(abs(.) == Inf,NA,.))
+df = raw_df %>% 
+  rename_all(.funs = ~tolower(.)) %>% 
+  rename(capex_sales = capex2sales) %>% 
+  rename(comp_num = msp_hvr) %>% 
+  rename(sector = anaf_hvr) %>% 
+  rename(date = newdate) %>% 
+  mutate(date = as.yearqtr(date)) %>% 
+  select(comp_num,sector,date,
+         any_of(params_list$reg_vars),ipo_dummy,
+         match, treat) %>% 
+  mutate(match = replace_na(match,0)) %>% 
+  filter(complete.cases(.))
 
+control_df = df %>% 
+  filter(comp_num %in% unique(df$match) & treat == 0)
 
-```
+treat_df = df %>% 
+  filter(treat == 1)
 
-
-```{r Import_market_data, eval=FALSE}
-
-if(file.exists(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
-                      "\\OneDrive - Bank Of Israel\\Data\\",
-                      "TASE liquidity\\market_df.RDS"))){
-  
-  market_df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
-                      "\\OneDrive - Bank Of Israel\\Data\\",
-                      "TASE liquidity\\market_df.RDS"))
-  
-
-} else {
-  
-  market_df = read_rds(paste0("C:\\Users\\internet\\Documents\\Data\\TASE\\Market Data",
-                          "\\Market_data_stocks_2001-2019.Rds")) %>% 
-    get.market.variables()
-  
-}
-
-
-```
-
-
-```{r Import_finrep_data, eval=FALSE}
-
-if(file.exists(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
-                      "\\OneDrive - Bank Of Israel\\Data\\",
-                      "TASE liquidity\\finrep_df.RDS"))){
-  
-  finrep_df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
-                      "\\OneDrive - Bank Of Israel\\Data\\",
-                      "TASE liquidity\\finrep_df.RDS"))
-  
-} else {
-  
-  finrep_df = import.boi.finrep.data() %>% 
-  mutate_if(((!names(.) %in% c("Date","TASE_branch","TASE_ID")) & !is.numeric(.)),
-            as.numeric) %>% 
-  select(Date, TASE_ID, TASE_branch, Operating_Profit,Net_Profit,
-         Equity,Revenue,Total_Assets, Total_Liabilities, Capex_CashFlow,
-         Operating_CashFlow) %>% 
-  mutate(Capex_to_revenue = Capex_CashFlow / Revenue) %>% 
-  mutate(ROA = Operating_Profit / Total_Assets) %>% 
-  mutate(Free_CashFlow = Operating_CashFlow / Total_Assets)
-  
-  
-}
-
-```
-
-
-```{r process_data, eval=FALSE}
-
-df = full_join(finrep_df, market_df, by = c("Date" = "Date",
-                                            "TASE_ID" = "Comp_ID"))
-
-df = df %>% 
-  mutate(MB = Market_Cap / Equity) %>% 
-  mutate(Market_Cap_log = log(Market_Cap)) %>% 
-  mutate(Turnover_log = log(Turnover)) %>% 
-  mutate(Leverage = Total_Liabilities / Total_Assets)
-
-
-rm(finrep_df, market_df)
-
-```
-
-
-```{r import_old_data, eval=FALSE}
-
-old_df = import.old.regression.data()
-
-merged_df = full_join(df,old_df[,names(old_df)[names(old_df) %in% names(df)]],
-                      by = c("Date","TASE_ID"), suffix = c("_new","_old")) 
-
-final_df = merged_df
-
-for(varname in grep("_new$",names(final_df),value = TRUE)){
-  
-  main_var = sym(varname)
-  
-  backup_var = sym(str_replace(varname,"new","old"))
-  
-  final_df = final_df %>% 
-    mutate(!!varname := coalesce(!!main_var,!!backup_var))
-  
-  rm(main_var, backup_var)
-
-}
-
-final_df = final_df %>% 
-  select(-ends_with("_old")) %>% 
-  rename_at(.vars = vars(ends_with("_new")),.funs = list(~str_remove(.,"_new")))
-  
-
-# Test for data completness
-
-# if(length(x_vars[!x_vars %in% names(final_df)]) > 0){
-#   
-#   message(paste("The following variables are missing:",
-#                 paste0(x_vars[!x_vars %in% names(df)],
-#                        collapse = ",")))
-#   
-# }
-# 
 
 ```
 
@@ -188,45 +105,65 @@ Where:
 
 \section{Descriptive Stats}
 
-\subsection{Financial reports and market data}
-
-
-This data set was constructed by complementing the initial data set (data that was gathered in previous work) with data form BOI (MOS) database. The data time period is `r paste0(range(df$Date), collapse = "-")` at quarterly frequency. The data set is not balanced, the issue seems to be with market variables (Public Share, Turnover and Market Cap).
-
-
 
 ```{r df_stat,results='asis'}
 
-stargazer(df, header = FALSE,
+stargazer(df %>% 
+            select(-treat, -match, -comp_num,-sector) %>% 
+            as.data.frame(),
+          header = FALSE,
           omit.summary.stat = c("p25","p75"), digits = 2)
 
 ```
 
-\subsection{TASE companies status data}
+\subsection{Treatment vs Control}
 
 
-```{r Import_tase_comps_list}
+```{r means_comparison, eval=FALSE}
 
-tase_comps_list = read_csv(paste0(file.path(Sys.getenv("USERPROFILE"),
-                                            fsep="\\"),"\\OneDrive - ",
-                                  "Bank Of Israel\\Data\\TASE liquidity",
-                                  "\\TASE Comps list_revised.csv"))
+test_res = lapply(params_list$reg_vars[-1], function(temp_var){
+  
+  test_res = t.test(control_df[[temp_var]], treat_df[[temp_var]])
+  
+})
 
-tase_comps_list = tase_comps_list %>% 
-  mutate(Delisting_Date_coalesce = coalesce(Delisting_Date_old, Delisting_Date)) %>% 
-  select(-Delisting_Date_old, Delisting_Date)
+```
 
+
+```{r results="asis"}
+
+stargazer(list(as.data.frame(treat_df),as.data.frame(control_df)),
+          header = FALSE)
+
+```
+
+
+
+
+
+<!-- Model fit -->
+
+```{r fit_model}
+
+logit_mod = glm(delisted ~ .,
+                     data = df %>% select(params_list$reg_vars),
+                     family=binomial(link = "logit"))
 
 
 ```
 
 
-The data set includes  TASE companies. We have data on the company status (delisted or nor), the date when the company was delisted and the reason for delisting. There are a total of `r nrow(tase_comps_list)` companies with `r delisted_comps` of them were delisted\footnote{According to TASE reports there were 576 delisted shares}. We have a delisting date for only `r delisted_dates` of the companies (delisting dates start from is `r as.yearqtr(min(tase_comps_list$Delisting_date, na.rm = TRUE))`).
+```{r out_star, results="asis"}
 
-There is another data set (from your previous work) that has delisting dates for
-`r sum(!is.na(tase_comps_list$Delisting_Date_old))` (19 of them identified by name only) and perhaps can be used to complement the main data set but the delisting dates are quite different (few quarters some times few years). \textcolor{red}{Need to decide whether verify (case by case) or go on with using one of the data sets}
+stargazer(logit_mod)
+
+```
+
+
 
 <!-- \section{Results} -->
+
+
 
 <!-- \section{Appendix} -->
 

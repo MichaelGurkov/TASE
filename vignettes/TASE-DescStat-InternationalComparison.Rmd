@@ -67,7 +67,8 @@ ggplot(balance_df %>%
                      sum(listed_companies, na.rm = TRUE)),
        aes(x = as.character(year), y = delistings_share)) + 
   geom_col() + 
-  labs(x = "", y = "Percent", title = "Share of delisting by Year") + 
+  labs(x = "", y = "", title = "Share of delisting \n (OECD average)") + 
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) + 
   theme_bw() + 
   theme(plot.title = element_text(hjust = 0.5),
         axis.text.x = element_text(angle = 90, vjust = 0.5))
@@ -92,9 +93,10 @@ ggplot(balance_df %>%
            fill = if_else(exchangename == "Tel-Aviv Stock Exchange",
                           "Israel", "Other"))) + 
   geom_col() + 
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
   scale_fill_manual(values = c("Israel" = "lightblue", "Other" = "lightgrey")) + 
   coord_flip() + 
-  labs(x = "", y = "Percent", title = "Share of delisting by Exchange") + 
+  labs(x = "", y = "", title = "Share of delisting \n (2000- 2020 average)") + 
   theme_bw() + 
   theme(plot.title = element_text(hjust = 0.5)) + 
   theme(legend.position = "none")
@@ -113,9 +115,10 @@ ggplot(balance_df %>%
          summarise(new_listings_share = sum(new_listings, na.rm = TRUE) /
                      sum(listed_companies, na.rm = TRUE)) %>% 
          filter(is.finite(new_listings_share)),
-       aes(x = year, y = new_listings_share)) + 
+       aes(x = as.character(year), y = new_listings_share)) + 
   geom_col() + 
-  labs(x = "", y = "Percent", title = "Share of new listings by Year") + 
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) + 
+  labs(x = "", y = "", title = "Share of new listings \n (OECD average)") + 
   theme_bw() + 
   theme(plot.title = element_text(hjust = 0.5),
         axis.text.x = element_text(angle = 90, vjust = 0.5))
@@ -140,13 +143,14 @@ ggplot(balance_df %>%
            fill = if_else(exchangename == "Tel-Aviv Stock Exchange",
                           "Israel", "Other"))) + 
   geom_col() + 
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) + 
   scale_fill_manual(values = c("Israel" = "lightblue", "Other" = "lightgrey")) + 
   coord_flip() + 
-  labs(x = "", y = "Percent", title = "Share of new listings share by Exchange") + 
+  labs(x = "", y = "", title = "Share of new listings \n (2000- 2020 average)") + 
   theme_bw() + 
   theme(plot.title = element_text(hjust = 0.5)) + 
   theme(legend.position = "none")
 
 ```
 
-Similar to delisting activity Israel's issuence activity seems to be relatively low (lower third) among OECD exchanges
+Similar to delisting activity Israel's issuance activity seems to be relatively low (lower third) among OECD exchanges
