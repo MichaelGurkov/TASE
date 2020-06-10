@@ -19,7 +19,8 @@ wfe_df = wfe_df %>%
   filter(!is.na(value))
 
 wfe_df = wfe_df %>% 
-  filter(exchangename %in% exchanges_list$Exchange_1)
+  filter(exchangename %in% exchanges_list$Exchange_1) %>% 
+  mutate(indicator = str_remove_all(indicator,"Total Equity Market - "))
 
 ```
 
@@ -29,12 +30,11 @@ wfe_df = wfe_df %>%
 
 balance_df = wfe_df %>% 
   filter(indicator %in% c(
-    "Total Equity Market - Number of listed companies (Total)",
-    "Total Equity Market - Number of delistings (Total)",
-    "Total Equity Market - Number of new listings (Domestic Total) (Total)",
-    "Total Equity Market - Number of new listings (Foreign Total) (Total)")) %>% 
-  mutate(indicator = str_remove_all(indicator,
-                                    "Total Equity Market - Number of ")) %>% 
+    "Number of listed companies (Total)",
+    "Number of delistings (Total)",
+    "Number of new listings (Domestic Total) (Total)",
+    "Number of new listings (Foreign Total) (Total)")) %>% 
+  mutate(indicator = str_remove_all(indicator,"Number of ")) %>% 
   mutate(indicator = str_remove_all(indicator, " \\(Total\\)")) %>% 
   mutate(indicator = str_replace_all(indicator,pattern = "\\s","_")) %>% 
   pivot_wider(id_cols = c(indicator,year,exchangename),
@@ -154,3 +154,34 @@ ggplot(balance_df %>%
 ```
 
 Similar to delisting activity Israel's issuance activity seems to be relatively low (lower third) among OECD exchanges
+
+\subsection{Trading activity}
+
+```{r trading_df}
+
+trading_df = wfe_df %>% 
+  select(-region, -currencyname, -ytd) %>% 
+  filter(indicator %in% c("Number of shares traded (Total)",
+                          "Number of trading days",
+                          "Number of trades (EOB)",
+                          "Market Capitalisation",
+                          "Value traded (EOB Total)",
+                          "Number of trading participants"))
+
+```
+
+```{r plot_trading_by_exchange}
+
+ggplot(trading_df %>% 
+         filter(indicator == "Number of trading days") %>% 
+         group_by(exchangename, indicator) %>% 
+         summarise(avg_val = mean(value, na.rm = TRUE), .groups = "drop") %>%
+         filter(complete.cases(.)),
+       aes(x = reorder(exchangename, avg_val), y = avg_val)) + 
+  geom_col() + 
+  labs(x = "", y = "", title = "") + 
+  coord_flip() + 
+  theme_bw()
+
+```
+
