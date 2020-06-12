@@ -25,6 +25,35 @@ wfe_df = wfe_df %>%
 ```
 
 
+```{r Import_wdi_data}
+
+oecd_codes = read_csv(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
+                             "\\OneDrive - Bank Of Israel\\Data",
+                             "\\OECD\\Country_Codes.csv"))
+
+oecd_codes = oecd_codes %>% 
+  rename_all(~tolower(.)) %>% 
+  filter(oecd_member == 1) %>% 
+  mutate(code = str_remove_all(code,"CSFR-")) %>% 
+  mutate(code = str_remove_all(code,"FYUG-")) %>% 
+  mutate(code = str_remove_all(code,"USSR-")) %>% 
+  mutate(code = str_replace(code,"KOREA-NS","KOR"))
+
+turnover = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
+                           "\\OneDrive - Bank Of Israel\\Data\\",
+                           "TASE liquidity\\WDI_turnover.rds"))
+
+turnover = turnover %>% 
+  filter(country_code %in% oecd_codes$code) %>% 
+  select(-indicator_name,-indicator_code) %>% 
+  pivot_longer(cols = c(-country_name,-country_code),
+               names_to = "year", values_to = "turnover") %>% 
+  filter(complete.cases(.))
+  
+
+```
+
+
 
 ```{r balance_df}
 
@@ -54,6 +83,7 @@ balance_df = wfe_df %>%
   ungroup()
 
 ```
+
 
 
 \subsection{Delistings}
@@ -182,6 +212,38 @@ ggplot(trading_df %>%
   labs(x = "", y = "", title = "") + 
   coord_flip() + 
   theme_bw()
+
+```
+
+\subsection{Turnover}
+
+```{r turnover_by_country}
+
+ggplot(turnover %>% 
+         group_by(country_name) %>% 
+         summarise(avg_turnover = mean(turnover, na.rm = TRUE), .groups = "drop"),
+       aes(x = reorder(country_name,avg_turnover), y = avg_turnover,
+           fill = if_else(country_name == "Israel", "Israel", "Other"))) + 
+  geom_col() + 
+  labs(x = "", y = "", title = "Turnover by country") + 
+  scale_fill_manual(values = c("Israel" = "lightblue", "Other" = "gray")) + 
+  coord_flip() + 
+  theme_bw() + 
+  theme(legend.position = "none")
+
+```
+
+
+```{r turnover_by_year}
+
+ggplot(turnover %>% 
+         group_by(year) %>% 
+         summarise(avg_turnover = mean(turnover, na.rm = TRUE), .groups = "drop"),
+       aes(x = year, y = avg_turnover)) + 
+  geom_col() + 
+  labs(x = "", y = "", title = "Turnover by year") + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
 
 ```
 
