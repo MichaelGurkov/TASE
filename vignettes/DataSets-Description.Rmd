@@ -38,51 +38,63 @@ x_vars = c("Illiq","Market_Cap_log","Turnover_log","Public_Share","HHI","IPO",
 ```
 
 
-\subsection{Current dataset}
+\subsection{Nimrod's dataset}
 
-
-```{r Import_final_df}
-
-final_df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
-                      "\\OneDrive - Bank Of Israel\\Data\\",
-                      "TASE liquidity\\final_df.RDS"))
-
-final_df = final_df %>% 
-  select(Date, any_of(x_vars)) %>% 
-  mutate_if(is.numeric,.funs = ~ifelse(abs(.) == Inf,NA,.))
- 
-
-```
-
-
-This dataset was constructed by complementing the initial dataset (data that was gather in previous work) with data form BOI (MOS) database. The data time period is `r paste0(range(final_df$Date), collapse = "-")` at quarterly frequency. The dataset is not balanced, the issue seems to be with market variables (Public Share, Turnover and Market Cap).
-
-
-
-```{r summary_final_df, results='asis'}
-
-stargazer(final_df, summary = TRUE, header = FALSE, digits = 2)
-
-```
-
-
-\subsection{Old dataset}
-
-
-```{r Import_old_dataset}
+```{r Import_nimrod_dataset, eval=FALSE}
 
 old_df = import.old.regression.data()
 
 old_df = old_df %>% 
-  select(Date, any_of(x_vars))
+  mutate(ROA = Operating_Profit / Total_Assets)
+
+
 
 
 ```
 
 
-A dataset that was gathered . The data time period is `r paste0(range(old_df$Date), collapse = "-")` at quarterly frequency.
+```{r import_stata_df}
 
-```{r summary_old_df, results='asis'}
+library(haven)
+
+raw_stata_df = read_dta(paste0(file.path(Sys.getenv("USERPROFILE"),
+                                     fsep = "\\"),
+                           "\\OneDrive - Bank Of Israel\\Data\\",
+                           "TASE liquidity\\Stata files",
+                           "\\TASE panel.dta")) %>% 
+  rename_all(tolower)
+
+names_table = read_csv(paste0(file.path(Sys.getenv("USERPROFILE"),
+                                     fsep = "\\"),
+                           "\\OneDrive - Bank Of Israel\\Data\\",
+                           "TASE liquidity",
+                           "\\convert_names_table.csv")) %>% 
+  filter(old_name %in% names(raw_stata_df))
+
+stata_df = raw_stata_df %>% 
+  filter(!is.na(newdate)) %>% 
+  rename_at(vars(names_table$old_name),~names_table$new_name) %>% 
+  rename(date = newdate) %>% 
+  mutate(date = as.yearqtr(date)) %>% 
+  mutate(tase_id = as.character(tase_id)) %>% 
+  mutate(tase_branch = as_factor(tase_branch))
+
+rm(names_table)
+
+```
+
+
+A dataset that was gathered by Nimrod . The data time period is `r paste0(range(stata$date), collapse = "-")` at quarterly frequency.
+The data adresses several categories:
+
+\begin{itemize}
+  \item
+  Financial Reports
+  \item
+  Market data
+\end{itemize}
+
+```{r summary_old_df, results='asis', eval=FALSE}
 
 stargazer(old_df %>% 
             select(-Date), summary = TRUE, header = FALSE, digits = 2)
@@ -90,48 +102,24 @@ stargazer(old_df %>%
 ```
 
 
-\subsection{TASE companies list}
-
-```{r}
-
-tase_comps_list = read.csv(paste0(file.path(Sys.getenv("USERPROFILE"),
-                                            fsep="\\"),
-                                  "\\OneDrive - Bank Of Israel\\Data",
-                                  "\\TASE liquidity\\TASE Comps list.csv"),
-                           stringsAsFactors = FALSE)
-
-tase_comps_list = tase_comps_list %>% 
-  rename(TASE_ID = 1) %>% 
-  mutate(Delisting_date = parse_date(Delisting_date,format = "%d%.%m%.%Y"))
-
-
-delisted_comps = sum(tase_comps_list$Delisted)
-
-delisted_dates = sum(!is.na(tase_comps_list$Delisting_date))
-
-```
-
-The data set includes  TASE companies. We have data on the company status (delisted or nor), the date when the company was delisted and the reason for delisting. The dataset is incomplete : there are a total of `r nrow(tase_comps_list)` companies, `r delisted_comps` if them were delisted. We have a delisting date for `r delisted_dates` of the companies.
-
 \subsection{Financial reports}
 
-```{r Import_data}
+```{r Import_finrep_df}
 
 finrep_df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),
                                             fsep="\\"),
                                   "\\OneDrive - Bank Of Israel\\Data",
                                   "\\TASE liquidity\\finrep_df.Rds"))
 
-finrep = finrep_df %>% 
-  filter_at(vars(Capex_to_revenue,Free_CashFlow,ROA),
-            .vars_predicate = all_vars(is.finite(.)))
 
+finrep_df = finrep_df %>% 
+  rename_all(tolower)
 
 ```
 
 This dataset has data on financial reports of TASE companies. The data time period is `r paste0(range(finrep_df$Date), collapse = "-")` at quarterly frequency.
 
-```{r summary_df, results='asis'}
+```{r summary_df, results='asis', eval=FALSE}
 
 stargazer(finrep %>% 
             select(-Date, -TASE_ID,-TASE_branch),
@@ -139,6 +127,68 @@ stargazer(finrep %>%
 
 ```
 
+
+\subsubsection{Comparison of financial reports data}
+
+```{r compare_financial_reports_data}
+
+fin_rep_vars = c("operating_profit","net_profit","equity","revenue",
+                 "total_assets","total_liabilities","capex_cashflow",
+                 "operating_cashflow","capex_to_revenue","roa",
+                 "free_cashflow")
+
+fin_comparison_df = list(finrep_df %>% 
+                       select(any_of(c(fin_rep_vars,
+                                       "date",
+                                       "tase_id"))) %>% 
+                       pivot_longer(cols = c(-date, -tase_id),
+                                    names_to = "feature",
+                                    values_to = "finrep"),
+                     stata_df %>% 
+                       select(any_of(c(fin_rep_vars,
+                                       "date",
+                                       "tase_id"))) %>% 
+                       mutate(across(where(is.numeric) &
+                                       !capex_to_revenue &
+                                       !roa,
+                                     ~. * 10 ^ (-3))) %>% 
+                       pivot_longer(cols = c(-date, -tase_id),
+                                    names_to = "feature",
+                                    values_to = "stata")) %>% 
+  reduce(inner_join, by = c("date","tase_id","feature")) %>% 
+  filter(complete.cases(.))
+
+
+
+fin_comparison_summary = fin_comparison_df %>% 
+  group_by(tase_id, feature) %>% 
+  summarise(avg_diff = mean(abs(finrep - stata) /
+                              (0.5 * (finrep + stata)), na.rm = TRUE),
+            .groups = "drop") %>% 
+  arrange(-avg_diff)
+
+
+```
+
+
+```{r plot_fin_rep_diff, eval=FALSE}
+
+fin_comparison_df %>% 
+  filter(tase_id == fin_comparison_summary$tase_id[1]) %>% 
+  filter(feature == fin_comparison_summary$feature[1]) %>% 
+  pivot_longer(cols = c("finrep","stata")) %>% 
+  ggplot(aes(x = date, y = value, color = name)) + 
+  geom_point() + 
+  geom_line() + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+```
+
+The comparison reveals that some data points are equal between
+financial reports data and Nimrod's stata file, In cases where there is
+a difference Nimrod data seems to be much more volatile with extreme
+values
 
 \subsection{Market data}
 

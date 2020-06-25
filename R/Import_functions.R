@@ -8,18 +8,22 @@
 
 import.boi.finrep.data = function(filepath = NULL){
 
-  if(is.null(filepath)){filepath = paste0(file.path(Sys.getenv("USERPROFILE"),"Documents",
-                                                    fsep="\\"),
-                                          "\\Data\\BOI\\FinancialReports.csv")}
+  if(is.null(filepath)){filepath = paste0(file.path(
+    Sys.getenv("USERPROFILE"),"Documents",fsep="\\"),
+    "\\Data\\BOI\\FinancialReports.csv")}
 
-  temp_df = read.csv(filepath, encoding = "UTF-8", header = FALSE, stringsAsFactors = FALSE)
+  temp_df = read.csv(filepath, encoding = "UTF-8", header = FALSE,
+                     stringsAsFactors = FALSE)
 
   names_vec = c("Year","Date","TASE_branch","TASE_ID","Entity_Name",
-                "Entity_ID","Total_Assets","Current_Assets","Cash_Equivalent",
-                "Non_Current_Assets","Total_Liabilities","Current_Liabilities",
-                "Non_current_Liabilities","Equity","Minority_rights","Revenue",
-                "Total_Cost","Operating_Profit", "Financing_cost","Profit_before_tax",
-                "Tax","Net_Profit","Minority_Profit", "Operating_CashFlow",
+                "Entity_ID","Total_Assets","Current_Assets",
+                "Cash_Equivalent","Non_Current_Assets",
+                "Total_Liabilities","Current_Liabilities",
+                "Non_current_Liabilities","Equity","Minority_rights",
+                "Revenue","Total_Cost","Operating_Profit",
+                "Financing_cost","Profit_before_tax",
+                "Tax","Net_Profit","Minority_Profit",
+                "Operating_CashFlow",
                 "Capex_CashFlow","Financial_CashFlow")
 
   df = temp_df %>%
