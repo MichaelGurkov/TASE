@@ -30,12 +30,39 @@ load_all()
 
 ```{r set_parameters}
 
-x_vars = c("Illiq","Market_Cap_log","Turnover_log","Public_Share","HHI","IPO",
-           "Total_Assets","Operating_Profit","Revenue","Net_Profit","Equity",
-           "Total_Liabilities","Leverage")
+features_list = list()
+
+features_list$x_vars = c("Illiq","Market_Cap_log","Turnover_log",
+                         "Public_Share","HHI","IPO",
+                         "Total_Assets","Operating_Profit","Revenue",
+                         "Net_Profit","Equity",
+                         "Total_Liabilities","Leverage")
+
+features_list$fin_rep_vars = c("operating_profit","net_profit","equity",
+                               "revenue","total_assets",
+                               "total_liabilities","capex_cashflow",
+                               "operating_cashflow","capex_to_revenue",
+                               "roa","free_cashflow")
+
+features_list$market_vars = c("illiq","turnover","market_cap","public_share")
+
+
 
 
 ```
+
+
+```{r Import_comps_list}
+
+tase_comps_list = read_csv(paste0(file.path(Sys.getenv("USERPROFILE"),fsep = "\\"),
+                                  "\\OneDrive - Bank Of Israel\\Data",
+                                  "\\TASE liquidity\\",
+                                  "TASE Comps list_revised.csv")) %>% 
+  rename_all(tolower) %>% 
+  mutate(tase_id = as.character(tase_id))
+
+```
+
 
 
 \subsection{Nimrod's dataset}
@@ -132,20 +159,15 @@ stargazer(finrep %>%
 
 ```{r compare_financial_reports_data}
 
-fin_rep_vars = c("operating_profit","net_profit","equity","revenue",
-                 "total_assets","total_liabilities","capex_cashflow",
-                 "operating_cashflow","capex_to_revenue","roa",
-                 "free_cashflow")
-
 fin_comparison_df = list(finrep_df %>% 
-                       select(any_of(c(fin_rep_vars,
+                       select(any_of(c(features_list$fin_rep_vars,
                                        "date",
                                        "tase_id"))) %>% 
                        pivot_longer(cols = c(-date, -tase_id),
                                     names_to = "feature",
                                     values_to = "finrep"),
                      stata_df %>% 
-                       select(any_of(c(fin_rep_vars,
+                       select(any_of(c(features_list$fin_rep_vars,
                                        "date",
                                        "tase_id"))) %>% 
                        mutate(across(where(is.numeric) &
@@ -163,7 +185,7 @@ fin_comparison_df = list(finrep_df %>%
 fin_comparison_summary = fin_comparison_df %>% 
   group_by(tase_id, feature) %>% 
   summarise(avg_diff = mean(abs(finrep - stata) /
-                              (0.5 * (finrep + stata)), na.rm = TRUE),
+                              (0.5 * (finrep + stata)), na.rm = TRUE) * 100,
             .groups = "drop") %>% 
   arrange(-avg_diff)
 
@@ -192,12 +214,17 @@ values
 
 \subsection{Market data}
 
+\subsubsection{Comparison of market data}
+
 ```{r Import_market_data}
 
 market_df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),
                                             fsep="\\"),
                                   "\\OneDrive - Bank Of Israel\\Data",
-                                  "\\TASE liquidity\\market_df.Rds"))
+                                  "\\TASE liquidity\\market_df.Rds")) %>% 
+  ungroup() %>% 
+  rename_all(tolower) %>% 
+  rename(tase_id = comp_id)
 
 market_df = market_df %>%
   ungroup() %>% 
@@ -210,7 +237,7 @@ market_df = market_df %>%
 
 A dataset with market data (market capitalization, turnover) that allows to calculate Amihud's iiliquidity measure. The data time period is `r paste0(range(market_df$Date), collapse = "-")` at quarterly frequency.
 
-```{r summary_market_df, results='asis'}
+```{r summary_market_df, results='asis', eval=FALSE}
 
 stargazer(market_df %>% 
             select(-Date, -Comp_ID, - Sec_ID) %>% 
@@ -220,4 +247,61 @@ stargazer(market_df %>%
 
 ```
 
+```{r comps_with_multiple_secs_check}
 
+comps_mult_secs_list = market_df %>% 
+  select(tase_id, sec_id) %>% 
+  distinct() %>% 
+  filter(tase_id %in% tase_id[duplicated(tase_id)])
+
+```
+
+
+```{r compare_market_data}
+
+market_comparison_df = list(market_df %>% 
+                       select(any_of(c(features_list$market_vars,
+                                       "date",
+                                       "tase_id"))) %>% 
+                       pivot_longer(cols = c(-date, -tase_id),
+                                    names_to = "feature",
+                                    values_to = "oracle"),
+                     stata_df %>% 
+                       select(any_of(c(features_list$market_vars,
+                                       "date",
+                                       "tase_id"))) %>% 
+                       pivot_longer(cols = c(-date, -tase_id),
+                                    names_to = "feature",
+                                    values_to = "stata")) %>% 
+  reduce(inner_join, by = c("date","tase_id","feature")) %>% 
+  filter(complete.cases(.))
+
+
+
+market_comparison_summary = market_comparison_df %>% 
+  group_by(tase_id, feature) %>% 
+  summarise(avg_diff = mean(abs(oracle - stata) /
+                              (0.5 * (oracle + stata)), na.rm = TRUE) * 100,
+            .groups = "drop") %>% 
+  arrange(-avg_diff)
+
+
+```
+
+
+```{r plot_market_data_diff, eval=FALSE}
+
+market_comparison_df %>% 
+  filter(tase_id == market_comparison_summary$tase_id[1]) %>% 
+  filter(feature == market_comparison_summary$feature[1]) %>% 
+  pivot_longer(cols = c("oracle","stata")) %>% 
+  ggplot(aes(x = date, y = value, color = name)) + 
+  geom_point() + 
+  geom_line() + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+```
+
+Comparison of market data reveals similar results , Nimrod's data is more volatile
+and extreme

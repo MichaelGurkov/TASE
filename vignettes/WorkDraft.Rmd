@@ -14,16 +14,17 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 
 ```{r Load_libraries}
 
+library(xts)
+
 library(haven)
 
 library(devtools)
 
 library(tidyverse)
 
-
 library(stargazer)
 
-library(texreg)
+# library(texreg)
 
 load_all()
 
@@ -50,29 +51,46 @@ params_list$reg_vars = c("delisted","leverage","mb","capex_sales","roa",
 
 raw_df = read_dta(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
                      "\\OneDrive - Bank Of Israel\\Data\\TASE",
-                     " liquidity\\Stata files\\TASE panel.dta"))
+                     " liquidity\\Stata files\\TASE panel.dta")) %>% 
+  rename_all(.funs = ~tolower(.))
+  
+
+names_table = read_csv(paste0(file.path(Sys.getenv("USERPROFILE"),
+                                     fsep = "\\"),
+                           "\\OneDrive - Bank Of Israel\\Data\\",
+                           "TASE liquidity",
+                           "\\convert_names_table.csv")) %>% 
+  filter(old_name %in% names(raw_df))
+
 
 df = raw_df %>% 
-  rename_all(.funs = ~tolower(.)) %>% 
-  rename(capex_sales = capex2sales) %>% 
-  rename(comp_num = msp_hvr) %>% 
-  rename(sector = anaf_hvr) %>% 
+  rename_at(vars(names_table$old_name),~names_table$new_name) %>% 
   rename(date = newdate) %>% 
   mutate(date = as.yearqtr(date)) %>% 
-  select(comp_num,sector,date,
-         any_of(params_list$reg_vars),ipo_dummy,
-         match, treat) %>% 
-  mutate(match = replace_na(match,0)) %>% 
-  filter(complete.cases(.))
-
-control_df = df %>% 
-  filter(comp_num %in% unique(df$match) & treat == 0)
-
-treat_df = df %>% 
-  filter(treat == 1)
+  mutate(match = replace_na(match,0))
 
 
 ```
+
+
+```{r Import_comps_list}
+
+tase_comps_list = read_csv(paste0(file.path(Sys.getenv("USERPROFILE"),fsep = "\\"),
+                                  "\\OneDrive - Bank Of Israel\\Data",
+                                  "\\TASE liquidity\\",
+                                  "TASE Comps list_revised.csv")) %>% 
+  rename_all(tolower) %>% 
+  mutate(tase_id = as.character(tase_id))
+
+delisted_comps = tase_comps_list %>% 
+  filter(delisted == 1) %>% 
+  select(tase_id) %>% 
+  mutate(tase_id = as_factor(tase_id)) %>% 
+  arrange(tase_id)
+
+```
+
+
 
 
 \section{Introduction}
@@ -108,7 +126,7 @@ Where:
 ```{r df_stat,results='asis'}
 
 stargazer(df %>% 
-            select(-treat, -match, -comp_num,-sector) %>% 
+            select(any_of(params_list$reg_vars)) %>%  
             as.data.frame(),
           header = FALSE,
           omit.summary.stat = c("p25","p75"), digits = 2)
@@ -117,22 +135,77 @@ stargazer(df %>%
 
 \subsection{Treatment vs Control}
 
+```{r match_controls}
 
-```{r means_comparison, eval=FALSE}
+delisted_comps_list = unique(df$tase_id[df$delisted == 1])
 
-test_res = lapply(params_list$reg_vars[-1], function(temp_var){
+control_treat_df = map(delisted_comps_list,
+                    function(temp_delisted_comp){
   
-  test_res = t.test(control_df[[temp_var]], treat_df[[temp_var]])
+  temp_crit = df %>% 
+  filter(tase_id == temp_delisted_comp) %>% 
+  select(date, market_cap) %>% 
+  filter(complete.cases(.)) %>% 
+  slice(1)
   
-})
+  
+  match_df = df %>% 
+  filter(!tase_id %in% delisted_comps_list) %>% 
+  filter(delisted == 0) %>% 
+  filter(date == temp_crit$date) %>% 
+  select(tase_id, market_cap) %>% 
+  mutate(diff = abs(market_cap/temp_crit$market_cap - 1)) %>% 
+  select(-market_cap) %>% 
+  arrange(diff) %>% 
+  slice(1) %>% 
+  mutate(treat_tase_id = temp_delisted_comp) %>% 
+  rename(control_tase_id = tase_id)
+    
+return(match_df)
+  
+  
+}) %>% 
+  bind_rows()
+
+control_treat_df = control_treat_df %>% 
+  select(treat_tase_id, control_tase_id, diff) %>% 
+  arrange(diff) %>% 
+  filter(diff <= 0.1) %>% 
+  mutate(across(c(treat_tase_id, control_tase_id),as.character))
+
+rm(delisted_comps_list)
+
+```
+
+
+
+```{r split_to_treat_control}
+
 
 ```
 
 
 ```{r results="asis"}
 
-stargazer(list(as.data.frame(treat_df),as.data.frame(control_df)),
-          header = FALSE)
+temp = df %>% 
+  select(tase_id, date, total_assets, market_cap) %>% 
+  filter(!is.na(date)) %>% 
+  select(-date) %>% 
+  mutate(tase_id = as.character(tase_id)) %>% 
+  mutate(across(where(is.numeric()), ~. * 10 ^(-3)))
+  inner_join(control_treat_df %>%
+              select(-diff) %>% 
+              pivot_longer(cols = everything(),
+                           names_to = "type",
+                           values_to = "tase_id") %>% 
+              mutate(type = str_remove(type, "_tase_id")))
+
+
+stargazer(temp %>% 
+            filter(type == "control") %>% 
+            select(-type) %>% 
+            as.data.frame(), header = FALSE)
+
 
 ```
 
@@ -142,7 +215,7 @@ stargazer(list(as.data.frame(treat_df),as.data.frame(control_df)),
 
 <!-- Model fit -->
 
-```{r fit_model}
+```{r fit_model, eval=FALSE}
 
 logit_mod = glm(delisted ~ .,
                      data = df %>% select(params_list$reg_vars),
@@ -152,7 +225,7 @@ logit_mod = glm(delisted ~ .,
 ```
 
 
-```{r out_star, results="asis"}
+```{r out_star, results="asis", eval=FALSE}
 
 
 stargazer(logit_mod)
