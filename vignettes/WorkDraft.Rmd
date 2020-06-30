@@ -185,14 +185,14 @@ rm(delisted_comps_list)
 ```
 
 
-```{r results="asis"}
+```{r table_3}
 
 temp = df %>% 
-  select(tase_id, date, total_assets, market_cap) %>% 
+  select(tase_id, date, total_assets, market_cap, leverage) %>% 
   filter(!is.na(date)) %>% 
-  select(-date) %>% 
+  select(-date) %>%
   mutate(tase_id = as.character(tase_id)) %>% 
-  mutate(across(where(is.numeric()), ~. * 10 ^(-3)))
+  mutate(across(c(total_assets,market_cap), ~. * 10 ^(-3))) %>%
   inner_join(control_treat_df %>%
               select(-diff) %>% 
               pivot_longer(cols = everything(),
@@ -200,16 +200,24 @@ temp = df %>%
                            values_to = "tase_id") %>% 
               mutate(type = str_remove(type, "_tase_id")))
 
+averages_df = temp %>% 
+  select(-tase_id) %>% 
+  group_by(type) %>% 
+  summarise(across(everything(), mean, na.rm = TRUE))%>% 
+            pivot_longer(cols = -"type", names_to = "Variable") %>% 
+            pivot_wider(id_cols = Variable, names_from = type, values_from = value)
 
-stargazer(temp %>% 
-            filter(type == "control") %>% 
-            select(-type) %>% 
-            as.data.frame(), header = FALSE)
+
+t_test_list = map(c("total_assets","market_cap","leverage"), function(temp_name){
+  
+  t.test(temp[temp$type == "treat",temp_name],
+         temp[temp$type == "control",temp_name])
+  
+  
+})
 
 
 ```
-
-
 
 
 
