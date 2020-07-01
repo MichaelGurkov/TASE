@@ -91,8 +91,6 @@ delisted_comps = tase_comps_list %>%
 ```
 
 
-
-
 \section{Introduction}
 
 The purpose of the work is to identify the reasons
@@ -135,11 +133,25 @@ stargazer(df %>%
 
 \subsection{Treatment vs Control}
 
+```{r nimrods_matching}
+
+nimrod_match_df = df %>% 
+  select(tase_id, match, match_after_1996, treat, treat) %>% 
+  distinct() %>% 
+  rename(
+    treat_tase_id = tase_id,
+    control_tase_id = match,
+    control_tase_id_after_1986 = match_after_1996) %>% 
+  mutate(across(everything(), as.character))
+
+```
+
+
 ```{r match_controls}
 
 delisted_comps_list = unique(df$tase_id[df$delisted == 1])
 
-control_treat_df = map(delisted_comps_list,
+michael_match_df = map(delisted_comps_list,
                     function(temp_delisted_comp){
   
   temp_crit = df %>% 
@@ -167,10 +179,11 @@ return(match_df)
 }) %>% 
   bind_rows()
 
-control_treat_df = control_treat_df %>% 
+michael_match_df = michael_match_df %>% 
   select(treat_tase_id, control_tase_id, diff) %>% 
   arrange(diff) %>% 
   filter(diff <= 0.1) %>% 
+  select(-diff) %>% 
   mutate(across(c(treat_tase_id, control_tase_id),as.character))
 
 rm(delisted_comps_list)
@@ -178,8 +191,9 @@ rm(delisted_comps_list)
 ```
 
 
-
 ```{r split_to_treat_control}
+
+control_treat_df
 
 
 ```
@@ -193,9 +207,8 @@ temp = df %>%
   select(-date) %>%
   mutate(tase_id = as.character(tase_id)) %>% 
   mutate(across(c(total_assets,market_cap), ~. * 10 ^(-3))) %>%
-  inner_join(control_treat_df %>%
-              select(-diff) %>% 
-              pivot_longer(cols = everything(),
+  inner_join(michael_match_df %>% 
+               pivot_longer(cols = everything(),
                            names_to = "type",
                            values_to = "tase_id") %>% 
               mutate(type = str_remove(type, "_tase_id")))
@@ -219,6 +232,20 @@ t_test_list = map(c("total_assets","market_cap","leverage"), function(temp_name)
 
 ```
 
+
+```{r }
+
+averages_df %>% 
+  pivot_longer(-Variable) %>% 
+  ggplot(aes(x = Variable, y = value, fill = name)) + 
+  geom_col(position = "dodge", width = 0.7) + 
+  labs(x = "", y = "") + 
+  facet_wrap(~Variable, scales = "free") +
+  theme_bw() + 
+  theme(legend.position = "bottom", legend.title = element_blank())
+  
+
+```
 
 
 <!-- Model fit -->
