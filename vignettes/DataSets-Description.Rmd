@@ -84,7 +84,7 @@ rm(names_table)
 ```
 
 
-A dataset that was gathered by Nimrod . The data time period is `r paste0(range(stata$date), collapse = "-")` at quarterly frequency.
+A dataset that was gathered by Nimrod . The data time period is `r paste0(range(stata_df$date), collapse = "-")` at quarterly frequency.
 The data adresses several categories:
 
 \begin{itemize}
