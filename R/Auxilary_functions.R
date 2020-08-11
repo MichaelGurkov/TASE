@@ -11,16 +11,18 @@
 calculate.iiliq = function(market_df){
 
   market_df = market_df %>%
-    arrange(Date)
-
-  market_df = market_df %>%
-   mutate(Sec_Ret = c(NA,diff(log(Close)))) %>%
-    mutate(Daily_Ratio = abs(Sec_Ret) / Turnover)
+    arrange(date)
 
   illiq_df = market_df %>%
-    mutate(Year_Month = as.yearmon(Date)) %>%
-    group_by(Year_Month) %>%
-    summarise(Illiq = mean(sqrt(na.omit(Daily_Ratio))))
+    select(date, sec_id, close_rate, turnover) %>%
+    group_by(sec_id) %>%
+    mutate(sec_ret = c(NA,diff(log(close_rate)))) %>%
+    ungroup() %>%
+    filter(complete.cases(.)) %>%
+    mutate(daily_ratio = abs(sec_ret) / turnover) %>%
+    group_by(sec_id, date_yearmon = as.yearmon(date)) %>%
+    summarise(illiq = mean(sqrt(na.omit(daily_ratio))),
+              .groups = "drop")
 
   return(illiq_df)
 

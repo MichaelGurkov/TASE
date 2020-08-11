@@ -9,8 +9,9 @@
 import.boi.finrep.data = function(filepath = NULL){
 
   if(is.null(filepath)){filepath = paste0(file.path(
-    Sys.getenv("USERPROFILE"),"Documents",fsep="\\"),
-    "\\Data\\BOI\\FinancialReports.csv")}
+    Sys.getenv("USERPROFILE"),fsep="\\"),
+    "\\OneDrive - Bank Of Israel\\Data\\",
+    "TASE liquidity\\FinancialReports.csv")}
 
   temp_df = read.csv(filepath, encoding = "UTF-8", header = FALSE,
                      stringsAsFactors = FALSE)
@@ -32,6 +33,8 @@ import.boi.finrep.data = function(filepath = NULL){
     mutate(Date = as.yearqtr(Date, format = "Q%q/%Y")) %>%
     mutate(TASE_branch = factor(TASE_branch))
 
+  Sys.setlocale(locale = "hebrew")
+
   levels(df$TASE_branch) = list("Biomed" = "ביומד",
                                 "Insurance" = "ביטוח",
                                 "Banks" = "בנקים",
@@ -41,6 +44,41 @@ import.boi.finrep.data = function(filepath = NULL){
                                 "Real_estate" = "נדל\"ן ובינוי",
                                 "Fin_services" = "שרותים פיננסיים",
                                 "Industry" = "תעשיה")
+
+
+  return(df)
+
+}
+
+
+#' @title Import BoI format market report data
+#'
+#' @description  This function imports market data from BOI format
+#'
+#' @param filepath the path to financial report data (in csv format)
+#'
+#' @import dplyr
+#'
+#' @import readr
+
+import.boi.market.data = function(filepath = NULL){
+
+  if(is.null(filepath)){filepath = paste0(file.path(
+    Sys.getenv("USERPROFILE"),fsep="\\"),
+    "\\OneDrive - Bank Of Israel\\Data\\",
+    "TASE liquidity\\stocks_data.Rds")}
+
+  temp_df = read_rds(filepath)
+
+
+  df = temp_df %>%
+    rename_all(tolower) %>%
+    select(-security_main_type) %>%
+    mutate(date = ymd(date_value)) %>%
+    select(-date_value) %>%
+    rename(tase_id = tase_issuer_id,
+           sec_id = security_ident_num_tase)
+
 
 
   return(df)
@@ -131,3 +169,55 @@ import.old.regression.data = function(filepath = NULL){
 }
 
 
+
+#' @title Import Nimrod dataset
+#'
+#' @description This function imports clean (and filtered) version of
+#' Nimrod's stata df
+#'
+#' @param filepath string a path to stata data file
+#'
+#' @param vars_names = vector of variables names to return
+#'
+#' @import haven
+#'
+#' @import dplyr
+
+import.nimrod.stata.df = function(filepath,
+                                  vars_names = NULL){
+
+
+
+  raw_df = read_dta(filepath) %>%
+    rename_all(tolower)
+
+  names_table = read_csv(paste0(
+    file.path(Sys.getenv("USERPROFILE"),fsep = "\\"),
+    "\\OneDrive - Bank Of Israel\\Data\\",
+    "TASE liquidity\\convert_names_table.csv")) %>%
+    filter(old_name %in% names(raw_df))
+
+  df = raw_df %>%
+    filter(!is.na(newdate)) %>%
+    rename_at(vars(names_table$old_name),~names_table$new_name) %>%
+    rename(date = newdate) %>%
+    mutate(date = as.yearqtr(date)) %>%
+    mutate(tase_id = as.character(tase_id)) %>%
+    mutate(tase_branch = as_factor(tase_branch))
+
+  df = df %>%
+    mutate(across("turnover", ~ . * (10 ^ -6)))
+
+
+  if(!is.null(vars_names)){
+
+    df = df %>%
+      select(any_of(vars_names))
+
+
+  }
+
+  return(df)
+
+
+}

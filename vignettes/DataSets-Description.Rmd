@@ -30,74 +30,71 @@ load_all()
 
 ```{r set_parameters}
 
-x_vars = c("Illiq","Market_Cap_log","Turnover_log","Public_Share","HHI","IPO",
-           "Total_Assets","Operating_Profit","Revenue","Net_Profit","Equity",
-           "Total_Liabilities","Leverage")
+raw_data = list()
+
+parameters_list = list()
+
+parameters_list$x_vars = c(
+  "Illiq",
+  "Market_Cap_log",
+  "Turnover_log",
+  "Public_Share",
+  "HHI",
+  "IPO",
+  "Total_Assets",
+  "Operating_Profit",
+  "Revenue",
+  "Net_Profit",
+  "Equity",
+  "Total_Liabilities",
+  "Leverage"
+)
 
 
-```
+parameters_list$nimrod_vars = c(
+  "tase_id",
+  "tase_branch",
+  "date",
+  "leverage",
+  "mb",
+  "capex_to_revenue",
+  "ipo_dummy",
+  "roa",
+  "free_cashflow",
+  "insider_ownership",
+  "size",
+  "log_trade_volume",
+  "turnover",
+  "car_ipo_rr",
+  "car_ipo_rf",
+  "car_del_rr",
+  "car_del_rf",
+  "bet_ipo_rr",
+  "bet_del_rr",
+  "bet_ipo_rf",
+  "bet_del_rf",
+  "bet_qr_rr",
+  "bet_qr_rf",
+  "start_date_trading",
+  "end_date_trading"
+)
 
 
-\subsection{Nimrod's dataset}
-
-```{r Import_nimrod_dataset, eval=FALSE}
-
-old_df = import.old.regression.data()
-
-old_df = old_df %>% 
-  mutate(ROA = Operating_Profit / Total_Assets)
-
-
-
-
-```
-
-
-```{r import_stata_df}
-
-library(haven)
-
-raw_stata_df = read_dta(paste0(file.path(Sys.getenv("USERPROFILE"),
-                                     fsep = "\\"),
-                           "\\OneDrive - Bank Of Israel\\Data\\",
-                           "TASE liquidity\\Stata files",
-                           "\\TASE panel.dta")) %>% 
-  rename_all(tolower)
-
-names_table = read_csv(paste0(file.path(Sys.getenv("USERPROFILE"),
-                                     fsep = "\\"),
-                           "\\OneDrive - Bank Of Israel\\Data\\",
-                           "TASE liquidity",
-                           "\\convert_names_table.csv")) %>% 
-  filter(old_name %in% names(raw_stata_df))
-
-stata_df = raw_stata_df %>% 
-  filter(!is.na(newdate)) %>% 
-  rename_at(vars(names_table$old_name),~names_table$new_name) %>% 
-  rename(date = newdate) %>% 
-  mutate(date = as.yearqtr(date)) %>% 
-  mutate(tase_id = as.character(tase_id)) %>% 
-  mutate(tase_branch = as_factor(tase_branch))
-
-rm(names_table)
-
-```
+parameters_list$fin_rep_vars = c(
+  "operating_profit",
+  "net_profit",
+  "equity",
+  "revenue",
+  "total_assets",
+  "total_liabilities",
+  "capex_cashflow",
+  "operating_cashflow",
+  "capex_to_revenue",
+  "roa",
+  "free_cashflow"
+)
 
 
-A dataset that was gathered by Nimrod . The data time period is `r paste0(range(stata_df$date), collapse = "-")` at quarterly frequency.
-The data adresses several categories:
-
-\begin{itemize}
-  \item
-  Financial Reports
-  \item
-  Market data
-\end{itemize}
-
-```{r summary_old_df, results='asis', eval=FALSE}
-
-stargazer(old_df %>% 
-            select(-Date), summary = TRUE, header = FALSE, digits = 2)
 
 ```
 
@@ -106,89 +103,36 @@ stargazer(old_df %>%
 
 ```{r Import_finrep_df}
 
-finrep_df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),
-                                            fsep="\\"),
-                                  "\\OneDrive - Bank Of Israel\\Data",
-                                  "\\TASE liquidity\\finrep_df.Rds"))
+# raw_data$finrep_df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),
+#                                             fsep="\\"),
+#                                   "\\OneDrive - Bank Of Israel\\Data",
+#                                   "\\TASE liquidity\\finrep_df.Rds")) %>% 
+#   rename_all(tolower)
 
-
-finrep_df = finrep_df %>% 
-  rename_all(tolower)
-
-```
-
-This dataset has data on financial reports of TASE companies. The data time period is `r paste0(range(finrep_df$Date), collapse = "-")` at quarterly frequency.
-
-```{r summary_df, results='asis', eval=FALSE}
-
-stargazer(finrep %>% 
-            select(-Date, -TASE_ID,-TASE_branch),
-          summary = TRUE, header = FALSE, digits = 2)
-
-```
-
-
-\subsubsection{Comparison of financial reports data}
-
-```{r compare_financial_reports_data}
-
-fin_rep_vars = c("operating_profit","net_profit","equity","revenue",
-                 "total_assets","total_liabilities","capex_cashflow",
-                 "operating_cashflow","capex_to_revenue","roa",
-                 "free_cashflow")
-
-fin_comparison_df = list(finrep_df %>% 
-                       select(any_of(c(fin_rep_vars,
-                                       "date",
-                                       "tase_id"))) %>% 
-                       pivot_longer(cols = c(-date, -tase_id),
-                                    names_to = "feature",
-                                    values_to = "finrep"),
-                     stata_df %>% 
-                       select(any_of(c(fin_rep_vars,
-                                       "date",
-                                       "tase_id"))) %>% 
-                       mutate(across(where(is.numeric) &
-                                       !capex_to_revenue &
-                                       !roa,
-                                     ~. * 10 ^ (-3))) %>% 
-                       pivot_longer(cols = c(-date, -tase_id),
-                                    names_to = "feature",
-                                    values_to = "stata")) %>% 
-  reduce(inner_join, by = c("date","tase_id","feature")) %>% 
-  filter(complete.cases(.))
-
-
-
-fin_comparison_summary = fin_comparison_df %>% 
-  group_by(tase_id, feature) %>% 
-  summarise(avg_diff = mean(abs(finrep - stata) /
-                              (0.5 * (finrep + stata)), na.rm = TRUE),
-            .groups = "drop") %>% 
-  arrange(-avg_diff)
+raw_data$finrep_df = import.boi.finrep.data() %>% 
+  make_finrep_df(selected_x_vars = c(
+    "leverage","roa","free_cashflow","capex_to_revenue"))
 
 
 ```
 
 
-```{r plot_fin_rep_diff, eval=FALSE}
+This dataset has data on financial reports of TASE companies.
+The data covers `r length(unique(raw_data$finrep_df$tase_id))` companies for the period `r paste0(range(raw_data$finrep_df$date), collapse = "-")` at quarterly frequency. 
 
-fin_comparison_df %>% 
-  filter(tase_id == fin_comparison_summary$tase_id[1]) %>% 
-  filter(feature == fin_comparison_summary$feature[1]) %>% 
-  pivot_longer(cols = c("finrep","stata")) %>% 
-  ggplot(aes(x = date, y = value, color = name)) + 
-  geom_point() + 
-  geom_line() + 
-  theme_bw() + 
-  theme(legend.position = "bottom")
+
+```{r summary_finrep_df, results='asis'}
+
+stargazer(raw_data$finrep_df %>% 
+            select(-date,-tase_id) %>% 
+            as.data.frame(),
+          summary = TRUE, header = FALSE, digits = 2,
+          summary.stat = c("n","mean","median","max","min"))
 
 ```
 
-The comparison reveals that some data points are equal between
-financial reports data and Nimrod's stata file, In cases where there is
-a difference Nimrod data seems to be much more volatile with extreme
-values
+
+
 
 \subsection{Market data}
 
@@ -220,4 +164,124 @@ stargazer(market_df %>%
 
 ```
 
+
+\subsection{Nimrod's dataset}
+
+```{r Import_nimrod_dataset}
+
+raw_data$nimrod_stata_df = import.nimrod.stata.df(paste0(
+  file.path(Sys.getenv("USERPROFILE"),fsep = "\\"),
+  "\\OneDrive - Bank Of Israel\\Data\\",
+  "TASE liquidity\\Stata files",
+  "\\TASE panel.dta")
+  )
+
+stata_df = raw_data$nimrod_stata_df %>% 
+  select(any_of(parameters_list$nimrod_vars))
+
+
+```
+
+
+A dataset that was gathered by Nimrod . The data covers `r length(unique(stata_df$tase_id))` companies for the period `r paste0(range(stata_df$date), collapse = "-")` at quarterly frequency. 
+The data adresses several categories:
+
+\begin{itemize}
+  \item
+  Financial Reports
+  \item
+  Market data
+\end{itemize}
+
+
+```{r summary_df_stata, results="asis"}
+
+stargazer(stata_df %>% 
+            select(-starts_with("tase"),-date) %>% 
+            as.data.frame(),
+          summary = TRUE,
+          header = FALSE,
+          summary.stat = c("n","mean","median","max","min"))
+
+```
+
+
+
+```{r plot_NA, eval=FALSE}
+
+stata_df %>% 
+  slice_sample(n = 1000) %>% 
+  group_by(date) %>% 
+  mutate(across(everything(), ~is.na(.))) %>% 
+  pivot_longer(-date) %>% 
+  ggplot(aes(x = date, y = name, color = value)) + 
+  scale_color_manual(values = c("TRUE" = "magenta", "FALSE" = "gray")) + 
+  geom_point(show.legend = FALSE) + 
+  theme_bw()
+
+```
+
+
+\subsubsection{Comparison of financial reports data}
+
+```{r compare_financial_reports_data, eval=FALSE}
+
+fin_comparison_df = list(
+  raw_data$finrep_df %>% 
+    select(any_of(c(parameters_list$fin_rep_vars,"date","tase_id"))) %>% 
+    pivot_longer(cols = c(-date, -tase_id),
+                 names_to = "feature",
+                 values_to = "finrep"),
+  raw_data$nimrod_stata_df %>% 
+    select(any_of(c(parameters_list$fin_rep_vars,"date","tase_id"))) %>% 
+    mutate(across(where(is.numeric) & !capex_to_revenue & !roa,
+                  ~. * 10 ^ (-3))) %>% 
+    pivot_longer(cols = c(-date, -tase_id),
+                 names_to = "feature",
+                 values_to = "stata")) %>% 
+  reduce(inner_join, by = c("date","tase_id","feature")) %>% 
+  filter(complete.cases(.))
+
+
+
+fin_comparison_summary = fin_comparison_df %>% 
+  group_by(tase_id, feature) %>% 
+  summarise(avg_diff = mean(abs(finrep - stata) /
+                              (0.5 * (finrep + stata)), na.rm = TRUE),
+            .groups = "drop")
+
+
+```
+
+
+```{r plot_fin_rep_diff, eval=FALSE}
+
+temp_tase_id = c(632,1429,608,699)
+
+temp_feature = fin_comparison_df$feature[2]
+
+fin_comparison_df %>% 
+  filter(tase_id %in% temp_tase_id) %>% 
+  filter(feature %in% temp_feature) %>% 
+  pivot_longer(cols = c("finrep","stata")) %>% 
+  ggplot(aes(x = date, y = value, color = name)) + 
+  geom_point(alpha = 0.4, size = 1) + 
+  geom_line(alpha = 0.8) + 
+  scale_color_manual(values = c("finrep" = "green","stata" = "magenta")) +
+  scale_y_continuous(labels = scales::percent_format()) + 
+  ggtitle(temp_feature) + 
+  facet_wrap(~tase_id, scales = "free") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+# rm(temp_tase_id)
+
+```
+
+The comparison reveals that some data points are equal between
+financial reports data and Nimrod's stata file, In cases where there is
+a difference Nimrod data seems to be much more volatile with extreme
+values
+
+\section{Appendix}
 
