@@ -99,15 +99,19 @@ parameters_list$fin_rep_vars = c(
 ```
 
 
+```{r imoprt_temp_data}
+
+raw_data = read_rds(paste0(
+  file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
+  "\\OneDrive - Bank Of Israel\\Data\\TASE",
+  " liquidity\\Current cache files\\raw_data.RDS"))
+
+```
+
+
 \subsection{Financial reports}
 
-```{r Import_finrep_df}
-
-# raw_data$finrep_df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),
-#                                             fsep="\\"),
-#                                   "\\OneDrive - Bank Of Israel\\Data",
-#                                   "\\TASE liquidity\\finrep_df.Rds")) %>% 
-#   rename_all(tolower)
+```{r Import_finrep_df, eval=FALSE}
 
 raw_data$finrep_df = import.boi.finrep.data() %>% 
   make_finrep_df(selected_x_vars = c(
@@ -136,30 +140,22 @@ stargazer(raw_data$finrep_df %>%
 
 \subsection{Market data}
 
-```{r Import_market_data}
+```{r Import_market_data, eval=FALSE}
 
-market_df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),
-                                            fsep="\\"),
-                                  "\\OneDrive - Bank Of Israel\\Data",
-                                  "\\TASE liquidity\\market_df.Rds"))
-
-market_df = market_df %>%
-  ungroup() %>% 
-  filter_at(vars(Market_Cap, Turnover, Illiq),
-            .vars_predicate = all_vars(is.finite(.)))
+raw_data$market_df = import.boi.market.data() %>% 
+  make_market_df()
 
 
 
 ```
 
-A dataset with market data (market capitalization, turnover) that allows to calculate Amihud's iiliquidity measure. The data time period is `r paste0(range(market_df$Date), collapse = "-")` at quarterly frequency.
+A dataset with market data (market capitalization, turnover) that allows to calculate Amihud's iiliquidity measure. The data time period is `r paste0(range(raw_data$market_df$date_yearqtr), collapse = "-")` at quarterly frequency.
 
 ```{r summary_market_df, results='asis'}
 
-stargazer(market_df %>% 
-            select(-Date, -Comp_ID, - Sec_ID) %>% 
-            as.data.frame() %>% 
-            mutate_at(vars(Market_Cap, Turnover),.funs = list(~. * 10 ^ (-3))),
+stargazer(raw_data$market_df %>% 
+            select(-sec_id,-date_yearqtr) %>% 
+            as.data.frame(),
           summary = TRUE, header = FALSE, digits = 2)
 
 ```

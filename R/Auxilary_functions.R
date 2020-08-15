@@ -4,7 +4,7 @@
 #'
 #' @import dplyr
 #'
-#' @import xts
+#' @import zoo
 #'
 #' @param market_df a data frame with price and turnover data at daily frequency
 
@@ -87,3 +87,23 @@ get.market.variables = function(market_df){
 
 }
 
+#' This function calculates betas and CAR's
+#'
+#' @import dplyr
+#'
+#' @import lubridate
+
+calculate.beta.and.car = function(df){
+
+  ta135 = read_csv(paste0(
+    file.path(Sys.getenv("USERPROFILE"), fsep = "\\"),
+    "\\OneDrive - Bank Of Israel\\Data\\",
+    "TASE liquidity\\TA_125_2000_2020.csv")) %>%
+    mutate(date = dmy(date))
+
+
+
+
+
+
+}

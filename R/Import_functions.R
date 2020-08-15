@@ -5,6 +5,8 @@
 #' @param filepath the path to financial report data (in csv format)
 #'
 #' @import dplyr
+#'
+#' @import xts
 
 import.boi.finrep.data = function(filepath = NULL){
 
@@ -60,6 +62,8 @@ import.boi.finrep.data = function(filepath = NULL){
 #' @import dplyr
 #'
 #' @import readr
+#'
+#' @import lubridate
 
 import.boi.market.data = function(filepath = NULL){
 

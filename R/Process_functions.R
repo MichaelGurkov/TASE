@@ -57,27 +57,35 @@ make_finrep_df = function(raw_df, selected_x_vars = NULL){
 #'
 make_market_df = function(df){
 
-  ta135 = read_csv(paste0(
-    file.path(Sys.getenv("USERPROFILE"), fsep = "\\"),
-    "\\OneDrive - Bank Of Israel\\Data\\",
-    "TASE liquidity\\TA_125_2000_2020.csv")) %>%
-    mutate(date = dmy(date))
-
   illiq_df = df %>%
-    calculate.iiliq()
+    calculate.iiliq() %>%
+    group_by(sec_id, date_yearqtr = as.yearqtr(date_yearmon)) %>%
+    summarise(illiq = mean(illiq, na.rm = TRUE), .groups = "drop")
 
-  ret_df = market_df %>%
-    group_by(sec_id) %>%
-    mutate(sec_ret = slide_dbl(close_rate,~(.[2] / .[1] - 1),
-                               .before = 1)) %>%
-    group_by(sec_id, year = year(date)) %>%
-    summarise(sec_sd = sd(sec_ret, na.rm = TRUE),.groups = "drop")
+  market_df = df %>%
+    select(-close_rate,-tase_id) %>%
+    mutate(across(c(market_value, turnover),
+                  ~ . * 10 ^ (-6))) %>%
+    mutate(size = log(market_value)) %>%
+    group_by(sec_id, date_yearqtr = as.yearqtr(date)) %>%
+    summarise(across(c(size, market_value, turnover),
+                     mean, na.rm = TRUE), .groups = "drop")%>%
+    filter_at(.vars = vars(size,market_value,turnover),
+              any_vars(!is.na(.)))
+
+ market_df = market_df %>%
+   full_join(illiq_df, by = c("sec_id","date_yearqtr"))
+
+
+ return(market_df)
 
 
 
 
 
-  return(finrep_df)
+
+
+  return()
 
 
 
