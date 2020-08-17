@@ -34,10 +34,30 @@ raw_data = list()
 
 parameters_list = list()
 
+parameters_list$article_vars = c(
+  "leverage",
+  "mb",
+  "roa",
+  "insider_ownership",
+  "intangible",
+  "size",
+  "underpricing",
+  "foreign_ipo",
+  "vc_backing",
+  "nomad_repitation",
+  "turnover",
+  "volume_log",
+  "car",
+  "stock_volatility",
+  "beta",
+  "seo",
+  "quotation_life",
+  "high_tech")
+
 parameters_list$x_vars = c(
   "Illiq",
   "Market_Cap_log",
-  "Turnover_log",
+  "Turnover_log",  
   "Public_Share",
   "HHI",
   "IPO",
@@ -98,28 +118,103 @@ parameters_list$fin_rep_vars = c(
 
 ```
 
+<!-- Import data -->
 
-```{r imoprt_temp_data}
+```{r import_secs_catalog}
+
+secs_catalog = read_csv(paste0(
+  file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
+  "\\OneDrive - Bank Of Israel\\Data\\TASE",
+  " liquidity\\Secs_Catalog.csv")) %>% 
+  mutate(across(c(tase_id, sec_id),as.character))
+
+```
+
+
+
+```{r import_temp_data}
 
 raw_data = read_rds(paste0(
   file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
   "\\OneDrive - Bank Of Israel\\Data\\TASE",
   " liquidity\\Current cache files\\raw_data.RDS"))
 
+vars_status = read_csv(paste0(
+  file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
+  "\\OneDrive - Bank Of Israel\\Data\\TASE",
+  " liquidity\\Variables_List.csv"))
+
 ```
 
-
-\subsection{Financial reports}
 
 ```{r Import_finrep_df, eval=FALSE}
 
 raw_data$finrep_df = import.boi.finrep.data() %>% 
-  make_finrep_df(selected_x_vars = c(
-    "leverage","roa","free_cashflow","capex_to_revenue"))
+  make_finrep_df(selected_x_vars = NULL)
 
 
 ```
 
+
+```{r Import_market_data, eval=FALSE}
+
+raw_data$market_df = import.boi.market.data() %>% 
+  make_market_df()
+
+
+
+
+```
+
+
+<!-- Process data -->
+
+```{r make_reg_df}
+
+
+df = make_reg_df(market_df = raw_data$market_df,
+                 finrep_df = raw_data$finrep_df,
+                 secs_catalog = secs_catalog)
+
+
+
+
+```
+
+
+
+\section{Descriptive stats}
+
+```{r vars_list, results="asis"}
+
+stargazer(vars_status %>% 
+            arrange(Status) %>% 
+            as.data.frame(),
+          header = FALSE,
+          summary = FALSE,
+          rownames = FALSE,
+          title = "List of variables used in KashefiPour2013")
+
+```
+
+
+
+```{r summary_df, results="asis"}
+
+stargazer(df %>% 
+            select(-any_of(c("sec_id", "tase_id", "date_yearqtr"))) %>% 
+            as.data.frame(),
+          header = FALSE,
+          digits = 3,
+          summary = TRUE,
+          title = "Summary statistics of regression data set")
+
+```
+
+
+
+
+\subsection{Financial reports}
 
 This dataset has data on financial reports of TASE companies.
 The data covers `r length(unique(raw_data$finrep_df$tase_id))` companies for the period `r paste0(range(raw_data$finrep_df$date), collapse = "-")` at quarterly frequency. 
@@ -139,16 +234,6 @@ stargazer(raw_data$finrep_df %>%
 
 
 \subsection{Market data}
-
-```{r Import_market_data, eval=FALSE}
-
-raw_data$market_df = import.boi.market.data() %>% 
-  make_market_df()
-
-
-
-```
-
 A dataset with market data (market capitalization, turnover) that allows to calculate Amihud's iiliquidity measure. The data time period is `r paste0(range(raw_data$market_df$date_yearqtr), collapse = "-")` at quarterly frequency.
 
 ```{r summary_market_df, results='asis'}
@@ -159,6 +244,9 @@ stargazer(raw_data$market_df %>%
           summary = TRUE, header = FALSE, digits = 2)
 
 ```
+
+
+
 
 
 \subsection{Nimrod's dataset}

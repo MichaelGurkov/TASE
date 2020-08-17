@@ -65,23 +65,29 @@ import.boi.finrep.data = function(filepath = NULL){
 #'
 #' @import lubridate
 
+
 import.boi.market.data = function(filepath = NULL){
 
   if(is.null(filepath)){filepath = paste0(file.path(
     Sys.getenv("USERPROFILE"),fsep="\\"),
     "\\OneDrive - Bank Of Israel\\Data\\",
-    "TASE liquidity\\stocks_data.Rds")}
+    "TASE liquidity\\Rdata files\\stocks_full_data.rds")}
 
   temp_df = read_rds(filepath)
 
 
   df = temp_df %>%
     rename_all(tolower) %>%
-    select(-security_main_type) %>%
-    mutate(date = ymd(date_value)) %>%
-    select(-date_value) %>%
     rename(tase_id = tase_issuer_id,
-           sec_id = security_ident_num_tase)
+           sec_id = security_ident_num_tase,
+           close = close_rate_adj,
+           date = date_value) %>%
+    mutate(date = ymd(ymd_hms(date))) %>%
+    mutate(sec_id = as.character(as.numeric(sec_id)))
+
+
+  df = df %>%
+    mutate(across(-c(sec_id,tase_id, date), as.numeric))
 
 
 
@@ -103,10 +109,11 @@ import.boi.market.data = function(filepath = NULL){
 
 import.TASE.comps_status = function(filepath = NULL){
 
-  if(is.null(filepath)){filepath = paste0(file.path(Sys.getenv("USERPROFILE"),"Documents",
-                                                    fsep="\\"),
-                                          "\\Data\\TASE\\TASE_Liquidity\\",
-                                          "Trading_Companies_Status.xlsx")}
+  if(is.null(filepath)){filepath = paste0(
+    file.path(Sys.getenv("USERPROFILE"),"Documents",
+              fsep="\\"),
+    "\\Data\\TASE\\TASE_Liquidity\\",
+    "Trading_Companies_Status.xlsx")}
 
   sheets_names = excel_sheets(filepath)
 
@@ -138,8 +145,7 @@ import.TASE.comps_status = function(filepath = NULL){
 import.old.regression.data = function(filepath = NULL){
 
   if(is.null(filepath)){filepath = paste0(
-    file.path(Sys.getenv("USERPROFILE"),
-              fsep="\\"),
+    file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
     "\\OneDrive - Bank Of Israel\\Data",
     "\\TASE liquidity\\quarterly regression updated.csv")}
 
