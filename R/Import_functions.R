@@ -178,8 +178,6 @@ import.old.regression.data = function(filepath = NULL){
 
 }
 
-
-
 #' @title Import Nimrod dataset
 #'
 #' @description This function imports clean (and filtered) version of
@@ -231,3 +229,42 @@ import.nimrod.stata.df = function(filepath,
 
 
 }
+
+
+#' @title Import BoI format financial report data
+#'
+#' @description  This function imports financial report data from BOI format
+#'
+#' @param filepath the path to financial report data (in csv format)
+#'
+#' @import dplyr
+#'
+#' @import xts
+
+import.boi.oracle.finrep.data = function(filepath = NULL){
+
+  if(is.null(filepath)){filepath = paste0(file.path(
+    Sys.getenv("USERPROFILE"),fsep="\\"),
+    "\\OneDrive - Bank Of Israel\\Data\\",
+    "TASE liquidity\\Rdata files\\finrep_full_data.rds")}
+
+  temp_df = read_rds(filepath)
+
+  Sys.setlocale(locale = "hebrew")
+
+  df = temp_df %>%
+    rename_all(tolower) %>%
+    rename_all(~str_replace_all(.,"__","_"))
+    mutate(date_yearmon = as.yearmon(date_fsd, format = "%Y%m")) %>%
+    mutate(fsd_period = case_when(fsd_period == "שנתי" ~ "annual",
+                                  fsd_period == "חצי שנתי" ~ "semiannual",
+                                  fsd_period == "רבעוני" ~ "quarterly"))
+
+  df = df %>%
+    rename(total_assets = total_balance,
+           tase_id = tase_issuer_id)
+
+  return(df)
+
+}
+
