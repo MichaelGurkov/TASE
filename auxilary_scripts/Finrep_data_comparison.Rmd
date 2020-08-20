@@ -1,0 +1,49 @@
+
+```{r load_libraries}
+
+library(devtools)
+
+load_all()
+
+library(tidyverse)
+
+```
+
+
+```{r Import_data}
+
+short_df = import.boi.finrep.data()
+
+long_df = import.boi.oracle.finrep.data()
+
+long_df = long_df %>%
+  filter(report_period == "quarterly")
+
+```
+
+
+```{r gazit_glob_comparison}
+
+X = full_join(
+  long_df %>% 
+    filter(tase_id == 126) %>% 
+    filter(year(date_yearmon) %in% c(2000,2007,2010)) %>% 
+    mutate(date_yearqtr = as.yearqtr(date_yearmon)) %>% 
+    mutate(total_assets = as.numeric(total_assets) / 1000) %>% 
+    select(tase_id, date_yearmon,date_yearqtr, total_assets),
+  short_df %>% 
+  filter(TASE_ID == 126) %>% 
+  filter(year(Date) %in% c(2000,2007,2010)) %>% 
+  mutate(Total_Assets = as.numeric(Total_Assets)) %>% 
+  select(TASE_ID,Date, Total_Assets),
+  by = c("total_assets" = "Total_Assets")
+  ) %>% 
+  select(date_yearmon,date_yearqtr,Date,total_assets)
+
+X %>% 
+  mutate(Month = month(date_yearmon)) %>% 
+  arrange(Date) %>% 
+  select(Month, everything())
+
+```
+

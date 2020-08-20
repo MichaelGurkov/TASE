@@ -19,12 +19,90 @@ make_finrep_df = function(raw_df, selected_x_vars = NULL,
 
   finrep_df = finrep_df %>%
     select(-starts_with("entity")) %>%
-    mutate(across(-c(starts_with("tase"),"year") & where(is.character),
+    mutate(across(-c(starts_with("tase"),"year") &
+                    where(is.character),
                   as.numeric)) %>%
     mutate(leverage = total_liabilities / total_assets) %>%
     mutate(capex_to_revenue = capex_cashflow / revenue) %>%
     mutate(roa = operating_profit / total_assets) %>%
     mutate(free_cashflow = operating_cashflow / total_assets)
+
+
+  if(!is.null(selected_x_vars)){
+
+    finrep_df = finrep_df %>%
+      select(date, tase_id, any_of(selected_x_vars))
+
+  }
+
+
+
+  if(filter_df){
+
+    finrep_df = finrep_df %>%
+      filter(complete.cases(.)) %>%
+      filter(across(where(is.numeric), is.finite))
+
+  }
+
+
+  return(finrep_df)
+
+
+
+
+
+
+}
+
+
+#' @title Prepare financial reports data
+#'
+#' @details This function prepares the financial reports
+#' variables data from Oracle format
+#'
+#' @import dplyr
+#'
+make_finrep_oracle_df = function(raw_oracle_df,
+                          selected_x_vars = NULL,
+                          filter_df = FALSE){
+
+  x_vars = c(
+    "leverage",
+    "capex_to_revenue",
+    "roa",
+    "free_cashflow",
+    "intangible",
+    ""
+  )
+
+
+
+  finrep_df = raw_oracle_df %>%
+    filter(report_period == "quarterly")
+
+
+  finrep_df = finrep_df %>%
+    select(-c("fsd_period",
+              "report_period",
+              "be_master_gk",
+              "be_ver_gk",
+              "date_fsd",
+              "company_id",
+              "business_entity_name",
+              "firm_merchantability_heb"
+              ))
+
+  finrep_df = finrep_df %>%
+    mutate(across(c(-date_yearqtr,-starts_with("is")),
+                  as.numeric))
+
+  finrep_df = finrep_df %>%
+    mutate(leverage = total_liabilities / total_assets) %>%
+    mutate(capex_to_revenue =
+             investing_activities / total_revenue) %>%
+    mutate(roa = operating_profit / total_assets) %>%
+    mutate(free_cashflow = operating_activities / total_assets)
 
 
   if(!is.null(selected_x_vars)){

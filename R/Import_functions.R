@@ -15,19 +15,38 @@ import.boi.finrep.data = function(filepath = NULL){
     "\\OneDrive - Bank Of Israel\\Data\\",
     "TASE liquidity\\FinancialReports.csv")}
 
-  temp_df = read.csv(filepath, encoding = "UTF-8", header = FALSE,
+  temp_df = read.csv(filepath, encoding = "UTF-8",
+                     header = FALSE,
                      stringsAsFactors = FALSE)
 
-  names_vec = c("Year","Date","TASE_branch","TASE_ID","Entity_Name",
-                "Entity_ID","Total_Assets","Current_Assets",
-                "Cash_Equivalent","Non_Current_Assets",
-                "Total_Liabilities","Current_Liabilities",
-                "Non_current_Liabilities","Equity","Minority_rights",
-                "Revenue","Total_Cost","Operating_Profit",
-                "Financing_cost","Profit_before_tax",
-                "Tax","Net_Profit","Minority_Profit",
-                "Operating_CashFlow",
-                "Capex_CashFlow","Financial_CashFlow")
+  names_vec = c(
+    "Year",
+    "Date",
+    "TASE_branch",
+    "TASE_ID",
+    "Entity_Name",
+    "Entity_ID",
+    "Total_Assets",
+    "Current_Assets",
+    "Cash_Equivalent",
+    "Non_Current_Assets",
+    "Total_Liabilities",
+    "Current_Liabilities",
+    "Non_current_Liabilities",
+    "Equity",
+    "Minority_rights",
+    "Revenue",
+    "Total_Cost",
+    "Operating_Profit",
+    "Financing_cost",
+    "Profit_before_tax",
+    "Tax",
+    "Net_Profit",
+    "Minority_Profit",
+    "Operating_CashFlow",
+    "Capex_CashFlow",
+    "Financial_CashFlow"
+  )
 
   df = temp_df %>%
     slice(-1) %>%
@@ -37,15 +56,17 @@ import.boi.finrep.data = function(filepath = NULL){
 
   Sys.setlocale(locale = "hebrew")
 
-  levels(df$TASE_branch) = list("Biomed" = "ביומד",
-                                "Insurance" = "ביטוח",
-                                "Banks" = "בנקים",
-                                "Investment_Holdings" = "השקעה ואחזקות",
-                                "Technology" = "טכנולוגיה",
-                                "Services" = "מסחר ושרותים",
-                                "Real_estate" = "נדל\"ן ובינוי",
-                                "Fin_services" = "שרותים פיננסיים",
-                                "Industry" = "תעשיה")
+  levels(df$TASE_branch) = list(
+    "Biomed" = "ביומד",
+    "Insurance" = "ביטוח",
+    "Banks" = "בנקים",
+    "Investment_Holdings" = "השקעה ואחזקות",
+    "Technology" = "טכנולוגיה",
+    "Services" = "מסחר ושרותים",
+    "Real_estate" = "נדל\"ן ובינוי",
+    "Fin_services" = "שרותים פיננסיים",
+    "Industry" = "תעשיה"
+  )
 
 
   return(df)
@@ -231,34 +252,33 @@ import.nimrod.stata.df = function(filepath,
 }
 
 
-#' @title Import BoI format financial report data
+#' @title Import Orcale format financial report data
 #'
-#' @description  This function imports financial report data from BOI format
+#' @description  This function imports financial report data from Oracle format
 #'
 #' @param filepath the path to financial report data (in csv format)
 #'
 #' @import dplyr
 #'
-#' @import xts
+#' @import zoo
+#'
+#' @import stringr
 
 import.boi.oracle.finrep.data = function(filepath = NULL){
+
 
   if(is.null(filepath)){filepath = paste0(file.path(
     Sys.getenv("USERPROFILE"),fsep="\\"),
     "\\OneDrive - Bank Of Israel\\Data\\",
-    "TASE liquidity\\Rdata files\\finrep_full_data.rds")}
+    "TASE liquidity\\Rdata files\\finrep_oracle_data.rds")}
 
   temp_df = read_rds(filepath)
 
-  Sys.setlocale(locale = "hebrew")
-
   df = temp_df %>%
     rename_all(tolower) %>%
-    rename_all(~str_replace_all(.,"__","_"))
-    mutate(date_yearmon = as.yearmon(date_fsd, format = "%Y%m")) %>%
-    mutate(fsd_period = case_when(fsd_period == "שנתי" ~ "annual",
-                                  fsd_period == "חצי שנתי" ~ "semiannual",
-                                  fsd_period == "רבעוני" ~ "quarterly"))
+    rename_all(~str_replace_all(.,"__","_")) %>%
+    mutate(date_yearqtr = as.yearqtr(date_fsd,
+                                     format = "%Y%q"))
 
   df = df %>%
     rename(total_assets = total_balance,

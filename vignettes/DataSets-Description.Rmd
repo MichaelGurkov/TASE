@@ -131,7 +131,6 @@ secs_catalog = read_csv(paste0(
 ```
 
 
-
 ```{r import_temp_data}
 
 raw_data = read_rds(paste0(
