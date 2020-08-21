@@ -38,8 +38,9 @@ parameters_list$article_vars = c(
   "leverage",
   "mb",
   "roa",
+  "free_cashflow",
   "insider_ownership",
-  "intangible",
+  "intangible_assets",
   "size",
   "underpricing",
   "foreign_ipo",
@@ -148,8 +149,8 @@ vars_status = read_csv(paste0(
 
 ```{r Import_finrep_df, eval=FALSE}
 
-raw_data$finrep_df = import.boi.finrep.data() %>% 
-  make_finrep_df(selected_x_vars = NULL)
+raw_data$finrep_df = import.boi.oracle.finrep.data() %>% 
+  make_finrep_oracle_df()
 
 
 ```
@@ -172,10 +173,13 @@ raw_data$market_df = import.boi.market.data() %>%
 
 
 df = make_reg_df(market_df = raw_data$market_df,
-                 finrep_df = raw_data$finrep_df,
+                 finrep_df = raw_data$finrep_df %>% 
+                   select(-market_value),
                  secs_catalog = secs_catalog)
 
-
+df = df %>% 
+  mutate(across(c(leverage, roa, mb, free_cashflow), ~ na_if(., Inf))) %>%
+  mutate(across(c(volume_log, roa,free_cashflow), ~ na_if(., -Inf)))
 
 
 ```
@@ -219,10 +223,10 @@ This dataset has data on financial reports of TASE companies.
 The data covers `r length(unique(raw_data$finrep_df$tase_id))` companies for the period `r paste0(range(raw_data$finrep_df$date), collapse = "-")` at quarterly frequency. 
 
 
-```{r summary_finrep_df, results='asis'}
+```{r summary_finrep_df, results='asis', eval=FALSE}
 
 stargazer(raw_data$finrep_df %>% 
-            select(-date,-tase_id) %>% 
+            select(-date_yearqtr,-tase_id) %>% 
             as.data.frame(),
           summary = TRUE, header = FALSE, digits = 2,
           summary.stat = c("n","mean","median","max","min"))
@@ -235,7 +239,7 @@ stargazer(raw_data$finrep_df %>%
 \subsection{Market data}
 A dataset with market data (market capitalization, turnover) that allows to calculate Amihud's iiliquidity measure. The data time period is `r paste0(range(raw_data$market_df$date_yearqtr), collapse = "-")` at quarterly frequency.
 
-```{r summary_market_df, results='asis'}
+```{r summary_market_df, results='asis', eval=FALSE}
 
 stargazer(raw_data$market_df %>% 
             select(-sec_id,-date_yearqtr) %>% 
@@ -277,7 +281,7 @@ The data adresses several categories:
 \end{itemize}
 
 
-```{r summary_df_stata, results="asis"}
+```{r summary_df_stata, results="asis", eval=FALSE}
 
 stargazer(stata_df %>% 
             select(-starts_with("tase"),-date) %>% 

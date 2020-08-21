@@ -59,7 +59,8 @@ make_finrep_df = function(raw_df, selected_x_vars = NULL,
 #' @title Prepare financial reports data
 #'
 #' @details This function prepares the financial reports
-#' variables data from Oracle format
+#' variables data from Oracle format. The original values are given in thousands ILS
+#' and are scaled down by 1000 so that the result is in millions ILS
 #'
 #' @import dplyr
 #'
@@ -79,12 +80,12 @@ make_finrep_oracle_df = function(raw_oracle_df,
 
 
   finrep_df = raw_oracle_df %>%
-    filter(report_period == "quarterly")
+    filter(reporting_period == "quarterly")
 
 
   finrep_df = finrep_df %>%
     select(-c("fsd_period",
-              "report_period",
+              "reporting_period",
               "be_master_gk",
               "be_ver_gk",
               "date_fsd",
@@ -94,8 +95,11 @@ make_finrep_oracle_df = function(raw_oracle_df,
               ))
 
   finrep_df = finrep_df %>%
-    mutate(across(c(-date_yearqtr,-starts_with("is")),
+    mutate(across(c(-date_yearqtr,-starts_with("is"), -tase_id),
                   as.numeric))
+
+  finrep_df = finrep_df %>%
+    mutate(across(where(is.numeric), ~ . * 10 ^ (-3)))
 
   finrep_df = finrep_df %>%
     mutate(leverage = total_liabilities / total_assets) %>%
@@ -186,14 +190,14 @@ make_market_df = function(df){
 #'
 #' @param raw_data list of finrep and market data
 #'
-#' @
+#'
 make_reg_df = function(market_df, finrep_df, secs_catalog){
 
   merged_df = market_df %>%
     left_join(secs_catalog %>%
                 select(sec_id, tase_id) %>%
                 distinct(), by = "sec_id") %>%
-    inner_join(finrep_df, by = c("tase_id","date_yearqtr" = "date"))
+    inner_join(finrep_df, by = c("tase_id","date_yearqtr"))
 
 
   df = merged_df %>%

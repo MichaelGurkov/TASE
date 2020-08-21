@@ -7,4 +7,5 @@
 *.do
 *.pdf
 *.Rd
+*.log
 Variables_Table.csv
