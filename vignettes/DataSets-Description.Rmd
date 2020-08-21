@@ -147,6 +147,7 @@ vars_status = read_csv(paste0(
 ```
 
 
+
 ```{r Import_finrep_df, eval=FALSE}
 
 raw_data$finrep_df = import.boi.oracle.finrep.data() %>% 
@@ -172,10 +173,11 @@ raw_data$market_df = import.boi.market.data() %>%
 ```{r make_reg_df}
 
 
-df = make_reg_df(market_df = raw_data$market_df,
-                 finrep_df = raw_data$finrep_df %>% 
-                   select(-market_value),
-                 secs_catalog = secs_catalog)
+df = make_reg_df(
+  market_df = raw_data$market_df,
+  finrep_df = raw_data$finrep_df %>% 
+    select(-market_value),
+  secs_catalog = secs_catalog)
 
 df = df %>% 
   mutate(across(c(leverage, roa, mb, free_cashflow), ~ na_if(., Inf))) %>%
@@ -185,8 +187,6 @@ df = df %>%
 ```
 
 
-
-\section{Descriptive stats}
 
 ```{r vars_list, results="asis"}
 
@@ -200,6 +200,8 @@ stargazer(vars_status %>%
 
 ```
 
+This dataset has data on financial reports of TASE companies.
+The data covers `r length(unique(df$tase_id))` companies for the period `r paste0(range(df$date_yearqtr), collapse = "-")` at quarterly frequency. 
 
 
 ```{r summary_df, results="asis"}
@@ -216,159 +218,6 @@ stargazer(df %>%
 
 
 
-
-\subsection{Financial reports}
-
-This dataset has data on financial reports of TASE companies.
-The data covers `r length(unique(raw_data$finrep_df$tase_id))` companies for the period `r paste0(range(raw_data$finrep_df$date), collapse = "-")` at quarterly frequency. 
-
-
-```{r summary_finrep_df, results='asis', eval=FALSE}
-
-stargazer(raw_data$finrep_df %>% 
-            select(-date_yearqtr,-tase_id) %>% 
-            as.data.frame(),
-          summary = TRUE, header = FALSE, digits = 2,
-          summary.stat = c("n","mean","median","max","min"))
-
-```
-
-
-
-
-\subsection{Market data}
-A dataset with market data (market capitalization, turnover) that allows to calculate Amihud's iiliquidity measure. The data time period is `r paste0(range(raw_data$market_df$date_yearqtr), collapse = "-")` at quarterly frequency.
-
-```{r summary_market_df, results='asis', eval=FALSE}
-
-stargazer(raw_data$market_df %>% 
-            select(-sec_id,-date_yearqtr) %>% 
-            as.data.frame(),
-          summary = TRUE, header = FALSE, digits = 2)
-
-```
-
-
-
-
-
-\subsection{Nimrod's dataset}
-
-```{r Import_nimrod_dataset}
-
-raw_data$nimrod_stata_df = import.nimrod.stata.df(paste0(
-  file.path(Sys.getenv("USERPROFILE"),fsep = "\\"),
-  "\\OneDrive - Bank Of Israel\\Data\\",
-  "TASE liquidity\\Stata files",
-  "\\TASE panel.dta")
-  )
-
-stata_df = raw_data$nimrod_stata_df %>% 
-  select(any_of(parameters_list$nimrod_vars))
-
-
-```
-
-
-A dataset that was gathered by Nimrod . The data covers `r length(unique(stata_df$tase_id))` companies for the period `r paste0(range(stata_df$date), collapse = "-")` at quarterly frequency. 
-The data adresses several categories:
-
-\begin{itemize}
-  \item
-  Financial Reports
-  \item
-  Market data
-\end{itemize}
-
-
-```{r summary_df_stata, results="asis", eval=FALSE}
-
-stargazer(stata_df %>% 
-            select(-starts_with("tase"),-date) %>% 
-            as.data.frame(),
-          summary = TRUE,
-          header = FALSE,
-          summary.stat = c("n","mean","median","max","min"))
-
-```
-
-
-
-```{r plot_NA, eval=FALSE}
-
-stata_df %>% 
-  slice_sample(n = 1000) %>% 
-  group_by(date) %>% 
-  mutate(across(everything(), ~is.na(.))) %>% 
-  pivot_longer(-date) %>% 
-  ggplot(aes(x = date, y = name, color = value)) + 
-  scale_color_manual(values = c("TRUE" = "magenta", "FALSE" = "gray")) + 
-  geom_point(show.legend = FALSE) + 
-  theme_bw()
-
-```
-
-
-\subsubsection{Comparison of financial reports data}
-
-```{r compare_financial_reports_data, eval=FALSE}
-
-fin_comparison_df = list(
-  raw_data$finrep_df %>% 
-    select(any_of(c(parameters_list$fin_rep_vars,"date","tase_id"))) %>% 
-    pivot_longer(cols = c(-date, -tase_id),
-                 names_to = "feature",
-                 values_to = "finrep"),
-  raw_data$nimrod_stata_df %>% 
-    select(any_of(c(parameters_list$fin_rep_vars,"date","tase_id"))) %>% 
-    mutate(across(where(is.numeric) & !capex_to_revenue & !roa,
-                  ~. * 10 ^ (-3))) %>% 
-    pivot_longer(cols = c(-date, -tase_id),
-                 names_to = "feature",
-                 values_to = "stata")) %>% 
-  reduce(inner_join, by = c("date","tase_id","feature")) %>% 
-  filter(complete.cases(.))
-
-
-
-fin_comparison_summary = fin_comparison_df %>% 
-  group_by(tase_id, feature) %>% 
-  summarise(avg_diff = mean(abs(finrep - stata) /
-                              (0.5 * (finrep + stata)), na.rm = TRUE),
-            .groups = "drop")
-
-
-```
-
-
-```{r plot_fin_rep_diff, eval=FALSE}
-
-temp_tase_id = c(632,1429,608,699)
-
-temp_feature = fin_comparison_df$feature[2]
-
-fin_comparison_df %>% 
-  filter(tase_id %in% temp_tase_id) %>% 
-  filter(feature %in% temp_feature) %>% 
-  pivot_longer(cols = c("finrep","stata")) %>% 
-  ggplot(aes(x = date, y = value, color = name)) + 
-  geom_point(alpha = 0.4, size = 1) + 
-  geom_line(alpha = 0.8) + 
-  scale_color_manual(values = c("finrep" = "green","stata" = "magenta")) +
-  scale_y_continuous(labels = scales::percent_format()) + 
-  ggtitle(temp_feature) + 
-  facet_wrap(~tase_id, scales = "free") + 
-  theme_bw() + 
-  theme(legend.position = "bottom")
-
-# rm(temp_tase_id)
-
-```
-
-The comparison reveals that some data points are equal between
-financial reports data and Nimrod's stata file, In cases where there is
-a difference Nimrod data seems to be much more volatile with extreme
-values
 
 \section{Appendix}
 

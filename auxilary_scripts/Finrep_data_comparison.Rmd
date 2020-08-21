@@ -1,7 +1,116 @@
-
-----
+---
 title: Financial reports data  - comparison of sources
-----
+---
+
+
+```{r import_temp_data}
+
+raw_data = read_rds(paste0(
+  file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
+  "\\OneDrive - Bank Of Israel\\Data\\TASE",
+  " liquidity\\Current cache files\\raw_data.RDS"))
+
+vars_status = read_csv(paste0(
+  file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
+  "\\OneDrive - Bank Of Israel\\Data\\TASE",
+  " liquidity\\Variables_List.csv"))
+
+```
+
+
+
+\subsection{Financial reports}
+
+This dataset has data on financial reports of TASE companies.
+The data covers `r length(unique(raw_data$finrep_df$tase_id))` companies for the period `r paste0(range(raw_data$finrep_df$date), collapse = "-")` at quarterly frequency. 
+
+
+```{r summary_finrep_df, results='asis', eval=FALSE}
+
+stargazer(raw_data$finrep_df %>% 
+            select(-date_yearqtr,-tase_id) %>% 
+            as.data.frame(),
+          summary = TRUE, header = FALSE, digits = 2,
+          summary.stat = c("n","mean","median","max","min"))
+
+```
+
+
+
+
+\subsection{Market data}
+A dataset with market data (market capitalization, turnover) that allows to calculate Amihud's iiliquidity measure. The data time period is `r paste0(range(raw_data$market_df$date_yearqtr), collapse = "-")` at quarterly frequency.
+
+```{r summary_market_df, results='asis', eval=FALSE}
+
+stargazer(raw_data$market_df %>% 
+            select(-sec_id,-date_yearqtr) %>% 
+            as.data.frame(),
+          summary = TRUE, header = FALSE, digits = 2)
+
+```
+
+
+
+\subsection{Nimrod's dataset}
+
+```{r Import_nimrod_dataset}
+
+raw_data$nimrod_stata_df = import.nimrod.stata.df(paste0(
+  file.path(Sys.getenv("USERPROFILE"),fsep = "\\"),
+  "\\OneDrive - Bank Of Israel\\Data\\",
+  "TASE liquidity\\Stata files",
+  "\\TASE panel.dta")
+  )
+
+stata_df = raw_data$nimrod_stata_df %>% 
+  select(any_of(parameters_list$nimrod_vars))
+
+
+```
+
+
+A dataset that was gathered by Nimrod . The data covers `r length(unique(stata_df$tase_id))` companies for the period `r paste0(range(stata_df$date), collapse = "-")` at quarterly frequency. 
+The data adresses several categories:
+
+\begin{itemize}
+  \item
+  Financial Reports
+  \item
+  Market data
+\end{itemize}
+
+
+```{r summary_df_stata, results="asis", eval=FALSE}
+
+stargazer(stata_df %>% 
+            select(-starts_with("tase"),-date) %>% 
+            as.data.frame(),
+          summary = TRUE,
+          header = FALSE,
+          summary.stat = c("n","mean","median","max","min"))
+
+```
+
+
+
+```{r plot_NA, eval=FALSE}
+
+stata_df %>% 
+  slice_sample(n = 1000) %>% 
+  group_by(date) %>% 
+  mutate(across(everything(), ~is.na(.))) %>% 
+  pivot_longer(-date) %>% 
+  ggplot(aes(x = date, y = name, color = value)) + 
+  scale_color_manual(values = c("TRUE" = "magenta", "FALSE" = "gray")) + 
+  geom_point(show.legend = FALSE) + 
+  theme_bw()
+
+```
+
+
+\subsubsection{Comparison of financial reports data}
+
 
 The main conclusion is that there are differences between Oracle, Mos and Nimrod's data. However the differences are not systematic, for the same tase_id, variable and
 date there are sometimes identical observations and sometimes a diffrerent ones.
@@ -15,7 +124,6 @@ load_all()
 library(tidyverse)
 
 ```
-
 
 
 
@@ -103,4 +211,25 @@ discrep_df = oracle_nimrod_diff_df %>%
 ```
 
 There are 
+
+
+```{r diff_example}
+
+inner_join(oracle_mos_diff_df %>% 
+  filter(tase_id == 666) %>% 
+  select(-diff),
+  oracle_nimrod_diff_df %>% 
+  filter(tase_id == 666) %>% 
+  select(-diff)) %>% 
+  filter(feature == "operating_profit") %>% 
+  pivot_longer(oracle:nimrod,names_to = "source") %>% 
+  ggplot(aes(x = date_yearqtr, y = value, color = source)) + 
+  geom_line() + 
+  xlab(NULL) + ylab(NULL) + ggtitle("Amos Luzon group operating profit") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+
+```
+
 
