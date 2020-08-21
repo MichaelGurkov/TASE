@@ -1,4 +1,11 @@
 
+----
+title: Financial reports data  - comparison of sources
+----
+
+The main conclusion is that there are differences between Oracle, Mos and Nimrod's data. However the differences are not systematic, for the same tase_id, variable and
+date there are sometimes identical observations and sometimes a diffrerent ones.
+
 ```{r load_libraries}
 
 library(devtools)
@@ -10,40 +17,90 @@ library(tidyverse)
 ```
 
 
+
+
 ```{r Import_data}
 
-short_df = import.boi.finrep.data()
+secs_catalog = read_csv(paste0(
+  "C:\\Users\\internet\\OneDrive - Bank Of Israel",
+  "\\Data\\TASE liquidity\\Secs_Catalog.csv")) %>% 
+  mutate(across(c("tase_id","sec_id"), as.character))
 
-long_df = import.boi.oracle.finrep.data()
+mos_df = import.boi.finrep.data() %>% 
+  rename_all(tolower) %>% 
+  rename(date_yearqtr = date) %>% 
+  rename(total_net_profit = net_profit)
 
-long_df = long_df %>%
-  filter(report_period == "quarterly")
+oracle_df  = import.boi.oracle.finrep.data() %>%
+  filter(reporting_period == "quarterly")
 
-```
-
-
-```{r gazit_glob_comparison}
-
-X = full_join(
-  long_df %>% 
-    filter(tase_id == 126) %>% 
-    filter(year(date_yearmon) %in% c(2000,2007,2010)) %>% 
-    mutate(date_yearqtr = as.yearqtr(date_yearmon)) %>% 
-    mutate(total_assets = as.numeric(total_assets) / 1000) %>% 
-    select(tase_id, date_yearmon,date_yearqtr, total_assets),
-  short_df %>% 
-  filter(TASE_ID == 126) %>% 
-  filter(year(Date) %in% c(2000,2007,2010)) %>% 
-  mutate(Total_Assets = as.numeric(Total_Assets)) %>% 
-  select(TASE_ID,Date, Total_Assets),
-  by = c("total_assets" = "Total_Assets")
+nimrod_df = import.nimrod.stata.df(paste0(
+  file.path(Sys.getenv("USERPROFILE"),fsep = "\\"),
+  "\\OneDrive - Bank Of Israel\\Data\\",
+  "TASE liquidity\\Stata files",
+  "\\TASE panel.dta")
   ) %>% 
-  select(date_yearmon,date_yearqtr,Date,total_assets)
+  rename(date_yearqtr = date)
 
-X %>% 
-  mutate(Month = month(date_yearmon)) %>% 
-  arrange(Date) %>% 
-  select(Month, everything())
 
 ```
+
+\section{Oracle vs Mos comparison}
+
+
+```{r oracle_mos_df}
+
+oracle_mos_diff_df = full_join(
+  oracle_df %>% 
+    select(intersect(names(.), names(mos_df))) %>% 
+    mutate(across(-c("tase_id", "date_yearqtr"), ~ as.numeric(.) * 10 ^ (-3))) %>% 
+    pivot_longer(-c("tase_id", "date_yearqtr"),
+                 names_to = "feature", values_to = "oracle"),
+  mos_df %>% 
+    select(intersect(names(.), names(oracle_df))) %>% 
+    mutate(across(-c("tase_id", "date_yearqtr"),as.numeric)) %>%  
+    pivot_longer(-c("tase_id", "date_yearqtr"),
+                 names_to = "feature", values_to = "mos"),
+  by = c("tase_id","date_yearqtr","feature"))%>% 
+  rowwise() %>% 
+  mutate(diff = abs((oracle - mos) / mean(c(oracle,mos))) * 100) %>% 
+  ungroup() %>% 
+  arrange(desc(diff))
+
+
+```
+
+There are some differences between oracle and mos databases.
+In the case of Aura company oracle database is correct
+(for example the comparison of 2019Q1 profit). For Brand company mos is correct.
+
+\section{Oracle vs Nimrod comparison}
+
+```{r oracle_nimrod_df}
+
+oracle_nimrod_diff_df = full_join(
+  oracle_df %>% 
+    select(intersect(names(.), names(nimrod_df))) %>% 
+    mutate(across(-c("tase_id", "date_yearqtr"), ~ as.numeric(.) * 10 ^ (-3))) %>% 
+    pivot_longer(-c("tase_id", "date_yearqtr"),
+                 names_to = "feature", values_to = "oracle"),
+  nimrod_df %>% 
+    select(intersect(names(.), names(oracle_df))) %>% 
+    mutate(across(-c("tase_id", "date_yearqtr"), ~ as.numeric(.) * 10 ^ (-3))) %>% 
+    mutate(across(-c("tase_id", "date_yearqtr"),as.numeric)) %>%  
+    pivot_longer(-c("tase_id", "date_yearqtr"),
+                 names_to = "feature", values_to = "nimrod"),
+  by = c("tase_id","date_yearqtr","feature"))%>% 
+  rowwise() %>% 
+  mutate(diff = abs((oracle - nimrod) / mean(c(oracle,nimrod))) * 100) %>% 
+  ungroup() %>% 
+  arrange(desc(diff))
+
+discrep_df = oracle_nimrod_diff_df %>% 
+  filter(diff > 5) %>% 
+  left_join(secs_catalog[,c("tase_id","comp_name_heb")])
+
+```
+
+There are 
 
