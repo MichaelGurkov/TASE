@@ -293,7 +293,6 @@ import.boi.oracle.finrep.data = function(filepath = NULL,
                                `8` = "semiannual")) %>%
     filter(fsd_period == data_frequency)
 
-
   df = df  %>%
     mutate(date_yearqtr = as.yearqtr(date_fsd,
                                      format = "%Y%q"))%>%
