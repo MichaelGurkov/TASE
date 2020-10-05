@@ -85,6 +85,8 @@ import.boi.finrep.data = function(filepath = NULL){
 #' @import readr
 #'
 #' @import lubridate
+#'
+#' @export
 
 
 import.boi.market.data = function(filepath = NULL){
@@ -263,6 +265,8 @@ import.nimrod.stata.df = function(filepath,
 #' @import zoo
 #'
 #' @import stringr
+#'
+#' @export
 
 import.boi.oracle.finrep.data = function(filepath = NULL){
 
