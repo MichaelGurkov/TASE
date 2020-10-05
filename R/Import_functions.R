@@ -280,11 +280,18 @@ import.boi.oracle.finrep.data = function(filepath = NULL){
 
   df = temp_df %>%
     rename_all(tolower) %>%
-    rename_all(~str_replace_all(.,"__","_")) %>%
-    mutate(date_yearqtr = as.yearqtr(date_fsd,
-                                     format = "%Y%q"))
+    rename_all(~str_replace_all(.,"__","_"))
 
   df = df %>%
+    mutate(fsd_period = nchar(fsd_period)) %>%
+    mutate(fsd_period = recode(fsd_period,
+                               `4` = "annual",
+                               `6` = "quarterly",
+                               `8` = "semiannual"))
+
+  df = df  %>%
+    mutate(date_yearqtr = as.yearqtr(date_fsd,
+                                     format = "%Y%q"))%>%
     rename(total_assets = total_balance,
            tase_id = tase_issuer_id)
 
