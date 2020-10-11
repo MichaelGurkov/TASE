@@ -299,6 +299,10 @@ import.boi.oracle.finrep.data = function(filepath = NULL,
     rename(total_assets = total_balance,
            tase_id = tase_issuer_id)
 
+  df = df %>%
+    mutate(across(!c("tase_id","date_yearqtr") & where(~!is.numeric(.)),
+                  as.numeric))
+
   return(df)
 
 }
