@@ -1,25 +1,39 @@
 
 ```{r Import_wfe_data}
 
-exchanges_list = read_csv(paste0(file.path(Sys.getenv("USERPROFILE"),
-                                           fsep="\\"),
+exchanges_list = read_csv(paste0(Sys.getenv("USERPROFILE"),
                                  "\\OneDrive - Bank Of Israel\\",
                                  "Data\\TASE liquidity\\",
-                                 "OECD_Exchange_list.csv"))
+                                 "OECD_Exchange_list.csv"),
+                          show_col_types = FALSE) %>% 
+  rename_all(tolower) %>% 
+  pivot_longer(-country, values_to = "exchange_name") %>% 
+  select(-name)
 
-wfe_df = read_csv(paste0(file.path(Sys.getenv("USERPROFILE"),
-                                           fsep="\\"),
-                         "\\OneDrive - Bank Of Israel",
-                         "\\Data\\TASE liquidity\\WFE\\Stocks_Data.csv"))
+wfe_df = read_csv(paste0("C:\\Users\\Home",
+                            "\\OneDrive - Bank Of Israel\\Data",
+                            "\\TASE liquidity\\WFE\\wfe_data.csv"),
+                     show_col_types = FALSE) %>%
+  rename_all(tolower)
 
 wfe_df = wfe_df %>%
-  rename_all(tolower) %>% 
-  rename(indicator = `indicator name`) %>% 
-  mutate_at(.vars = vars(value), as.numeric) %>% 
+  rename_all(~str_remove_all(.," ")) %>%
+  rename_all(~str_replace(.,"name","_name")) %>% 
+  mutate(across(value, as.numeric)) %>% 
   filter(!is.na(value))
 
 wfe_df = wfe_df %>% 
-  filter(exchangename %in% exchanges_list$Exchange_1)
+  mutate(indicator_name = str_remove_all(indicator_name,
+                                         "Total Equity Market - ")) %>% 
+  mutate(indicator_name = str_remove_all(indicator_name, " \\(Total\\)")) %>% 
+  mutate(indicator_name = str_replace_all(indicator_name,pattern = "\\s","_"))
+
+wfe_df = wfe_df%>% 
+  inner_join(exchanges_list) %>% 
+  select(year, country, exchange_name, indicator_name, value)
+
+rm(exchanges_list)
+
 
 ```
 
@@ -27,18 +41,22 @@ wfe_df = wfe_df %>%
 
 ```{r balance_df}
 
+indicator_list = c(
+  "Total Equity Market - Number of listed companies (Total)",
+  "Total Equity Market - Number of delistings (Total)",
+  "Total Equity Market - Number of new listings (Domestic Total) (Total)",
+  "Total Equity Market - Number of new listings (Foreign Total) (Total)"
+)
+
 balance_df = wfe_df %>% 
-  filter(indicator %in% c(
-    "Total Equity Market - Number of listed companies (Total)",
-    "Total Equity Market - Number of delistings (Total)",
-    "Total Equity Market - Number of new listings (Domestic Total) (Total)",
-    "Total Equity Market - Number of new listings (Foreign Total) (Total)")) %>% 
-  mutate(indicator = str_remove_all(indicator,
-                                    "Total Equity Market - Number of ")) %>% 
-  mutate(indicator = str_remove_all(indicator, " \\(Total\\)")) %>% 
-  mutate(indicator = str_replace_all(indicator,pattern = "\\s","_")) %>% 
-  pivot_wider(id_cols = c(indicator,year,exchangename),
-              names_from = indicator,values_from = value) %>% 
+  filter(indicator_name %in% indicator_list) %>% 
+  mutate(indicator_name = str_remove_all(indicator_name,
+                                         "Total Equity Market - Number of ")) %>% 
+  mutate(indicator_name = str_remove_all(indicator_name, " \\(Total\\)")) %>% 
+  mutate(indicator_name = str_replace_all(indicator_name,pattern = "\\s","_")) %>% 
+  select(date, exchange_name, indicator_name, value) %>% 
+  pivot_wider(id_cols = c(date,exchange_name),
+              names_from = indicator_name,values_from = value) %>% 
   mutate(new_listings = `new_listings_(Domestic_Total)` + 
            `new_listings_(Foreign_Total)`) %>% 
   select(-`new_listings_(Domestic_Total)`,-`new_listings_(Foreign_Total)`) 
@@ -47,9 +65,9 @@ balance_df = wfe_df %>%
   # Calculate changes in comps
   
   balance_df = balance_df %>% 
-  group_by(exchangename) %>% 
-  arrange(year) %>% 
-  mutate(listed_change = c(NA, diff(listed_companies))) %>% 
+  group_by(exchange_name) %>% 
+  arrange(date) %>% 
+  mutate(delistings = c(NA, diff(listed_companies)) - new_listings) %>% 
   mutate(issue_change = new_listings - delistings) %>% 
   ungroup()
 
@@ -61,16 +79,25 @@ balance_df = wfe_df %>%
 
 ```{r delisting_comps_by_year}
 
-ggplot(balance_df %>% 
-         group_by(year) %>% 
-         summarise(delistings_share = sum(delistings, na.rm = TRUE) /
-                     sum(listed_companies, na.rm = TRUE)),
-       aes(x = as.character(year), y = delistings_share)) + 
-  geom_col() + 
-  labs(x = "", y = "Percent", title = "Share of delisting by Year") + 
-  theme_bw() + 
-  theme(plot.title = element_text(hjust = 0.5),
-        axis.text.x = element_text(angle = 90, vjust = 0.5))
+wfe_df %>% 
+  filter(indicator_name %in% c("Number_of_delistings",
+                             "Number_of_listed_companies")) %>% 
+  # group_by(year, exchange_name, indicator_name) %>% 
+  # summarise(value = sum(value), .groups = "drop") %>% 
+  pivot_wider(id_cols = c("year", "exchange_name"),
+              names_from = indicator_name,values_from = value) %>% 
+  mutate(delistings_share = Number_of_delistings / Number_of_listed_companies) %>% 
+  group_by(year) %>% 
+  summarise(avg_delisting_share = mean(delistings_share, na.rm = TRUE)) %>% 
+  filter(is.finite(avg_delisting_share)) %>% 
+  ggplot(aes(as.character(year), avg_delisting_share, group = 1)) + 
+  geom_line() + 
+  scale_y_continuous(labels = scales::percent_format()) + 
+  xlab(NULL) + ylab(NULL) + ggtitle("Average delistings share in OECD countries")
+  
+    
+
+
 
 ```
 

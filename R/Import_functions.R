@@ -130,13 +130,13 @@ import.boi.market.data = function(filepath = NULL){
 #'
 #' @import xts
 
-import.TASE.comps_status = function(filepath = NULL){
+import_TASE_comps_status = function(filepath = NULL){
 
-  if(is.null(filepath)){filepath = paste0(
-    file.path(Sys.getenv("USERPROFILE"),"Documents",
-              fsep="\\"),
-    "\\Data\\TASE\\TASE_Liquidity\\",
-    "Trading_Companies_Status.xlsx")}
+  if(is.null(filepath)){
+    filepath = paste0(Sys.getenv("USERPROFILE"),
+                      "\\OneDrive - Bank Of Israel",
+                      "\\Data\\TASE liquidity",
+                      "\\Trading_Companies_Status.xlsx")}
 
   sheets_names = excel_sheets(filepath)
 

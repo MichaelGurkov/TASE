@@ -3,16 +3,16 @@ title: "TASE companies evolution"
 output: pdf_document
 ---
 
-```{r setup, include=FALSE,}
+```{r setup, include=FALSE}
 
-knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(echo = FALSE,error = FALSE,
+                      message = FALSE, warning = FALSE)
 
 ```
 
 
 ```{r Load_libraries}
 
-library(devtools)
 
 library(tidyverse)
 
@@ -22,59 +22,71 @@ library(stargazer)
 
 library(readxl)
 
-load_all()
+devtools::load_all()
 
 ```
 
 
 ```{r Import_data}
 
-status_df = import.TASE.comps_status()
 
-tase = inner_join(read.csv(paste0(file.path(Sys.getenv("USERPROFILE"),
-                 fsep="\\"),"\\OneDrive - Bank Of Israel\\Data\\",
-                 "TASE liquidity\\TA_35_2000_2019.csv"),
-                 stringsAsFactors = FALSE) %>%  
-                   setNames(c("Date","Basis","Open","Close",
-                              "High","Low","Market_Cap")) %>% 
-  mutate(Date = as.Date(Date, format = "%d/%m/%Y")) %>% 
-  select(Date,Close) %>% 
-  group_by(Year = format(Date,"%Y")) %>% 
-  summarise(Avg_Close_35 = mean(Close)),
-  read.csv(paste0(file.path(Sys.getenv("USERPROFILE"),
-                 fsep="\\"),"\\OneDrive - Bank Of Israel\\Data\\",
-                 "TASE liquidity\\TA_125_2000_2019.csv"),
-           stringsAsFactors = FALSE) %>% 
-    setNames(c("Date","Basis","Open","Close","High","Low","Market_Cap")) %>% 
-    mutate(Date = as.Date(Date, format = "%d/%m/%Y")) %>% 
-    select(Date,Close) %>% 
-    group_by(Year = format(Date,"%Y")) %>% 
-    summarise(Avg_Close_125 = mean(Close)))
+status_df = import_TASE_comps_status()
+
+price_df = map_dfr(c("TA35","TA125"), function(temp_name){
+  
+  file_path = paste0(Sys.getenv("USERPROFILE"),
+                       "\\OneDrive - Bank Of Israel",
+                       "\\Data\\TASE liquidity",
+                       "\\",temp_name,".csv")
+  
+  temp_df = read_csv(file_path,col_names = c("date", "basis", "open", "close",
+                                        "high", "low", "market_cap"),
+                show_col_types = FALSE, skip = 1) %>%
+  mutate(date = dmy(date)) %>% 
+  group_by(year = year(date)) %>% 
+  summarise(avg_close = mean(close), .groups = "drop") %>% 
+  mutate(index_type = temp_name)
+
+  return(temp_df)
+  
+  
+  
+})
+
+
 
 ```
 
 
 ```{r plot_comps_evolution}
 
-comps_evolution_plot = ggplot(status_df %>% 
-                                filter(Sector == "Total"),
-                              aes(x = Year, y = End_Year, group = 1)) + 
-  geom_col(width = 0.7) + 
+status_df %>% 
+  filter(Sector == "Total") %>% 
+  ggplot(aes(Year, End_Year)) + 
+  geom_col() + 
   geom_text(aes(x = Year, y = End_Year, label = End_Year), vjust = -1,
             color = "magenta", size = 3) + 
-  labs(x = "", y = "", title = "Number of listed companies in TASE") + 
-  theme_bw() + 
-  theme(plot.title = element_text(hjust = 0.5),
-        axis.text.x = element_text(angle = 90, vjust = 0.5))
+  xlab(NULL) + ylab(NULL) + ggtitle("Number of listed companies in TASE")
 
-y_range = ggplot_build(comps_evolution_plot)$layout$panel_params[[1]]$y.range
-
-y_range[2] = 1.05 * y_range[2]
-
-print(comps_evolution_plot + 
-        ylim(y_range))
-
-rm(y_range)
+# comps_evolution_plot = ggplot(status_df %>% 
+#                                 filter(Sector == "Total"),
+#                               aes(x = Year, y = End_Year, group = 1)) + 
+#   geom_col(width = 0.7) + 
+#   geom_text(aes(x = Year, y = End_Year, label = End_Year), vjust = -1,
+#             color = "magenta", size = 3) + 
+#   labs(x = "", y = "", title = "Number of listed companies in TASE") + 
+#   theme_bw() + 
+#   theme(plot.title = element_text(hjust = 0.5),
+#         axis.text.x = element_text(angle = 90, vjust = 0.5))
+# 
+# y_range = ggplot_build(comps_evolution_plot)$layout$panel_params[[1]]$y.range
+# 
+# y_range[2] = 1.05 * y_range[2]
+# 
+# print(comps_evolution_plot + 
+#         ylim(y_range))
+# 
+# rm(y_range)
 
 ```
 
@@ -167,15 +179,18 @@ A total of `r sum(status_df$Delisted_Comps[status_df$Sector == "Total"])` (`r su
 
 ```{r calculate_delisting_cor}
 
-temp_df = status_df %>% 
+del_cor = status_df %>% 
   filter(Sector == "Total") %>% 
   select(Year, Delisted_Comps) %>% 
-  inner_join(tase[,c("Year","Avg_Close_125")])
+  mutate(Year = as.numeric(Year)) %>% 
+  inner_join(price_df %>% 
+               filter(index_type == "TA125") %>% 
+               select(year,avg_close), by = c("Year" = "year")) %>% 
+  select(-Year) %>% 
+  cor()
 
+del_cor = del_cor[1,2]
 
-del_cor = cor(diff(temp_df$Delisted_Comps),diff(temp_df$Avg_Close_125))
-
-rm(temp_df)
 
 ```
 
