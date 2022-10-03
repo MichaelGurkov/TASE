@@ -13,7 +13,6 @@ knitr::opts_chunk$set(echo = FALSE,error = FALSE,
 
 ```{r Load_libraries}
 
-
 library(tidyverse)
 
 library(xts)
@@ -61,18 +60,18 @@ price_df = map_dfr(c("TA35","TA125"), function(temp_name){
 ```{r plot_comps_evolution}
 
 status_df %>% 
-  filter(Sector == "Total") %>% 
-  ggplot(aes(Year, End_Year)) + 
+  filter(sector == "Total") %>% 
+  ggplot(aes(year, end_year)) + 
   geom_col() + 
-  geom_text(aes(x = Year, y = End_Year, label = End_Year), vjust = -1,
+  geom_text(aes(x = year, y = end_year, label = end_year), vjust = -1,
             color = "magenta", size = 3) + 
   xlab(NULL) + ylab(NULL) + ggtitle("Number of listed companies in TASE")
 
 # comps_evolution_plot = ggplot(status_df %>% 
-#                                 filter(Sector == "Total"),
-#                               aes(x = Year, y = End_Year, group = 1)) + 
+#                                 filter(sector == "Total"),
+#                               aes(x = year, y = end_year, group = 1)) + 
 #   geom_col(width = 0.7) + 
-#   geom_text(aes(x = Year, y = End_Year, label = End_Year), vjust = -1,
+#   geom_text(aes(x = year, y = end_year, label = end_year), vjust = -1,
 #             color = "magenta", size = 3) + 
 #   labs(x = "", y = "", title = "Number of listed companies in TASE") + 
 #   theme_bw() + 
@@ -91,26 +90,30 @@ status_df %>%
 ```
 
 Number of listed companies has been declining since it peaked at 2007-2008, there are currently 
-`r status_df$End_Year[status_df$Sector == "Total" & status_df$Year == max(status_df$Year)]` listed
-on the exchange.The average number has been `r mean(status_df$End_Year[status_df$Sector == "Total"])`
+`r status_df$end_year[status_df$sector == "Total" & status_df$year == max(status_df$year)]` listed
+on the exchange.The average number has been `r mean(status_df$end_year[status_df$sector == "Total"])`
 companies.
 
 ```{r plot_net_new_comps_evolution}
 
-ggplot(status_df %>% 
-  filter(Sector == "Total") %>% 
-  select(Year, Issued_Comps, Delisted_Comps) %>% 
-  mutate(Net_New_Comps = Issued_Comps - Delisted_Comps) %>% 
-  mutate(Delisted_Comps = -1 * Delisted_Comps) %>% 
-  gather(key = Indicator, value = Comps_Num, -Year,-Net_New_Comps)) + 
-  geom_col(aes(x = Year, y = Comps_Num, fill = Indicator)) +
-  geom_line(aes(x = Year,group = 1, y = Net_New_Comps, color = "Net new comps")) + 
+
+status_df %>% 
+  filter(sector == "Total Shares") %>% 
+  select(year, issued_comps, delisted_comps) %>% 
+  mutate(net_new_comps = issued_comps - delisted_comps) %>% 
+  mutate(delisted_comps = -1 * delisted_comps) %>% 
+  pivot_longer(-c(year, net_new_comps)) %>% 
+  ggplot() + 
+  geom_col(aes(year, value, fill = name)) +
+  geom_line(aes(year, net_new_comps, group = 1,
+            color = "Net new comps")) + 
   scale_color_manual(values = "black") + 
-  # geom_hline(yintercept = 0, linetype = "dashed") + 
-  labs(x = "", y = "") + 
-  theme_bw() + 
-  theme(legend.position = "bottom",legend.title = element_blank(),
-        axis.text.x = element_text(angle = 90, vjust = 0.5))
+  xlab(NULL) + ylab(NULL) + 
+  theme(legend.title = element_blank())
+  
+  
+
+
 
 ```
 
@@ -118,8 +121,8 @@ ggplot(status_df %>%
 ```{r plot_comps_evolution_by_sectype}
 
 ggplot(status_df %>% 
-  filter(Sector %in% c("Total Shares","Total Bonds")),
-  aes(x = Year, y = End_Year, group = Sector, fill = Sector)) + 
+  filter(sector %in% c("Total Shares","Total Bonds")),
+  aes(x = year, y = end_year, group = sector, fill = sector)) + 
   geom_col(position = "dodge") + 
   labs(x = "", y = "", title = "Number of listed companies in TASE") + 
   theme_bw() + 
@@ -132,8 +135,8 @@ ggplot(status_df %>%
 ```{r plot_comps_evolution_by_sector}
 
 ggplot(status_df %>% 
-  filter(!Sector %in% grep("Total",unique(Sector),value = TRUE)),
-  aes(x = Year, y = End_Year, group = Sector, fill = Sector, label = End_Year)) + 
+  filter(!sector %in% grep("Total",unique(sector),value = TRUE)),
+  aes(x = year, y = end_year, group = sector, fill = sector, label = end_year)) + 
   geom_bar(stat = "identity") + 
   # geom_text(size = 3, position = position_stack(vjust = 0.5)) + 
   scale_fill_brewer(type = "div", palette = "Spectral") + 
@@ -149,16 +152,24 @@ real estate, services and holdings. However in the last 5 years holding's and se
 decreased significantly while new sectors such as technology and biomed entered the stage.
 
 
+\subsection{Index inclusion}
+
+```{r}
+
+```
+
+
+
 \subsection{Delisting companies}
 
 ```{r plot_delisting_comps}
 
 delisted_comps_plot = ggplot(status_df %>% 
-                               filter(Sector == "Total"),
-                             aes(x = Year, y = Delisted_Comps,
-                                 label = Delisted_Comps)) + 
+                               filter(sector == "Total"),
+                             aes(x = year, y = delisted_comps,
+                                 label = delisted_comps)) + 
   geom_col(width = 0.7) + 
-  geom_text(aes(x = Year, y = Delisted_Comps), vjust = -1,
+  geom_text(aes(x = year, y = delisted_comps), vjust = -1,
             color = "magenta", size = 3) + 
   labs(x = "", y = "", title = "Number of delisted companies") + 
   theme_bw() + 
@@ -175,18 +186,18 @@ rm(y_range)
 
 ```
 
-A total of `r sum(status_df$Delisted_Comps[status_df$Sector == "Total"])` (`r sum(status_df$Delisted_Comps[status_df$Sector == "Total Shares"])` shares and `r sum(status_df$Delisted_Comps[status_df$Sector == "Total Bonds"])` bonds) companies were delisted from TASE during the entire period.
+A total of `r sum(status_df$delisted_comps[status_df$sector == "Total"])` (`r sum(status_df$delisted_comps[status_df$sector == "Total Shares"])` shares and `r sum(status_df$delisted_comps[status_df$sector == "Total Bonds"])` bonds) companies were delisted from TASE during the entire period.
 
 ```{r calculate_delisting_cor}
 
 del_cor = status_df %>% 
-  filter(Sector == "Total") %>% 
-  select(Year, Delisted_Comps) %>% 
-  mutate(Year = as.numeric(Year)) %>% 
+  filter(sector == "Total") %>% 
+  select(year, delisted_comps) %>% 
+  mutate(year = as.numeric(year)) %>% 
   inner_join(price_df %>% 
                filter(index_type == "TA125") %>% 
-               select(year,avg_close), by = c("Year" = "year")) %>% 
-  select(-Year) %>% 
+               select(year,avg_close), by = c("year" = "year")) %>% 
+  select(-year) %>% 
   cor()
 
 del_cor = del_cor[1,2]
@@ -200,8 +211,8 @@ We can see that the peak in delisting companies took place in 2012-2014 period, 
 ```{r plot_delisting_comps_by_type}
 
 ggplot(status_df %>% 
-         filter(Sector %in% c("Total Shares","Total Bonds")),
-       aes(x = Year,y = Delisted_Comps, fill = Sector)) + 
+         filter(sector %in% c("Total Shares","Total Bonds")),
+       aes(x = year,y = delisted_comps, fill = sector)) + 
   geom_col(position = "dodge") + 
   labs(x = "", y = "", title = "Delisted companies by instrument") + 
   theme_bw() + 
@@ -216,8 +227,8 @@ ggplot(status_df %>%
 ```{r plot_delisting_comps_by_sector}
 
 ggplot(status_df %>% 
-         filter(!str_detect(Sector,"Total")),
-       aes(x = Year,y = Delisted_Comps, fill = Sector)) + 
+         filter(!str_detect(sector,"Total")),
+       aes(x = year,y = delisted_comps, fill = sector)) + 
   geom_col(position = "stack") + 
   labs(x = "", y = "", title = "Delisted companies by sector") + 
   scale_fill_brewer(palette = "Set3") +

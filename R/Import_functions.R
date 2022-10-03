@@ -143,14 +143,20 @@ import_TASE_comps_status = function(filepath = NULL){
   sheet_list = lapply(sheets_names,function(temp_name){
 
     temp_sheet = read_xlsx(filepath,sheet = temp_name) %>%
-      mutate(Year = temp_name) %>%
-      rename(Start_Year = Start, End_Year = End, Issued_Comps = Issued,
-             Delisted_Comps = Delisted) %>%
-      select(Year, Sector, everything())
+      mutate(year = temp_name) %>%
+      rename_all(tolower) %>%
+      rename(start_year = start, end_year = end,
+             issued_comps = issued,
+             delisted_comps = delisted) %>%
+      select(year, sector, everything())
 
   })
 
   status_df = bind_rows(sheet_list)
+
+  status_df = status_df %>%
+    mutate(across(where(is.numeric), ~replace_na(.,0)))
+
 
   return(status_df)
 
