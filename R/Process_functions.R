@@ -10,8 +10,7 @@ make_finrep_df = function(raw_df, selected_x_vars = NULL,
     "capex_to_revenue",
     "roa",
     "free_cashflow",
-    "intangible",
-    ""
+    "intangible"
   )
 
   finrep_df = raw_df %>%
@@ -146,7 +145,7 @@ make_finrep_oracle_df = function(raw_oracle_df,
 make_market_df = function(df){
 
   illiq_df = df %>%
-    calculate.iiliq() %>%
+    calculate_illiq() %>%
     group_by(sec_id, date_yearqtr = as.yearqtr(date_yearmon)) %>%
     summarise(illiq = mean(illiq, na.rm = TRUE), .groups = "drop")
 
@@ -154,10 +153,7 @@ make_market_df = function(df){
     select(date,sec_id, close) %>%
     group_by(sec_id) %>%
     arrange(date) %>%
-    mutate(ret = slide_dbl(close,
-                           .f = ~.[2] / .[1] - 1,
-                           .before = 1,
-                           .complete = TRUE)) %>%
+    mutate(ret = c(NA,diff(log(close)))) %>%
     group_by(sec_id, date_yearqtr = as.yearqtr(date)) %>%
     summarise(volatility = sd(ret, na.rm = TRUE), .groups = "drop")
 
@@ -169,9 +165,7 @@ make_market_df = function(df){
     mutate(size = log(market_value)) %>%
     group_by(sec_id, date_yearqtr = as.yearqtr(date)) %>%
     summarise(across(c(size, market_value, turnover, volume),
-                     mean, na.rm = TRUE), .groups = "drop")%>%
-    filter_at(.vars = vars(size,market_value,turnover, volume),
-              any_vars(!is.na(.)))
+                     mean, na.rm = TRUE), .groups = "drop")
 
  market_df = market_df %>%
    full_join(illiq_df, by = c("sec_id","date_yearqtr")) %>%

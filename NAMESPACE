@@ -2,6 +2,7 @@
 
 export(import.boi.market.data)
 export(import.boi.oracle.finrep.data)
+export(import_TASE_comps_status)
 import(dplyr)
 import(haven)
 import(lubridate)

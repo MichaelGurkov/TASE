@@ -89,7 +89,7 @@ import.boi.finrep.data = function(filepath = NULL){
 #' @export
 
 
-import.boi.market.data = function(filepath = NULL){
+import_boi_market_data = function(filepath = NULL){
 
   if(is.null(filepath)){filepath = paste0(file.path(
     Sys.getenv("USERPROFILE"),fsep="\\"),
@@ -105,7 +105,7 @@ import.boi.market.data = function(filepath = NULL){
            sec_id = security_ident_num_tase,
            close = close_rate_adj,
            date = date_value) %>%
-    mutate(date = ymd(ymd_hms(date))) %>%
+    mutate(date = as_date(date)) %>%
     mutate(sec_id = as.character(as.numeric(sec_id)))
 
 
@@ -129,6 +129,8 @@ import.boi.market.data = function(filepath = NULL){
 #' @import dplyr
 #'
 #' @import xts
+#'
+#' @export
 
 import_TASE_comps_status = function(filepath = NULL){
 

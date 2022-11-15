@@ -23,6 +23,8 @@ library(lubridate)
 
 library(stargazer)
 
+library(MiscImport)
+
 load_all()
 
 ```
@@ -123,11 +125,25 @@ parameters_list$fin_rep_vars = c(
 
 ```{r import_secs_catalog}
 
-secs_catalog = read_csv(paste0(
-  file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
-  "\\OneDrive - Bank Of Israel\\Data\\TASE",
-  " liquidity\\Secs_Catalog.csv")) %>% 
-  mutate(across(c(tase_id, sec_id),as.character))
+secs_catalog = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                               "\\OneDrive - Bank Of Israel",
+                               "\\Data\\TASE liquidity",
+                               "\\Secs_Catalog.csv"),
+                        col_types = paste0(rep("c",8), collapse = ""),
+                        show_col_types = FALSE)
+
+```
+
+
+```{r import_delisted_comps_catalog}
+
+delisted_comps = read_csv(paste0("C:\\Users\\internet",
+                                 "\\OneDrive - Bank Of Israel",
+                                 "\\Data\\TASE liquidity",
+                                 "\\delisted_comps.csv"),
+                          col_types = "cc",
+                          show_col_types = FALSE) %>% 
+  filter(!is.na(tase_id))
 
 ```
 
@@ -147,26 +163,99 @@ vars_status = read_csv(paste0(
 ```
 
 
-
 ```{r Import_finrep_df, eval=FALSE}
 
-raw_data$finrep_df = import.boi.oracle.finrep.data() %>% 
-  make_finrep_oracle_df()
+finrep_file_path = paste0("C:\\Users\\internet",
+                          "\\OneDrive - Bank Of Israel\\Data",
+                          "\\TASE liquidity\\Rdata files",
+                          "\\finrep_full_data_2022-11-15.rds")
+
+finrep_raw = import_boi_oracle_finrep_data(filepath = finrep_file_path,
+                                          data_frequency = "annual")
+
+
+
+rm(finrep_file_path)
+
+```
+
+
+# Financial reports dataset
+
+```{r fin}
+
+finrep_df = finrep_raw %>%
+  inner_join(select(delisted_comps, tase_id), by = "tase_id") %>% 
+  mutate(date = year(date_yearqtr)) %>% 
+  filter(date >= 2000) %>% 
+  mutate(leverage = total_liabilities / total_assets) %>%
+  mutate(capex_to_revenue =
+           investing_activities / total_revenue) %>%
+  mutate(roa = operating_profit / total_assets) %>%
+  mutate(free_cashflow = operating_activities / total_assets) %>% 
+  select(tase_id, date,leverage,capex_to_revenue,
+         roa,free_cashflow, intangible_assets)
 
 
 ```
+
+
+
+```{r intanible_assets_eda}
+
+finrep_df %>% 
+  select(date, intangible_assets) %>% 
+  group_by(date) %>% 
+  summarise(share_complete = sum(!is.na(intangible_assets)) /
+              length(intangible_assets), .groups = "drop") %>% 
+  ggplot(aes(date, share_complete)) + 
+  geom_col()
+
+```
+
+# Market dataset
 
 
 ```{r Import_market_data, eval=FALSE}
 
-raw_data$market_df = import.boi.market.data() %>% 
+market_file_path = paste0(Sys.getenv("USERPROFILE"),
+                          "\\OneDrive - Bank Of Israel\\Data",
+                          "\\TASE liquidity\\Rdata files",
+                          "\\market_data.rds")
+
+market_df = import_boi_market_data(market_file_path) %>% 
   make_market_df()
 
 
+rm(market_file_path)
 
+temp = market_df %>% 
+  filter(date_yearqtr >= as.yearqtr("2000 Q4")) %>% 
+  inner_join(secs_catalog %>% 
+               select(tase_id, sec_id) %>%
+               distinct() %>% 
+               inner_join(select(delisted_comps, tase_id),
+                          by = "tase_id"))
+
+
+skimr::skim_without_charts(temp)
 
 ```
 
+
+```{r}
+
+market_df %>% 
+  filter(security_ident_num_tase == "00662577") %>% 
+  mutate(date_value = as_date(date_value)) %>% 
+  mutate(close_rate_adj = as.numeric(close_rate_adj)) %>% 
+  ggplot(aes(date_value, close_rate_adj)) + 
+  geom_line()
+
+```
+
+
+Fin reports data from oracle 
 
 <!-- Process data -->
 

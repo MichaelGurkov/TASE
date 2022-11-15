@@ -8,7 +8,7 @@
 #'
 #' @param market_df a data frame with price and turnover data at daily frequency
 
-calculate.iiliq = function(market_df){
+calculate_illiq = function(market_df){
 
   market_df = market_df %>%
     arrange(date)
