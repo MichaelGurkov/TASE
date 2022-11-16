@@ -27,136 +27,29 @@ load_all()
 ```
 
 
-```{r Set_parameters}
-
-x_vars = c("Illiq","Market_Cap_log","Turnover_log","Public_Share","HHI","IPO",
-           "Total_Assets","Operating_Profit","Revenue","Net_Profit","Equity",
-           "Total_Liabilities","Leverage")
-
-```
-
-
 ```{r Import_data}
+
+var_list = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                           "\\OneDrive - Bank Of Israel\\Data",
+                           "\\TASE liquidity\\michael files",
+                           "\\Variables_List.csv"), show_col_types = FALSE)
+
 
 df = read_rds(paste0(Sys.getenv("USERPROFILE"),
                      "\\OneDrive - Bank Of Israel\\Data",
-                     "\\TASE liquidity\\Rdata files\\final_df.RDS"))
+                     "\\TASE liquidity\\Rdata files\\final_df.RDS")) %>% 
+  rename_all(tolower)
 
 df = df %>% 
-  select(Date, any_of(x_vars)) %>% 
-  mutate_if(is.numeric,.funs = ~ifelse(abs(.) == Inf,NA,.))
+  mutate(capex_to_revenue = capex_cashflow / revenue) %>%
+  mutate(roa = operating_profit / total_assets) %>%
+  mutate(mb = market_cap / total_assets) %>% 
+  rename(size = market_cap_log) %>% 
+  select(tase_id, date, any_of(na.omit(var_list$df_varname)))
 
 
 ```
 
-
-```{r Import_market_data, eval=FALSE}
-
-if(file.exists(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
-                      "\\OneDrive - Bank Of Israel\\Data\\",
-                      "TASE liquidity\\market_df.RDS"))){
-  
-  market_df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
-                      "\\OneDrive - Bank Of Israel\\Data\\",
-                      "TASE liquidity\\market_df.RDS"))
-  
-
-} else {
-  
-  market_df = read_rds(paste0("C:\\Users\\internet\\Documents\\Data\\TASE\\Market Data",
-                          "\\Market_data_stocks_2001-2019.Rds")) %>% 
-    get.market.variables()
-  
-}
-
-
-```
-
-
-```{r Import_finrep_data, eval=FALSE}
-
-if(file.exists(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
-                      "\\OneDrive - Bank Of Israel\\Data\\",
-                      "TASE liquidity\\finrep_df.RDS"))){
-  
-  finrep_df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
-                      "\\OneDrive - Bank Of Israel\\Data\\",
-                      "TASE liquidity\\finrep_df.RDS"))
-  
-} else {
-  
-  finrep_df = import.boi.finrep.data() %>% 
-  mutate_if(((!names(.) %in% c("Date","TASE_branch","TASE_ID")) & !is.numeric(.)),
-            as.numeric) %>% 
-  select(Date, TASE_ID, TASE_branch, Operating_Profit,Net_Profit,
-         Equity,Revenue,Total_Assets, Total_Liabilities, Capex_CashFlow,
-         Operating_CashFlow) %>% 
-  mutate(Capex_to_revenue = Capex_CashFlow / Revenue) %>% 
-  mutate(ROA = Operating_Profit / Total_Assets) %>% 
-  mutate(Free_CashFlow = Operating_CashFlow / Total_Assets)
-  
-  
-}
-
-```
-
-
-```{r process_data, eval=FALSE}
-
-df = full_join(finrep_df, market_df, by = c("Date" = "Date",
-                                            "TASE_ID" = "Comp_ID"))
-
-df = df %>% 
-  mutate(MB = Market_Cap / Equity) %>% 
-  mutate(Market_Cap_log = log(Market_Cap)) %>% 
-  mutate(Turnover_log = log(Turnover)) %>% 
-  mutate(Leverage = Total_Liabilities / Total_Assets)
-
-
-rm(finrep_df, market_df)
-
-```
-
-
-```{r import_old_data, eval=FALSE}
-
-old_df = import.old.regression.data()
-
-merged_df = full_join(df,old_df[,names(old_df)[names(old_df) %in% names(df)]],
-                      by = c("Date","TASE_ID"), suffix = c("_new","_old")) 
-
-final_df = merged_df
-
-for(varname in grep("_new$",names(final_df),value = TRUE)){
-  
-  main_var = sym(varname)
-  
-  backup_var = sym(str_replace(varname,"new","old"))
-  
-  final_df = final_df %>% 
-    mutate(!!varname := coalesce(!!main_var,!!backup_var))
-  
-  rm(main_var, backup_var)
-
-}
-
-final_df = final_df %>% 
-  select(-ends_with("_old")) %>% 
-  rename_at(.vars = vars(ends_with("_new")),.funs = list(~str_remove(.,"_new")))
-  
-
-# Test for data completness
-
-# if(length(x_vars[!x_vars %in% names(final_df)]) > 0){
-#   
-#   message(paste("The following variables are missing:",
-#                 paste0(x_vars[!x_vars %in% names(df)],
-#                        collapse = ",")))
-#   
-# }
-# 
-
-```
 
 
 \section{Introduction}
@@ -207,7 +100,7 @@ stargazer(df, header = FALSE,
 
 ```{r Import_tase_comps_list}
 
-tase_comps_list = read_csv(paste0("C:\\Users\\internet",
+tase_comps_list = read_csv(paste0(Sys.getenv("USERPROFILE"),
                                   "\\OneDrive - Bank Of Israel",
                                   "\\Data\\TASE liquidity",
                                   "\\TASE Comps list_revised.csv"),
@@ -226,6 +119,15 @@ delisted_dates = tase_comps_list %>%
   filter(Delisted == 1) %>% 
   filter(!is.na(Delisting_Date)) %>% 
   nrow()
+
+```
+
+
+```{r import_boi_delisting_data}
+
+boi_delisted_comps = read_
+
+
 
 ```
 

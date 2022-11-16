@@ -30,7 +30,7 @@ load_all()
 ```
 
 
-```{r set_parameters}
+```{r set_parameters, eval=FALSE}
 
 raw_data = list()
 
@@ -137,7 +137,7 @@ secs_catalog = read_csv(paste0(Sys.getenv("USERPROFILE"),
 
 ```{r import_delisted_comps_catalog}
 
-delisted_comps = read_csv(paste0("C:\\Users\\internet",
+delisted_comps = read_csv(paste0(Sys.getenv("USERPROFILE"),
                                  "\\OneDrive - Bank Of Israel",
                                  "\\Data\\TASE liquidity",
                                  "\\delisted_comps.csv"),
@@ -148,7 +148,7 @@ delisted_comps = read_csv(paste0("C:\\Users\\internet",
 ```
 
 
-```{r import_temp_data}
+```{r import_temp_data, eval=FALSE}
 
 raw_data = read_rds(paste0(
   file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
@@ -163,94 +163,149 @@ vars_status = read_csv(paste0(
 ```
 
 
-```{r Import_finrep_df, eval=FALSE}
+```{r Import_finrep_df}
 
-finrep_file_path = paste0("C:\\Users\\internet",
+finrep_file_path = paste0(Sys.getenv("USERPROFILE"),
                           "\\OneDrive - Bank Of Israel\\Data",
                           "\\TASE liquidity\\Rdata files",
                           "\\finrep_full_data_2022-11-15.rds")
 
-finrep_raw = import_boi_oracle_finrep_data(filepath = finrep_file_path,
-                                          data_frequency = "annual")
+x_vars = c("leverage",
+           "capex_to_revenue",
+           "roa",
+           "free_cashflow",
+           "intangible_assets",
+           "total_assets")
+
+finrep_df = import_boi_oracle_finrep_data(filepath = finrep_file_path,
+                                          data_frequency = "quarterly")
+
+finrep_df = finrep_df %>% 
+  make_finrep_oracle_df(selected_x_vars = x_vars) %>% 
+  filter(year(date) >= 2000)
 
 
-
-rm(finrep_file_path)
+rm(finrep_file_path,x_vars)
 
 ```
 
 
 # Financial reports dataset
 
-```{r fin}
+```{r nimrod_df, eval=FALSE}
 
-finrep_df = finrep_raw %>%
-  inner_join(select(delisted_comps, tase_id), by = "tase_id") %>% 
-  mutate(date = year(date_yearqtr)) %>% 
-  filter(date >= 2000) %>% 
-  mutate(leverage = total_liabilities / total_assets) %>%
-  mutate(capex_to_revenue =
-           investing_activities / total_revenue) %>%
-  mutate(roa = operating_profit / total_assets) %>%
-  mutate(free_cashflow = operating_activities / total_assets) %>% 
-  select(tase_id, date,leverage,capex_to_revenue,
-         roa,free_cashflow, intangible_assets)
+x_vars = c(
+  "total_liabilities",
+  "total_assets",
+  "investing_activities",
+  "total_revenue",
+  "operating_profit",
+  "operating_activities"
+)
+
+nimrod_df = import.boi.finrep.data()
 
 
 ```
 
+```{r compare_comp, eval=FALSE}
+
+comp_id = "281"
+
+alice = finrep_raw %>% 
+  filter(tase_id == comp_id) %>% 
+  select(date = date_yearqtr, 
+  total_liabilities,
+  total_assets,
+  investing_activities,
+  total_revenue,
+  operating_profit,
+  operating_activities)
 
 
-```{r intanible_assets_eda}
+bob = nimrod_df %>% 
+  rename_all(tolower) %>% 
+  filter(tase_id == comp_id) %>% 
+  select(date, 
+  total_liabilities,
+  total_assets,
+  investing_activities = capex_cashflow,
+  total_revenue = revenue,
+  operating_profit,
+  operating_activities = operating_cashflow)
+
+alice %>% 
+  pivot_longer(-date) %>% 
+  mutate(value = value * 10 ^ -3) %>% 
+  full_join(bob %>% 
+               pivot_longer(-date) %>% 
+               mutate(value = as.numeric(value)), by = c("date","name"),
+             suffix = c("_alice","_bob")) %>% 
+  pivot_longer(cols = starts_with("value"),names_to = "source") %>% 
+  ggplot(aes(date, value, color = source)) + 
+  geom_line() + 
+  facet_wrap(~name, scales = "free")
+
+```
+
+Comparing current data from Oracle and final df the current
+Oracle data seems to be the most complete (same as Nimrod in early years but extends longer).
+
+
+```{r plot_missing_value_structure}
 
 finrep_df %>% 
-  select(date, intangible_assets) %>% 
-  group_by(date) %>% 
-  summarise(share_complete = sum(!is.na(intangible_assets)) /
-              length(intangible_assets), .groups = "drop") %>% 
+  select(-tase_id) %>% 
+  pivot_longer(-date) %>% 
+  group_by(date, name) %>% 
+  summarise(share_complete = sum(!is.na(value)) /
+              length(value), .groups = "drop") %>% 
   ggplot(aes(date, share_complete)) + 
-  geom_col()
+  geom_col() + 
+  scale_y_continuous(labels = scales::percent_format()) + 
+  facet_wrap(~name, scales = "free_y") + 
+  xlab(NULL) + ylab(NULL) + ggtitle("Date coverage")
 
 ```
+
+
 
 # Market dataset
 
 
-```{r Import_market_data, eval=FALSE}
+```{r Import_market_data}
 
 market_file_path = paste0(Sys.getenv("USERPROFILE"),
                           "\\OneDrive - Bank Of Israel\\Data",
                           "\\TASE liquidity\\Rdata files",
                           "\\market_data.rds")
 
-market_df = import_boi_market_data(market_file_path) %>% 
-  make_market_df()
+market_df = import_boi_market_data(market_file_path)
+
+market_df = market_df %>% 
+  make_market_df() %>% 
+  filter(year(date) >= as.yearqtr("2000 Q1"))
 
 
 rm(market_file_path)
 
-temp = market_df %>% 
-  filter(date_yearqtr >= as.yearqtr("2000 Q4")) %>% 
-  inner_join(secs_catalog %>% 
-               select(tase_id, sec_id) %>%
-               distinct() %>% 
-               inner_join(select(delisted_comps, tase_id),
-                          by = "tase_id"))
-
-
-skimr::skim_without_charts(temp)
 
 ```
 
 
-```{r}
+```{r plot_missing_value_structure}
 
 market_df %>% 
-  filter(security_ident_num_tase == "00662577") %>% 
-  mutate(date_value = as_date(date_value)) %>% 
-  mutate(close_rate_adj = as.numeric(close_rate_adj)) %>% 
-  ggplot(aes(date_value, close_rate_adj)) + 
-  geom_line()
+  select(-sec_id, -tase_id) %>% 
+  pivot_longer(-date) %>% 
+  group_by(date, name) %>% 
+  summarise(share_complete = sum(!is.na(value)) /
+              length(value), .groups = "drop") %>% 
+  ggplot(aes(date, share_complete)) + 
+  geom_col() + 
+  scale_y_continuous(labels = scales::percent_format()) + 
+  facet_wrap(~name, scales = "free_y") + 
+  xlab(NULL) + ylab(NULL) + ggtitle("Date coverage")
 
 ```
 
@@ -258,36 +313,6 @@ market_df %>%
 Fin reports data from oracle 
 
 <!-- Process data -->
-
-```{r make_reg_df}
-
-
-df = make_reg_df(
-  market_df = raw_data$market_df,
-  finrep_df = raw_data$finrep_df %>% 
-    select(-market_value),
-  secs_catalog = secs_catalog)
-
-df = df %>% 
-  mutate(across(c(leverage, roa, mb, free_cashflow), ~ na_if(., Inf))) %>%
-  mutate(across(c(volume_log, roa,free_cashflow), ~ na_if(., -Inf)))
-
-
-```
-
-
-
-```{r vars_list, results="asis"}
-
-stargazer(vars_status %>% 
-            arrange(Status) %>% 
-            as.data.frame(),
-          header = FALSE,
-          summary = FALSE,
-          rownames = FALSE,
-          title = "List of variables used in KashefiPour2013")
-
-```
 
 This dataset has data on financial reports of TASE companies.
 The data covers `r length(unique(df$tase_id))` companies for the period `r paste0(range(df$date_yearqtr), collapse = "-")` at quarterly frequency. 
@@ -309,4 +334,127 @@ stargazer(df %>%
 
 
 \section{Appendix}
+
+
+
+# Final dataset
+
+
+```{r make_reg_df}
+
+
+df = make_reg_df(market_df = market_df,
+                 finrep_df = finrep_df,
+                 secs_catalog = secs_catalog)
+
+df = df %>% 
+  mutate(across(c(leverage, roa, mb, free_cashflow), ~ na_if(., Inf))) %>%
+  mutate(across(c(volume_log, roa,free_cashflow), ~ na_if(., -Inf)))
+
+# df = df %>% 
+#   filter(date <= as.yearqtr("2020 Q1"))
+
+```
+
+```{r missing_structure}
+
+map_dbl(df,~sum(is.na(.))/length(.)) %>% 
+  as_tibble() %>% 
+  mutate(col_name = names(df)) %>% 
+  ggplot(aes(value, reorder(col_name, value))) + 
+  geom_col() + 
+  xlab(NULL) + ylab(NULL) + ggtitle("Missing data in final df")
+```
+
+
+```{r compare_to_old, eval=FALSE}
+
+old_df = read_rds(paste0(Sys.getenv("USERPROFILE"),
+                         "\\OneDrive - Bank Of Israel\\Data",
+                         "\\TASE liquidity\\Rdata files\\final_df.RDS")) %>% 
+  rename_all(tolower) %>% 
+  filter(year(date) >= as.yearqtr("2000 Q1"))
+
+df %>% 
+  select(tase_id) %>% 
+  distinct()
+
+old_df = old_df %>% 
+  inner_join(df %>% 
+               select(tase_id) %>% 
+               distinct(), by = "tase_id") %>% 
+  select(any_of(names(df)))
+
+```
+
+
+```{r missing_structure_od}
+
+map_dbl(old_df,~sum(is.na(.))/length(.)) %>% 
+  as_tibble() %>% 
+  mutate(col_name = names(old_df)) %>% 
+  ggplot(aes(value, reorder(col_name, value))) + 
+  geom_col() + 
+  xlab(NULL) + ylab(NULL) + ggtitle("Missing data in old_df")
+```
+
+
+```{r}
+
+compare_vars = c("tase_id","date", "total_assets","illiq","leverage","turnover")
+
+temp = df %>% 
+  select(compare_vars) %>% 
+  pivot_longer(-c("tase_id","date")) %>% 
+  full_join(old_df %>% 
+              select(compare_vars) %>% 
+              pivot_longer(-c("tase_id","date")),
+            by = c("tase_id","date"), suffix = c("_finrep","_old")) %>% 
+  mutate(diff = value_finrep - value_old)
+
+
+temp %>% 
+  ggplot(aes(x = diff)) + 
+  geom_histogram()
+
+```
+
+
+
+```{r compare_comp, eval=FALSE}
+
+comp_id = "281"
+
+alice = df %>% 
+  filter(tase_id == comp_id) %>% 
+  select(date, 
+  illiq,
+  leverage,
+  mb,
+  turnover)
+
+
+bob = old_df %>% 
+  filter(tase_id == comp_id) %>% 
+  select(date, 
+  illiq,
+  leverage,
+  mb,
+  turnover)
+
+alice %>% 
+  pivot_longer(-date) %>% 
+  full_join(bob %>% 
+              mutate(across(c("mb","turnover"), ~ .* 10 ^ -6)) %>% 
+              pivot_longer(-date) %>% 
+              mutate(value = as.numeric(value)),
+            by = c("date","name"),
+            suffix = c("_alice","_bob")) %>% 
+  pivot_longer(cols = starts_with("value"),names_to = "source") %>% 
+  ggplot(aes(date, value, color = source)) + 
+  geom_line() + 
+  facet_wrap(~name, scales = "free")
+
+```
+
 
