@@ -89,12 +89,8 @@ import.boi.finrep.data = function(filepath = NULL){
 #' @export
 
 
-import_boi_market_data = function(filepath = NULL){
+import_boi_market_data = function(filepath){
 
-  if(is.null(filepath)){filepath = paste0(file.path(
-    Sys.getenv("USERPROFILE"),fsep="\\"),
-    "\\OneDrive - Bank Of Israel\\Data\\",
-    "TASE liquidity\\Rdata files\\stocks_full_data.rds")}
 
   temp_df = read_rds(filepath)
 
@@ -233,7 +229,7 @@ import.nimrod.stata.df = function(filepath,
   names_table = read_csv(paste0(
     file.path(Sys.getenv("USERPROFILE"),fsep = "\\"),
     "\\OneDrive - Bank Of Israel\\Data\\",
-    "TASE liquidity\\convert_names_table.csv")) %>%
+    "TASE liquidity\\michael files\\convert_names_table.csv")) %>%
     filter(old_name %in% names(raw_df))
 
   df = raw_df %>%
@@ -262,7 +258,7 @@ import.nimrod.stata.df = function(filepath,
 }
 
 
-#' @title Import Orcale format financial report data
+#' @title Import Oracle format financial report data
 #'
 #' @description  This function imports financial report data from Oracle format
 #'

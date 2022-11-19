@@ -29,242 +29,70 @@ load_all()
 
 ```
 
-
-```{r set_parameters, eval=FALSE}
-
-raw_data = list()
-
-parameters_list = list()
-
-parameters_list$article_vars = c(
-  "leverage",
-  "mb",
-  "roa",
-  "free_cashflow",
-  "insider_ownership",
-  "intangible_assets",
-  "size",
-  "underpricing",
-  "foreign_ipo",
-  "vc_backing",
-  "nomad_repitation",
-  "turnover",
-  "volume_log",
-  "car",
-  "stock_volatility",
-  "beta",
-  "seo",
-  "quotation_life",
-  "high_tech")
-
-parameters_list$x_vars = c(
-  "Illiq",
-  "Market_Cap_log",
-  "Turnover_log",  
-  "Public_Share",
-  "HHI",
-  "IPO",
-  "Total_Assets",
-  "Operating_Profit",
-  "Revenue",
-  "Net_Profit",
-  "Equity",
-  "Total_Liabilities",
-  "Leverage"
-)
-
-
-parameters_list$nimrod_vars = c(
-  "tase_id",
-  "tase_branch",
-  "date",
-  "leverage",
-  "mb",
-  "capex_to_revenue",
-  "ipo_dummy",
-  "roa",
-  "free_cashflow",
-  "insider_ownership",
-  "size",
-  "log_trade_volume",
-  "turnover",
-  "car_ipo_rr",
-  "car_ipo_rf",
-  "car_del_rr",
-  "car_del_rf",
-  "bet_ipo_rr",
-  "bet_del_rr",
-  "bet_ipo_rf",
-  "bet_del_rf",
-  "bet_qr_rr",
-  "bet_qr_rf",
-  "start_date_trading",
-  "end_date_trading"
-)
-
-
-parameters_list$fin_rep_vars = c(
-  "operating_profit",
-  "net_profit",
-  "equity",
-  "revenue",
-  "total_assets",
-  "total_liabilities",
-  "capex_cashflow",
-  "operating_cashflow",
-  "capex_to_revenue",
-  "roa",
-  "free_cashflow"
-)
-
-
-
-```
-
 <!-- Import data -->
 
 ```{r import_secs_catalog}
 
-secs_catalog = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                               "\\OneDrive - Bank Of Israel",
-                               "\\Data\\TASE liquidity",
-                               "\\Secs_Catalog.csv"),
-                        col_types = paste0(rep("c",8), collapse = ""),
+secs_catalog = read_csv(paste0("C:\\Users\\Home",
+                               "\\OneDrive - Bank Of Israel\\Data",
+                               "\\TASE\\Secs_Catalog.csv"),
+                        col_types = "cccccccc",
                         show_col_types = FALSE)
 
-```
+vars_list = read_csv(paste0("C:\\Users\\Home",
+                            "\\OneDrive - Bank Of Israel\\Data",
+                            "\\TASE liquidity\\michael files",
+                            "\\Variables_List.csv"),
+                     show_col_types = FALSE)
 
-
-```{r import_delisted_comps_catalog}
-
-delisted_comps = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                                 "\\OneDrive - Bank Of Israel",
-                                 "\\Data\\TASE liquidity",
-                                 "\\delisted_comps.csv"),
-                          col_types = "cc",
-                          show_col_types = FALSE) %>% 
-  filter(!is.na(tase_id))
 
 ```
-
-
-```{r import_temp_data, eval=FALSE}
-
-raw_data = read_rds(paste0(
-  file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
-  "\\OneDrive - Bank Of Israel\\Data\\TASE",
-  " liquidity\\Current cache files\\raw_data.RDS"))
-
-vars_status = read_csv(paste0(
-  file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
-  "\\OneDrive - Bank Of Israel\\Data\\TASE",
-  " liquidity\\Variables_List.csv"))
-
-```
-
-
-```{r Import_finrep_df}
-
-finrep_file_path = paste0(Sys.getenv("USERPROFILE"),
-                          "\\OneDrive - Bank Of Israel\\Data",
-                          "\\TASE liquidity\\Rdata files",
-                          "\\finrep_full_data_2022-11-15.rds")
-
-x_vars = c("leverage",
-           "capex_to_revenue",
-           "roa",
-           "free_cashflow",
-           "intangible_assets",
-           "total_assets")
-
-finrep_df = import_boi_oracle_finrep_data(filepath = finrep_file_path,
-                                          data_frequency = "quarterly")
-
-finrep_df = finrep_df %>% 
-  make_finrep_oracle_df(selected_x_vars = x_vars) %>% 
-  filter(year(date) >= 2000)
-
-
-rm(finrep_file_path,x_vars)
-
-```
-
 
 # Financial reports dataset
 
-```{r nimrod_df, eval=FALSE}
+```{r finrep_df}
 
-x_vars = c(
-  "total_liabilities",
-  "total_assets",
-  "investing_activities",
-  "total_revenue",
-  "operating_profit",
-  "operating_activities"
-)
-
-nimrod_df = import.boi.finrep.data()
+raw_finrep_vars = vars_list %>% 
+  filter(data_source == "finrep") %>% 
+  filter(category == "raw") %>% 
+  pull(df_varname)
 
 
-```
-
-```{r compare_comp, eval=FALSE}
-
-comp_id = "281"
-
-alice = finrep_raw %>% 
-  filter(tase_id == comp_id) %>% 
-  select(date = date_yearqtr, 
-  total_liabilities,
-  total_assets,
-  investing_activities,
-  total_revenue,
-  operating_profit,
-  operating_activities)
+final_finrep_vars = vars_list %>% 
+  filter(data_source == "finrep") %>% 
+  filter(category == "final") %>% 
+  pull(df_varname)
 
 
-bob = nimrod_df %>% 
-  rename_all(tolower) %>% 
-  filter(tase_id == comp_id) %>% 
-  select(date, 
-  total_liabilities,
-  total_assets,
-  investing_activities = capex_cashflow,
-  total_revenue = revenue,
-  operating_profit,
-  operating_activities = operating_cashflow)
 
-alice %>% 
-  pivot_longer(-date) %>% 
-  mutate(value = value * 10 ^ -3) %>% 
-  full_join(bob %>% 
-               pivot_longer(-date) %>% 
-               mutate(value = as.numeric(value)), by = c("date","name"),
-             suffix = c("_alice","_bob")) %>% 
-  pivot_longer(cols = starts_with("value"),names_to = "source") %>% 
-  ggplot(aes(date, value, color = source)) + 
-  geom_line() + 
-  facet_wrap(~name, scales = "free")
+finrep_path = paste0(Sys.getenv("USERPROFILE"),
+                     "\\OneDrive - Bank Of Israel\\Data",
+                     "\\TASE liquidity\\Rdata files\\finrep_full_data",
+                     "_2022-11-15.rds")
+
+raw_oracle_finrep_df = import_boi_oracle_finrep_data(finrep_path,
+                                          data_frequency = "quarterly")
+
+finrep_df = raw_oracle_finrep_df %>% 
+  make_finrep_oracle_df(raw_finrep_vars = raw_finrep_vars,
+                        final_finrep_vars = final_finrep_vars)
+
+
+rm(finrep_path,raw_finrep_vars,final_finrep_vars,raw_oracle_finrep_df)
 
 ```
-
-Comparing current data from Oracle and final df the current
-Oracle data seems to be the most complete (same as Nimrod in early years but extends longer).
 
 
 ```{r plot_missing_value_structure}
 
 finrep_df %>% 
-  select(-tase_id) %>% 
-  pivot_longer(-date) %>% 
-  group_by(date, name) %>% 
-  summarise(share_complete = sum(!is.na(value)) /
-              length(value), .groups = "drop") %>% 
-  ggplot(aes(date, share_complete)) + 
+  map_dbl(.,~sum(is.na(.)) / length(.)) %>% 
+  as_tibble() %>% 
+  mutate(col_names = names(finrep_df)) %>% 
+  ggplot(aes(value, reorder(col_names, value))) + 
   geom_col() + 
-  scale_y_continuous(labels = scales::percent_format()) + 
-  facet_wrap(~name, scales = "free_y") + 
-  xlab(NULL) + ylab(NULL) + ggtitle("Date coverage")
+  scale_x_continuous(labels = scales::percent_format()) + 
+  xlab(NULL) + ylab(NULL) + ggtitle("Missing structure of finrep df")
 
 ```
 
@@ -272,22 +100,36 @@ finrep_df %>%
 
 # Market dataset
 
-
 ```{r Import_market_data}
+
+raw_market_vars = vars_list %>% 
+  filter(data_source == "market_data") %>% 
+  filter(category == "raw") %>% 
+  pull(df_varname)
+
+
+final_market_vars = vars_list %>% 
+  filter(data_source == "market_data") %>% 
+  filter(category == "final") %>% 
+  filter(!df_varname == "car") %>% 
+  pull(df_varname)
+
 
 market_file_path = paste0(Sys.getenv("USERPROFILE"),
                           "\\OneDrive - Bank Of Israel\\Data",
                           "\\TASE liquidity\\Rdata files",
-                          "\\market_data.rds")
-
-market_df = import_boi_market_data(market_file_path)
-
-market_df = market_df %>% 
-  make_market_df() %>% 
-  filter(year(date) >= as.yearqtr("2000 Q1"))
+                          "\\market_data_2022-11-15.rds")
 
 
-rm(market_file_path)
+raw_oracle_market_df = import_boi_market_data(market_file_path)
+
+market_df = raw_oracle_market_df %>% 
+  make_market_df()
+
+final_market_vars[!final_market_vars %in% names(market_df)]
+
+
+rm(market_file_path,raw_oracle_market_df)
 
 
 ```
@@ -296,60 +138,50 @@ rm(market_file_path)
 ```{r plot_missing_value_structure}
 
 market_df %>% 
-  select(-sec_id, -tase_id) %>% 
-  pivot_longer(-date) %>% 
-  group_by(date, name) %>% 
-  summarise(share_complete = sum(!is.na(value)) /
-              length(value), .groups = "drop") %>% 
-  ggplot(aes(date, share_complete)) + 
+  map_dbl(.,~sum(is.na(.)) / length(.)) %>% 
+  as_tibble() %>% 
+  mutate(col_names = names(market_df)) %>% 
+  ggplot(aes(value, reorder(col_names, value))) + 
   geom_col() + 
-  scale_y_continuous(labels = scales::percent_format()) + 
-  facet_wrap(~name, scales = "free_y") + 
-  xlab(NULL) + ylab(NULL) + ggtitle("Date coverage")
+  scale_x_continuous(labels = scales::percent_format()) + 
+  xlab(NULL) + ylab(NULL) + ggtitle("Missing structure of market df")
 
 ```
 
 
-Fin reports data from oracle 
+```{r complete_market_data_from_legacy_data_sources, eval=FALSE}
 
-<!-- Process data -->
+legacy_market_df = read_rds(paste0(Sys.getenv("USERPROFILE"),
+                     "\\OneDrive - Bank Of Israel\\Data",
+                     "\\TASE liquidity\\Rdata files\\final_df.RDS")) %>% 
+  rename_all(tolower)
 
-This dataset has data on financial reports of TASE companies.
-The data covers `r length(unique(df$tase_id))` companies for the period `r paste0(range(df$date_yearqtr), collapse = "-")` at quarterly frequency. 
+legacy_market_df = legacy_market_df %>% 
+  rename(size = market_cap_log) %>% 
+  select(sec_id, date, any_of(final_market_vars))
 
-
-```{r summary_df, results="asis"}
-
-stargazer(df %>% 
-            select(-any_of(c("sec_id", "tase_id", "date_yearqtr"))) %>% 
-            as.data.frame(),
-          header = FALSE,
-          digits = 3,
-          summary = TRUE,
-          title = "Summary statistics of regression data set")
 
 ```
-
-
-
-
-\section{Appendix}
 
 
 
 # Final dataset
 
-
 ```{r make_reg_df}
+
+final_vars = vars_list %>% 
+  filter(category == "final") %>% 
+  filter(status == "present") %>% 
+  pull(df_varname)
 
 
 df = make_reg_df(market_df = market_df,
                  finrep_df = finrep_df,
-                 secs_catalog = secs_catalog)
+                 final_vars = final_vars)
 
 df = df %>% 
   mutate(across(c(leverage, roa, mb, free_cashflow), ~ na_if(., Inf))) %>%
-  mutate(across(c(volume_log, roa,free_cashflow), ~ na_if(., -Inf)))
+  mutate(across(c(volume, roa,free_cashflow), ~ na_if(., -Inf)))
 
 # df = df %>% 
 #   filter(date <= as.yearqtr("2020 Q1"))
@@ -363,61 +195,61 @@ map_dbl(df,~sum(is.na(.))/length(.)) %>%
   mutate(col_name = names(df)) %>% 
   ggplot(aes(value, reorder(col_name, value))) + 
   geom_col() + 
+  scale_x_continuous(labels = scales::percent_format()) + 
   xlab(NULL) + ylab(NULL) + ggtitle("Missing data in final df")
 ```
 
+## Complete final dataset from legacy data
 
-```{r compare_to_old, eval=FALSE}
 
-old_df = read_rds(paste0(Sys.getenv("USERPROFILE"),
-                         "\\OneDrive - Bank Of Israel\\Data",
-                         "\\TASE liquidity\\Rdata files\\final_df.RDS")) %>% 
-  rename_all(tolower) %>% 
-  filter(year(date) >= as.yearqtr("2000 Q1"))
+```{r Import_legacy_df}
 
-df %>% 
-  select(tase_id) %>% 
-  distinct()
 
-old_df = old_df %>% 
-  inner_join(df %>% 
-               select(tase_id) %>% 
-               distinct(), by = "tase_id") %>% 
-  select(any_of(names(df)))
+legacy_df = read_rds(paste0(Sys.getenv("USERPROFILE"),
+                     "\\OneDrive - Bank Of Israel\\Data",
+                     "\\TASE liquidity\\Rdata files\\final_df.RDS")) %>% 
+  rename_all(tolower)
+
+# names(df)[!names(df) %in% names(legacy_df)]
+
+legacy_df = legacy_df %>% 
+  rename(size = market_cap_log)
+
+
 
 ```
 
 
-```{r missing_structure_od}
 
-map_dbl(old_df,~sum(is.na(.))/length(.)) %>% 
-  as_tibble() %>% 
-  mutate(col_name = names(old_df)) %>% 
-  ggplot(aes(value, reorder(col_name, value))) + 
-  geom_col() + 
-  xlab(NULL) + ylab(NULL) + ggtitle("Missing data in old_df")
-```
+```{r complete_df_with_legacy_df}
 
-
-```{r}
-
-compare_vars = c("tase_id","date", "total_assets","illiq","leverage","turnover")
-
-temp = df %>% 
-  select(compare_vars) %>% 
+df = df %>% 
   pivot_longer(-c("tase_id","date")) %>% 
-  full_join(old_df %>% 
-              select(compare_vars) %>% 
+  left_join(legacy_df %>% 
+              select(any_of(names(df))) %>% 
               pivot_longer(-c("tase_id","date")),
-            by = c("tase_id","date"), suffix = c("_finrep","_old")) %>% 
-  mutate(diff = value_finrep - value_old)
+            by = c("tase_id","date","name"), suffix = c("_df","_legacy")) %>% 
+  mutate(final_value = coalesce(value_df, value_legacy)) %>% 
+  select(-c("value_df","value_legacy")) %>% 
+  pivot_wider(id_cols = c("tase_id","date"),
+              names_from = "name", values_from = "final_value")
 
-
-temp %>% 
-  ggplot(aes(x = diff)) + 
-  geom_histogram()
+rm(legacy_df)
 
 ```
+
+
+```{r import_nimrod_df}
+
+nimrod_filepath = paste0(Sys.getenv("USERPROFILE"),
+                         "\\OneDrive - Bank Of Israel\\Data",
+                         "\\TASE liquidity\\Stata files",
+                         "\\ahzakot.dta")
+
+nimrod_df = import.nimrod.stata.df(nimrod_filepath)
+
+```
+
 
 
 
@@ -457,4 +289,18 @@ alice %>%
 
 ```
 
+
+
+
+# Save final df
+
+```{r save_final_df, eval=FALSE}
+
+df %>% 
+  write_rds(paste0("C:\\Users\\Home",
+                   "\\OneDrive - Bank Of Israel\\Data",
+                   "\\TASE liquidity\\Rdata files\\final_df_",
+                   Sys.Date(),".rds"))
+
+```
 

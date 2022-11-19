@@ -64,34 +64,15 @@ make_finrep_df = function(raw_df, selected_x_vars = NULL,
 #' @import dplyr
 #'
 make_finrep_oracle_df = function(raw_oracle_df,
-                          selected_x_vars = NULL,
-                          filter_df = FALSE){
+                                 raw_finrep_vars,
+                                 final_finrep_vars){
 
-  x_vars = c(
-    "leverage",
-    "capex_to_revenue",
-    "roa",
-    "free_cashflow",
-    "intangible_assets")
 
+  finrep_df = raw_oracle_df %>%
+    select(tase_id, date = date_yearqtr, any_of(raw_finrep_vars))
 
   finrep_df = finrep_df %>%
-    select(-any_of(
-      c(
-        "fsd_period",
-        "reporting_period",
-        "be_master_gk",
-        "be_ver_gk",
-        "date_fsd",
-        "company_id",
-        "business_entity_name",
-        "firm_merchantability_heb"
-      )
-    ))
-
-  finrep_df = finrep_df %>%
-    mutate(across(c(-date_yearqtr,-starts_with("is"), -tase_id),
-                  as.numeric))
+    mutate(across(-c("tase_id", "date"),as.numeric))
 
   finrep_df = finrep_df %>%
     mutate(across(where(is.numeric), ~ . * 10 ^ (-3)))
@@ -103,23 +84,9 @@ make_finrep_oracle_df = function(raw_oracle_df,
     mutate(roa = operating_profit / total_assets) %>%
     mutate(free_cashflow = operating_activities / total_assets)
 
+  finrep_df = finrep_df %>%
+    select(tase_id, date, any_of(final_finrep_vars))
 
-  if(!is.null(selected_x_vars)){
-
-    finrep_df = finrep_df %>%
-      select(date = date_yearqtr, tase_id, any_of(selected_x_vars))
-
-  }
-
-
-
-  if(filter_df){
-
-    finrep_df = finrep_df %>%
-      filter(complete.cases(.)) %>%
-      filter(across(where(is.numeric), is.finite))
-
-  }
 
 
   return(finrep_df)
@@ -140,32 +107,31 @@ make_finrep_oracle_df = function(raw_oracle_df,
 #'
 make_market_df = function(df){
 
-  illiq_df = df %>%
-    calculate_illiq() %>%
-    group_by(sec_id, date = as.yearqtr(date_yearmon)) %>%
-    summarise(illiq = mean(illiq, na.rm = TRUE), .groups = "drop")
+  # illiq_df = df %>%
+  #   calculate_illiq() %>%
+  #   group_by(tase_id, sec_id, date = as.yearqtr(date_yearmon)) %>%
+  #   summarise(illiq = mean(illiq, na.rm = TRUE), .groups = "drop")
 
   sd_df = df %>%
-    select(date,sec_id, close) %>%
-    group_by(sec_id) %>%
+    select(tase_id, sec_id,date, close) %>%
+    group_by(tase_id, sec_id) %>%
     arrange(date) %>%
     mutate(ret = c(NA,diff(log(close)))) %>%
-    group_by(sec_id, date = as.yearqtr(date)) %>%
+    group_by(tase_id, sec_id, date = as.yearqtr(date)) %>%
     summarise(volatility = sd(ret, na.rm = TRUE), .groups = "drop")
 
 
   market_df = df %>%
-    select(-close,-tase_id) %>%
     mutate(across(c(market_value, turnover),
                   ~ . * 10 ^ (-6))) %>%
     mutate(size = log(market_value)) %>%
-    group_by(sec_id, date = as.yearqtr(date)) %>%
+    group_by(tase_id, sec_id, date = as.yearqtr(date)) %>%
     summarise(across(c(size, market_value, turnover, volume),
                      mean, na.rm = TRUE), .groups = "drop")
 
  market_df = market_df %>%
-   full_join(illiq_df, by = c("sec_id","date")) %>%
-   full_join(sd_df, by = c("sec_id","date"))
+   # full_join(illiq_df, by = c("sec_id","date")) %>%
+   full_join(sd_df, by = c("tase_id", "sec_id","date"))
 
 
  return(market_df)
@@ -181,24 +147,29 @@ make_market_df = function(df){
 #' @param raw_data list of finrep and market data
 #'
 #'
-make_reg_df = function(market_df, finrep_df, secs_catalog){
+make_reg_df = function(market_df, finrep_df,
+                       final_vars = NULL){
 
-  merged_df = market_df %>%
-    left_join(secs_catalog %>%
-                select(sec_id, tase_id) %>%
-                distinct(), by = "sec_id") %>%
-    inner_join(finrep_df, by = c("tase_id","date"))
+  aggregated_market_df = market_df %>%
+    select(-sec_id) %>%
+    group_by(tase_id, date) %>%
+    summarise(across(everything(), ~mean(.,na.rm = TRUE)),
+              .groups = "drop")
+
+  merged_df = aggregated_market_df %>%
+    full_join(finrep_df, by = c("tase_id","date"))
 
 
   df = merged_df %>%
     mutate(mb = market_value / total_assets) %>%
-    mutate(volume_log = log(volume))
+    mutate(volume = log(volume))
 
-  df = secs_catalog %>%
-    select(tase_id, tase_branch_eng) %>%
-    filter(tase_branch_eng == "technology") %>%
-    distinct() %>%
-    right_join(df,by = "tase_id")
+  if(!is.null(final_vars)){
+
+    df = df %>%
+      select(tase_id, date, any_of(final_vars))
+
+  }
 
   return(df)
 
