@@ -128,46 +128,6 @@ import_boi_market_data = function(filepath){
 #'
 #' @export
 
-import_TASE_comps_status = function(filepath = NULL){
-
-  if(is.null(filepath)){
-    filepath = paste0(Sys.getenv("USERPROFILE"),
-                      "\\OneDrive - Bank Of Israel",
-                      "\\Data\\TASE liquidity",
-                      "\\Trading_Companies_Status.xlsx")}
-
-  sheets_names = excel_sheets(filepath)
-
-  sheet_list = lapply(sheets_names,function(temp_name){
-
-    temp_sheet = read_xlsx(filepath,sheet = temp_name) %>%
-      mutate(year = temp_name) %>%
-      rename_all(tolower) %>%
-      rename(start_year = start, end_year = end,
-             issued_comps = issued,
-             delisted_comps = delisted) %>%
-      select(year, sector, everything())
-
-  })
-
-  status_df = bind_rows(sheet_list)
-
-  status_df = status_df %>%
-    mutate(across(where(is.numeric), ~replace_na(.,0)))
-
-
-  return(status_df)
-
-}
-
-
-#' @title Import BoI format financial report data
-#'
-#' @description  This function imports financial report data from BOI format
-#'
-#' @param filepath the path to financial report data (in csv format)
-#'
-#' @import dplyr
 
 import.old.regression.data = function(filepath = NULL){
 
@@ -257,57 +217,4 @@ import.nimrod.stata.df = function(filepath,
 
 }
 
-
-#' @title Import Oracle format financial report data
-#'
-#' @description  This function imports financial report data from Oracle format
-#'
-#' @param filepath the path to financial report data (in csv format)
-#'
-#' @import dplyr
-#'
-#' @import zoo
-#'
-#' @import stringr
-#'
-#' @export
-
-import.boi.oracle.finrep.data = function(filepath = NULL,
-                                         data_frequency){
-
-  if(missing(data_frequency)){stop("data frequency argument is required")}
-
-
-  if(is.null(filepath)){filepath = paste0(file.path(
-    Sys.getenv("USERPROFILE"),fsep="\\"),
-    "\\OneDrive - Bank Of Israel\\Data\\",
-    "TASE liquidity\\Rdata files\\finrep_oracle_data.rds")}
-
-  temp_df = read_rds(filepath)
-
-  df = temp_df %>%
-    rename_all(tolower) %>%
-    rename_all(~str_replace_all(.,"__","_"))
-
-  df = df %>%
-    mutate(fsd_period = nchar(fsd_period)) %>%
-    mutate(fsd_period = recode(fsd_period,
-                               `4` = "annual",
-                               `6` = "quarterly",
-                               `8` = "semiannual")) %>%
-    filter(fsd_period == data_frequency)
-
-  df = df  %>%
-    mutate(date_yearqtr = as.yearqtr(date_fsd,
-                                     format = "%Y%q"))%>%
-    rename(total_assets = total_balance,
-           tase_id = tase_issuer_id)
-
-  df = df %>%
-    mutate(across(!c("tase_id","date_yearqtr") & where(~!is.numeric(.)),
-                  as.numeric))
-
-  return(df)
-
-}
 

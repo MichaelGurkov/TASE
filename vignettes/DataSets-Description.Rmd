@@ -33,13 +33,13 @@ load_all()
 
 ```{r import_secs_catalog}
 
-secs_catalog = read_csv(paste0("C:\\Users\\Home",
+secs_catalog = read_csv(paste0(Sys.getenv("USERPROFILE"),
                                "\\OneDrive - Bank Of Israel\\Data",
                                "\\TASE\\Secs_Catalog.csv"),
                         col_types = "cccccccc",
                         show_col_types = FALSE)
 
-vars_list = read_csv(paste0("C:\\Users\\Home",
+vars_list = read_csv(paste0(Sys.getenv("USERPROFILE"),
                             "\\OneDrive - Bank Of Israel\\Data",
                             "\\TASE liquidity\\michael files",
                             "\\Variables_List.csv"),
@@ -78,7 +78,7 @@ finrep_df = raw_oracle_finrep_df %>%
                         final_finrep_vars = final_finrep_vars)
 
 
-rm(finrep_path,raw_finrep_vars,final_finrep_vars,raw_oracle_finrep_df)
+# rm(finrep_path,raw_finrep_vars,final_finrep_vars,raw_oracle_finrep_df)
 
 ```
 
@@ -129,7 +129,7 @@ market_df = raw_oracle_market_df %>%
 final_market_vars[!final_market_vars %in% names(market_df)]
 
 
-rm(market_file_path,raw_oracle_market_df)
+# rm(market_file_path,raw_oracle_market_df)
 
 
 ```
@@ -177,11 +177,11 @@ final_vars = vars_list %>%
 
 df = make_reg_df(market_df = market_df,
                  finrep_df = finrep_df,
-                 final_vars = final_vars)
-
-df = df %>% 
-  mutate(across(c(leverage, roa, mb, free_cashflow), ~ na_if(., Inf))) %>%
-  mutate(across(c(volume, roa,free_cashflow), ~ na_if(., -Inf)))
+                 final_vars = final_vars) %>% 
+  mutate(across(c(leverage, roa, mb, free_cashflow),
+                ~ na_if(., Inf))) %>%
+  mutate(across(c(volume, roa,free_cashflow),
+                ~ na_if(., -Inf)))
 
 # df = df %>% 
 #   filter(date <= as.yearqtr("2020 Q1"))
@@ -210,12 +210,15 @@ legacy_df = read_rds(paste0(Sys.getenv("USERPROFILE"),
                      "\\TASE liquidity\\Rdata files\\final_df.RDS")) %>% 
   rename_all(tolower)
 
-# names(df)[!names(df) %in% names(legacy_df)]
+legacy_df = legacy_df %>% 
+  rename(size = market_cap_log) %>% 
+  select(any_of(names(df)))
+
 
 legacy_df = legacy_df %>% 
-  rename(size = market_cap_log)
-
-
+  group_by(tase_id, date) %>% 
+  summarise(across(everything(), ~mean(., na.rm = TRUE)),
+            .groups = "drop")
 
 ```
 
@@ -226,7 +229,6 @@ legacy_df = legacy_df %>%
 df = df %>% 
   pivot_longer(-c("tase_id","date")) %>% 
   left_join(legacy_df %>% 
-              select(any_of(names(df))) %>% 
               pivot_longer(-c("tase_id","date")),
             by = c("tase_id","date","name"), suffix = c("_df","_legacy")) %>% 
   mutate(final_value = coalesce(value_df, value_legacy)) %>% 
@@ -297,7 +299,7 @@ alice %>%
 ```{r save_final_df, eval=FALSE}
 
 df %>% 
-  write_rds(paste0("C:\\Users\\Home",
+  write_rds(paste0(Sys.getenv("USERPROFILE"),
                    "\\OneDrive - Bank Of Israel\\Data",
                    "\\TASE liquidity\\Rdata files\\final_df_",
                    Sys.Date(),".rds"))

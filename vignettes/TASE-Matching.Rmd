@@ -1,86 +1,144 @@
 
+```{r load_libraries}
+
+library(tidyverse)
+
+library(zoo)
+
+library(lubridate)
+
+```
+
+
 
 ```{r Import_tase_comps_list}
 
-tase_comps_list = read_csv(paste0(file.path(Sys.getenv("USERPROFILE"),
-                                            fsep="\\"),"\\OneDrive - ",
-                                  "Bank Of Israel\\Data\\TASE liquidity",
-                                  "\\TASE Comps list_revised.csv"))
+del_comps_filepath = paste0("C:\\Users\\internet",
+                            "\\OneDrive - Bank Of Israel",
+                            "\\Data\\TASE liquidity",
+                            "\\michael files\\delisted_comps.csv")
 
-tase_comps_list = tase_comps_list %>% 
-  mutate(Delisting_Date_coalesce = coalesce(Delisting_Date_old, Delisting_Date)) %>% 
-  select(-Delisting_Date_old, Delisting_Date)
+ipo_filepath = paste0("C:\\Users\\internet",
+                            "\\OneDrive - Bank Of Israel",
+                            "\\Data\\TASE liquidity",
+                            "\\michael files\\ipo_dates.csv")
+
+delisted_comps = read_csv(del_comps_filepath,
+                          show_col_types = FALSE)
+
+ipo_comps = read_csv(ipo_filepath,
+                          show_col_types = FALSE) %>% 
+  select(tase_id, ipo_date) %>% 
+  mutate(ipo_date = as_date(ipo_date, format = "%d/%m/%Y"))
+
+
+
+ipo_comps = ipo_comps %>% 
+  left_join(delisted_comps %>% 
+              select(tase_id) %>% 
+              distinct() %>% 
+              mutate(delisted = 1)) %>% 
+  mutate(delisted = replace_na(delisted,0))
+
+
+rm(del_comps_filepath, ipo_filepath)
+
+```
+
+
+```{r import_data}
 
 
 
 ```
 
+# Match by market
 
-```{r Import_main_df}
+```{r match_delisted_and_control_by_market}
 
-x_vars = c("Illiq","Market_Cap_log","Turnover_log","Public_Share","HHI","IPO",
-           "Total_Assets","Operating_Profit","Revenue","Net_Profit","Equity",
-           "Total_Liabilities","Leverage")
+market_df = read_rds(paste0("C:\\Users\\internet",
+                            "\\OneDrive - Bank Of Israel\\Data",
+                            "\\TASE liquidity\\Rdata files",
+                            "\\market_data_2022-11-15.rds")) %>% 
+  select(tase_id = tase_issuer_id,date = date_value, market_value) %>% 
+  filter(complete.cases(.))
 
-df = read_rds(paste0(file.path(Sys.getenv("USERPROFILE"),fsep="\\"),
-                     "\\OneDrive - Bank Of Israel\\Data\\TASE",
-                     " liquidity\\final_df.RDS"))
+market_df = market_df %>% 
+  group_by(tase_id, date = as.yearmon(date)) %>% 
+  summarise(market_value = mean(as.numeric(market_value),
+                                na.rm = TRUE), .groups = "drop")
+  
 
-df = df %>% 
-  select(Date, any_of(x_vars)) %>% 
-  mutate_if(is.numeric,.funs = ~ifelse(abs(.) == Inf,NA,.))
-
-```
-
-
-```{r match_delisted_and_control}
-
-df.delisted = comps_status_df %>% 
-  filter(Delisting_reason == "Tender_Offer") %>% 
-  select(TASE_ID,YearQtr) %>% 
-  left_join(df %>% 
-              select(TASE_ID,Date, TASE_branch, Total_Assets),
-            by = c("TASE_ID" = "TASE_ID", "YearQtr" = "Date")) %>% 
+delisted_comps= ipo_comps %>%
+  filter(delisted == 1) %>% 
+  select(-delisted) %>% 
+  mutate(tase_id = as.character(tase_id)) %>% 
+  mutate(ipo_date = as.yearmon(ipo_date)) %>% 
+  left_join(market_df, by = c("tase_id", "ipo_date" = "date")) %>% 
   filter(complete.cases(.))
 
 
-
-match_comp = function(yearqtr,tase_branch,total_assets){
-
-  temp_trading_firm = df %>%
-    select(TASE_ID, TASE_branch, Total_Assets, Date) %>%
-    filter(TASE_ID %in% trading_comps) %>%
-    filter(Date == yearqtr, TASE_branch == tase_branch) %>%
-    mutate(Asset_diff = abs(Total_Assets/total_assets - 1)) %>%
-    arrange(Asset_diff) %>%
-    slice(1)
-
-  if(temp_trading_firm$Asset_diff <= 0.3){
-
-    return(temp_trading_firm$TASE_ID)
-
-  } else {
-
-    return(NA)
-  }
+control_comps = ipo_comps %>%
+  filter(delisted == 0) %>% 
+  select(-delisted) %>% 
+  mutate(tase_id = as.character(tase_id)) %>% 
+  mutate(ipo_date = as.yearmon(ipo_date)) %>% 
+  left_join(market_df, by = c("tase_id", "ipo_date" = "date")) %>% 
+  filter(complete.cases(.))
 
 
+matching_table_by_market = delisted_comps %>% 
+  full_join(control_comps,
+            by = "ipo_date",
+            suffix = c("_delisted","_control")) %>% 
+  mutate(diff = market_value_delisted / market_value_control - 1) %>% 
+  filter(abs(diff) <= 0.15) %>%
+  select(starts_with("tase_id"),ipo_date)
 
-}
+rm(control_comps, delisted_comps, market_df)
+
+```
 
 
-control_delisted_pairs = lapply(1:nrow(df.delisted), function(temp_row){
-  
-  temp_df = data.frame(Delisted_ID = df.delisted$TASE_ID[temp_row],
-                       Control_ID = match_comp(yearqtr = df.delisted$YearQtr[temp_row],
-                                               tase_branch = df.delisted$TASE_branch[temp_row],
-                                               total_assets = df.delisted$Total_Assets[temp_row]))
-  
-  return(temp_df)
-  
-  
-}) %>% 
-  bind_rows()
+
+```{r match_delisted_and_control_by_size}
+
+df = read_rds(paste0("C:\\Users\\internet",
+                     "\\OneDrive - Bank Of Israel\\Data",
+                     "\\TASE liquidity\\Rdata files",
+                     "\\final_df_2022-11-20.rds"))
+
+assets_df = df %>% 
+  select(tase_id, date, size) %>% 
+  filter(complete.cases(.))
+
+delisted_comps= ipo_comps %>%
+  filter(delisted == 1) %>% 
+  select(-delisted) %>% 
+  mutate(tase_id = as.character(tase_id)) %>% 
+  mutate(ipo_date = as.yearqtr(ipo_date)) %>% 
+  left_join(assets_df, by = c("tase_id", "ipo_date" = "date")) %>% 
+  filter(complete.cases(.))
+
+
+control_comps = ipo_comps %>%
+  filter(delisted == 0) %>% 
+  select(-delisted) %>% 
+  mutate(tase_id = as.character(tase_id)) %>% 
+  mutate(ipo_date = as.yearqtr(ipo_date)) %>% 
+  left_join(assets_df, by = c("tase_id", "ipo_date" = "date")) %>% 
+  filter(complete.cases(.))
+
+
+matching_table_by_size = delisted_comps %>% 
+  full_join(control_comps,
+            by = "ipo_date",
+            suffix = c("_delisted","_control")) %>% 
+  mutate(diff = size_delisted / size_control - 1) %>% 
+  filter(abs(diff) <= 0.15) %>%
+  select(starts_with("tase_id"),ipo_date)
+
+rm(control_comps, delisted_comps, assets_df)
 
 ```
 
