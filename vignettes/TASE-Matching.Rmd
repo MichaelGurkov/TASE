@@ -10,7 +10,6 @@ library(lubridate)
 ```
 
 
-
 ```{r Import_tase_comps_list}
 
 del_comps_filepath = paste0("C:\\Users\\internet",
@@ -45,14 +44,6 @@ rm(del_comps_filepath, ipo_filepath)
 
 ```
 
-
-```{r import_data}
-
-
-
-```
-
-# Match by market
 
 ```{r match_delisted_and_control_by_market}
 
@@ -142,11 +133,41 @@ rm(control_comps, delisted_comps, assets_df)
 
 ```
 
+```{r save_matching_df}
 
+matching_table_by_size %>% 
+  write_csv(paste0("C:\\Users\\internet",
+                   "\\OneDrive - Bank Of Israel",
+                   "\\Data\\TASE liquidity",
+                   "\\michael files\\matching_table_by_size.csv"))
+
+
+```
 
 ```{r summary_control_vs_delisted}
 
-df
+delisted_comps_filepath = paste0("C:\\Users\\internet",
+                                 "\\OneDrive - Bank Of Israel",
+                                 "\\Data\\TASE liquidity",
+                                 "\\michael files",
+                                 "\\delisted_comps.csv")
+
+delisted_comps = read_csv(delisted_comps_filepath,
+                          col_types = "cc",
+                          show_col_types = FALSE) %>% 
+  mutate(delisting_date = as.yearqtr(delisting_date,
+                                     format = "%m/%d/%y"))
+
+matching_table_by_size = matching_table_by_size %>% 
+  left_join(delisted_comps, by = c("tase_id_delisted" = "tase_id"))
+
+
+control_df = df %>% 
+  inner_join(matching_table_by_size %>% 
+               select(tase_id_control),
+             by = c("tase_id" = "tase_id_control")) %>% 
+  rename(tase_id_control = tase_id)
+
 
 ```
 

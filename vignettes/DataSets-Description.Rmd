@@ -294,7 +294,8 @@ alice %>%
 
 
 
-# Save final df
+
+## Save final df
 
 ```{r save_final_df, eval=FALSE}
 
@@ -303,6 +304,109 @@ df %>%
                    "\\OneDrive - Bank Of Israel\\Data",
                    "\\TASE liquidity\\Rdata files\\final_df_",
                    Sys.Date(),".rds"))
+
+```
+
+
+# Dataset EDA
+
+```{r import_data}
+
+df = read_rds(paste0("C:\\Users\\internet",
+                     "\\OneDrive - Bank Of Israel\\Data",
+                     "\\TASE liquidity\\Rdata files",
+                     "\\final_df_2022-11-20.rds"))
+
+matching_table_filepath = paste0("C:\\Users\\internet",
+                                 "\\OneDrive - Bank Of Israel",
+                                 "\\Data\\TASE liquidity",
+                                 "\\michael files",
+                                 "\\matching_table_by_size.csv")
+
+delisted_comps_filepath = paste0("C:\\Users\\internet",
+                                 "\\OneDrive - Bank Of Israel",
+                                 "\\Data\\TASE liquidity",
+                                 "\\michael files",
+                                 "\\delisted_comps.csv")
+
+matching_table_by_size = read_csv(matching_table_filepath,
+                                  col_types = "ccc",
+                                 show_col_types = FALSE)
+
+delisted_comps = read_csv(delisted_comps_filepath,
+                          col_types = "cc",
+                          show_col_types = FALSE) %>% 
+  mutate(delisting_date = as.yearqtr(delisting_date,
+                                     format = "%m/%d/%y"))
+
+matching_table_by_size = matching_table_by_size %>% 
+  left_join(delisted_comps, by = c("tase_id_delisted" = "tase_id"))
+
+rm(matching_table_filepath,
+   delisted_comps_filepath,
+   delisted_comps)
+
+
+
+```
+
+```{r match_delisted_and_control}
+
+control_df = 
+
+
+
+control_df = df %>% 
+  inner_join(matching_table_by_size %>% 
+               select(tase_id_control),
+             by = c("tase_id" = "tase_id_control")) %>% 
+  rename(tase_id_control = tase_id)
+
+delisted_df = df %>% 
+  inner_join(matching_table_by_size %>% 
+               select(tase_id_delisted),
+             by = c("tase_id" = "tase_id_delisted"))
+
+
+matched_df = delisted_df %>% 
+  filter(tase_id == 1083) %>% 
+  pivot_longer(-c(tase_id, date)) %>% 
+  left_join(matching_table_by_size %>% 
+              select(starts_with("tase_id")),
+            by = c("tase_id" = "tase_id_delisted")) %>% 
+  left_join(control_df %>% 
+              pivot_longer(-c(tase_id_control, date)),
+            by = c("tase_id_control","date","name"),
+            suffix = c("_delisted","_control"))
+
+rm(control_df,delisted_df)
+
+
+temp = matched_df %>% 
+  pivot_longer()
+
+```
+
+
+```{r plot_missing_structure}
+
+matched %>% 
+  map_dbl(., ~sum(is.na(.)) / length(.)) %>% 
+  as_tibble() %>% 
+  mutate(col_names = names(df)) %>% 
+  ggplot(aes(value, reorder(col_names, value))) + 
+  geom_col() + 
+  scale_x_continuous(labels = scales::percent_format()) + 
+  xlab(NULL) + ylab(NULL) + ggtitle("Missing values share")
+  
+
+
+```
+
+```{r plot_missing_structure_by_year}
+
+
+
 
 ```
 
