@@ -48,6 +48,50 @@ vars_list = read_csv(paste0(Sys.getenv("USERPROFILE"),
 
 ```
 
+# IPO and delisting dates
+
+```{r import_dates}
+
+del_comps_filepath = paste0(Sys.getenv("USERPROFILE"),
+                            "\\OneDrive - Bank Of Israel",
+                            "\\Data\\TASE liquidity",
+                            "\\michael files\\delisted_comps.csv")
+
+ipo_filepath = paste0(Sys.getenv("USERPROFILE"),
+                            "\\OneDrive - Bank Of Israel",
+                            "\\Data\\TASE liquidity",
+                            "\\michael files\\ipo_dates.csv")
+
+delisted_comps = read_csv(del_comps_filepath,
+                          show_col_types = FALSE) %>% 
+  arrange(tase_id) %>% 
+  mutate(delisting_date = mdy(delisting_date))
+
+ipo_comps = read_csv(ipo_filepath,
+                          show_col_types = FALSE) %>% 
+  select(tase_id, ipo_date) %>% 
+  mutate(ipo_date = dmy(ipo_date)) %>% 
+  arrange(tase_id)
+
+rm(del_comps_filepath, ipo_filepath)
+
+```
+
+
+```{r compare_dates}
+
+merged_comps_df = ipo_comps %>% 
+ full_join(delisted_comps, by = "tase_id") %>% 
+  filter(ipo_date <= delisting_date) %>% 
+  arrange(ipo_date)
+  
+
+
+
+```
+
+
+
 # Financial reports dataset
 
 ```{r finrep_df}

@@ -12,12 +12,12 @@ library(lubridate)
 
 ```{r Import_tase_comps_list}
 
-del_comps_filepath = paste0("C:\\Users\\internet",
+del_comps_filepath = paste0(Sys.getenv("USERPROFILE"),
                             "\\OneDrive - Bank Of Israel",
                             "\\Data\\TASE liquidity",
                             "\\michael files\\delisted_comps.csv")
 
-ipo_filepath = paste0("C:\\Users\\internet",
+ipo_filepath = paste0(Sys.getenv("USERPROFILE"),
                             "\\OneDrive - Bank Of Israel",
                             "\\Data\\TASE liquidity",
                             "\\michael files\\ipo_dates.csv")
@@ -45,9 +45,25 @@ rm(del_comps_filepath, ipo_filepath)
 ```
 
 
+
+```{r match_delisted_and_control_by_size}
+
+df = read_rds(paste0(Sys.getenv("USERPROFILE"),
+                     "\\OneDrive - Bank Of Israel\\Data",
+                     "\\TASE liquidity\\Rdata files",
+                     "\\final_df_2022-11-20.rds"))
+
+matching_table_by_size = match_control_group(ipo_comps = ipo_comps,
+                           data_df = df,
+                           matching_variable = "size",
+                           threshold = 0.15)
+
+```
+
+
 ```{r match_delisted_and_control_by_market}
 
-market_df = read_rds(paste0("C:\\Users\\internet",
+market_df = read_rds(paste0(Sys.getenv("USERPROFILE"),
                             "\\OneDrive - Bank Of Israel\\Data",
                             "\\TASE liquidity\\Rdata files",
                             "\\market_data_2022-11-15.rds")) %>% 
@@ -92,51 +108,10 @@ rm(control_comps, delisted_comps, market_df)
 
 
 
-```{r match_delisted_and_control_by_size}
-
-df = read_rds(paste0("C:\\Users\\internet",
-                     "\\OneDrive - Bank Of Israel\\Data",
-                     "\\TASE liquidity\\Rdata files",
-                     "\\final_df_2022-11-20.rds"))
-
-assets_df = df %>% 
-  select(tase_id, date, size) %>% 
-  filter(complete.cases(.))
-
-delisted_comps= ipo_comps %>%
-  filter(delisted == 1) %>% 
-  select(-delisted) %>% 
-  mutate(tase_id = as.character(tase_id)) %>% 
-  mutate(ipo_date = as.yearqtr(ipo_date)) %>% 
-  left_join(assets_df, by = c("tase_id", "ipo_date" = "date")) %>% 
-  filter(complete.cases(.))
-
-
-control_comps = ipo_comps %>%
-  filter(delisted == 0) %>% 
-  select(-delisted) %>% 
-  mutate(tase_id = as.character(tase_id)) %>% 
-  mutate(ipo_date = as.yearqtr(ipo_date)) %>% 
-  left_join(assets_df, by = c("tase_id", "ipo_date" = "date")) %>% 
-  filter(complete.cases(.))
-
-
-matching_table_by_size = delisted_comps %>% 
-  full_join(control_comps,
-            by = "ipo_date",
-            suffix = c("_delisted","_control")) %>% 
-  mutate(diff = size_delisted / size_control - 1) %>% 
-  filter(abs(diff) <= 0.15) %>%
-  select(starts_with("tase_id"),ipo_date)
-
-rm(control_comps, delisted_comps, assets_df)
-
-```
-
 ```{r save_matching_df}
 
 matching_table_by_size %>% 
-  write_csv(paste0("C:\\Users\\internet",
+  write_csv(paste0(Sys.getenv("USERPROFILE"),
                    "\\OneDrive - Bank Of Israel",
                    "\\Data\\TASE liquidity",
                    "\\michael files\\matching_table_by_size.csv"))
@@ -146,7 +121,7 @@ matching_table_by_size %>%
 
 ```{r summary_control_vs_delisted}
 
-delisted_comps_filepath = paste0("C:\\Users\\internet",
+delisted_comps_filepath = paste0(Sys.getenv("USERPROFILE"),
                                  "\\OneDrive - Bank Of Israel",
                                  "\\Data\\TASE liquidity",
                                  "\\michael files",
@@ -157,6 +132,26 @@ delisted_comps = read_csv(delisted_comps_filepath,
                           show_col_types = FALSE) %>% 
   mutate(delisting_date = as.yearqtr(delisting_date,
                                      format = "%m/%d/%y"))
+
+temp = matching_table_by_size %>% 
+  left_join(delisted_comps,
+            by = c("tase_id_delisted" = "tase_id")) %>% 
+  mutate(dates_seq = map2(ipo_date, delisting_date,
+                          function(ipo_date, delisting_date){
+                            
+                            dates_seq = seq.Date(from = as_date(ipo_date),
+                                                 to = as_date(delisting_date),
+                                                 by = "quarter")
+                            
+                            dates_seq = as.yearqtr(dates_seq)
+                            
+                            return(dates_seq)
+   
+                            
+                          })) %>% 
+  select(starts_with("tase_id"), dates_seq) %>% 
+  unnest(dates_seq)
+
 
 matching_table_by_size = matching_table_by_size %>% 
   left_join(delisted_comps, by = c("tase_id_delisted" = "tase_id"))

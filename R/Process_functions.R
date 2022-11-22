@@ -176,3 +176,53 @@ make_reg_df = function(market_df, finrep_df,
 
 
 }
+
+
+
+#' This function matches delisted and control companies by
+#' selected varible
+#'
+#'
+match_control_group = function(ipo_comps, data_df,
+                               matching_variable,
+                               threshold){
+
+  data_df = data_df %>%
+    select(tase_id, date, all_of(matching_variable)) %>%
+    filter(complete.cases(.))
+
+  delisted_comps= ipo_comps %>%
+    filter(delisted == 1) %>%
+    select(-delisted) %>%
+    mutate(tase_id = as.character(tase_id)) %>%
+    mutate(ipo_date = as.yearqtr(ipo_date)) %>%
+    left_join(data_df, by = c("tase_id", "ipo_date" = "date")) %>%
+    filter(complete.cases(.))
+
+
+  control_comps = ipo_comps %>%
+    filter(delisted == 0) %>%
+    select(-delisted) %>%
+    mutate(tase_id = as.character(tase_id)) %>%
+    mutate(ipo_date = as.yearqtr(ipo_date)) %>%
+    left_join(data_df, by = c("tase_id", "ipo_date" = "date")) %>%
+    filter(complete.cases(.))
+
+  del_var = paste0(matching_variable,"_delisted")
+
+  control_var = paste0(matching_variable,"_control")
+
+
+  matching_table = delisted_comps %>%
+    full_join(control_comps,
+              by = "ipo_date",
+              suffix = c("_delisted","_control")) %>%
+    mutate(diff = !!sym(del_var) / !!sym(control_var) - 1) %>%
+    filter(abs(diff) <= threshold) %>%
+    select(starts_with("tase_id"),ipo_date)
+
+  return(matching_table)
+
+
+}
+
