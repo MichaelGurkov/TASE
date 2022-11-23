@@ -27,25 +27,36 @@ load_all()
 ```
 
 
+
 ```{r Import_data}
 
-var_list = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                           "\\OneDrive - Bank Of Israel\\Data",
-                           "\\TASE liquidity\\michael files",
-                           "\\Variables_List.csv"), show_col_types = FALSE)
+del_comps_filepath = paste0("C:\\Users\\internet",
+                            "\\OneDrive - Bank Of Israel",
+                            "\\Data\\TASE liquidity",
+                            "\\michael files\\delisted_comps.csv")
+
+ipo_filepath = paste0("C:\\Users\\internet",
+                            "\\OneDrive - Bank Of Israel",
+                            "\\Data\\TASE liquidity",
+                            "\\michael files\\ipo_dates.csv")
+
+comps_dates = import_comps_dates_and_status(ipo_filepath,
+                                            del_comps_filepath) %>% 
+  filter(!tase_id %in% c("1286","1701"))
 
 
-df = read_rds(paste0(Sys.getenv("USERPROFILE"),
+df = read_rds(paste0("C:\\Users\\internet",
                      "\\OneDrive - Bank Of Israel\\Data",
-                     "\\TASE liquidity\\Rdata files\\final_df.RDS")) %>% 
-  rename_all(tolower)
+                     "\\TASE liquidity\\Rdata files",
+                     "\\final_df_2022-11-20.rds"))
 
-df = df %>% 
-  mutate(capex_to_revenue = capex_cashflow / revenue) %>%
-  mutate(roa = operating_profit / total_assets) %>%
-  mutate(mb = market_cap / total_assets) %>% 
-  rename(size = market_cap_log) %>% 
-  select(tase_id, date, any_of(na.omit(var_list$df_varname)))
+
+matched_df = get_matched_df(df, comps_dates,
+                            matching_variable = "size",
+                            threshold = 0.15)
+  
+  
+rm(del_comps_filepath, ipo_filepath)
 
 
 ```
@@ -81,67 +92,23 @@ Where:
 
 \section{Descriptive Stats}
 
-\subsection{Financial reports and market data}
+\section{Univariate analysis}
 
+```{r}
 
-This data set was constructed by complementing the initial data set (data that was gathered in previous work) with data from BOI (MOS) database. The data time period is `r paste0(range(df$Date), collapse = "-")` at quarterly frequency. The data set is not balanced, the issue seems to be with market variables (Public Share, Turnover and Market Cap).
+matched_df %>% 
+  group_by(tase_id) %>%
+  mutate(step = time_period - min(time_period)) %>% 
+  ungroup() %>% 
+  select(-time_period, -tase_id) %>% 
+  group_by(comp_type, step) %>% 
+  summarise(across(everything(), ~median(.,na.rm = TRUE)),
+            .groups = "drop") %>% 
+  pivot_longer(-c(comp_type, step)) %>% 
+  ggplot(aes(step, value, color = comp_type)) + 
+  geom_line() + 
+  facet_wrap(~name, scales = "free")
 
-
-
-```{r df_stat,results='asis'}
-
-stargazer(df, header = FALSE,
-          omit.summary.stat = c("p25","p75"), digits = 2)
-
-```
-
-\subsection{TASE companies status data}
-
-
-```{r Import_tase_comps_list}
-
-tase_comps_list = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                                  "\\OneDrive - Bank Of Israel",
-                                  "\\Data\\TASE liquidity",
-                                  "\\TASE Comps list_revised.csv"),
-                           show_col_types = FALSE)
-
-tase_comps_list = tase_comps_list %>% 
-  mutate(Delisting_Date_coalesce = coalesce(Delisting_Date_old, Delisting_Date)) %>% 
-  select(-Delisting_Date_old, Delisting_Date)
-
-
-delisted_comps = tase_comps_list %>% 
-  filter(Delisted == 1) %>% 
-  nrow()
-
-delisted_dates = tase_comps_list %>% 
-  filter(Delisted == 1) %>% 
-  filter(!is.na(Delisting_Date)) %>% 
-  nrow()
-
-```
-
-
-```{r import_boi_delisting_data}
-
-boi_delisted_comps = read_
-
-
-
-```
-
-
-The data set includes  TASE companies. We have data on the company status (delisted or nor), the date when the company was delisted and the reason for delisting. There are a total of `r nrow(tase_comps_list)` companies with `r delisted_comps` of them were delisted\footnote{According to TASE reports there were 576 delisted shares}. We have a delisting date for only `r delisted_dates` of the companies (delisting dates start from is `r as.yearqtr(min(tase_comps_list$Delisting_Date, na.rm = TRUE))`).
-
-There is another data set (from your previous work) that has delisting dates for
-`r sum(!is.na(tase_comps_list$Delisting_Date_old))` (19 of them identified by name only) and perhaps can be used to complement the main data set but the delisting dates are quite different (few quarters some times few years). \textcolor{red}{Need to decide whether verify (case by case) or go on with using one of the data sets}
-
-<!-- \section{Results} -->
-
-<!-- \section{Appendix} -->
-
-```{r ,child="Appendix.Rmd", eval = FALSE}
 
 ```
 

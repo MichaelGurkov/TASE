@@ -234,3 +234,37 @@ match_control_group = function(comps_list, data_df,
 
 }
 
+#' This function returns matched df
+#'
+#'
+get_matched_df = function(df, comps_dates,
+                          matching_variable,
+                          threshold){
+
+
+  matched_table = comps_dates %>%
+    mutate(delisted_status = if_else(is.na(quotation_period),0,1)) %>%
+    select(tase_id, ipo_date, delisted_status) %>%
+    match_control_group(data_df = df,
+                        matching_variable = matching_variable,
+                        threshold = threshold)
+
+
+  matched_comps_df = matched_table %>%
+    left_join(comps_dates %>%
+                select(tase_id, contains("date")),
+              by = c("tase_id_delisted" = "tase_id")) %>%
+    pivot_to_join_format() %>%
+    left_join(df, by = c("tase_id",c("time_period" = "date")))
+
+  return(matched_comps_df)
+
+
+
+
+}
+
+
+
+
+
