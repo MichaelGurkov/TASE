@@ -49,3 +49,39 @@ calculate.beta.and.car = function(df){
 
 
 }
+
+
+
+#' This function pivots delisted and control comps into
+#' tase_id, date, comp_type format
+#'
+#' @param match_table a data frame with tase_id_delisted,
+#' tase_id_control, ipo_date, delisting_date structure
+#'
+pivot_to_join_format = function(match_table){
+
+  join_format = match_table %>%
+    mutate(time_period = map2(ipo_date, delisting_date,
+                              function(start,end){
+
+                                period = seq.Date(from = start,
+                                                  to = end,
+                                                  by = "quarter") %>%
+                                  as.yearqtr()
+
+                                return(period)
+
+
+                              })) %>%
+    select(starts_with("tase_id"), time_period) %>%
+    pivot_longer(starts_with("tase_id"),
+                 names_to = "comp_type", values_to = "tase_id") %>%
+    mutate(comp_type = str_remove_all(comp_type,"tase_id_")) %>%
+    distinct() %>%
+    unnest(time_period)
+
+
+  return(join_format)
+
+
+}

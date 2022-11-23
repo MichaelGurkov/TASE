@@ -217,4 +217,42 @@ import.nimrod.stata.df = function(filepath,
 
 }
 
+#' This function imports comps data that includes tase_id,
+#' ipo_date, delisting_date and quotation_period
+#'
+#' @param ipo_dates_filepath
+#' @param delisting_dates_filepath
 
+import_comps_dates_and_status = function(ipo_dates_filepath,
+                             delisting_dates_filepath){
+
+  ipo_dates = read_csv(ipo_dates_filepath,
+                       show_col_types = FALSE) %>%
+    select(tase_id, ipo_date) %>%
+    mutate(ipo_date = dmy(ipo_date)) %>%
+    arrange(tase_id)
+
+
+  delisted_dates = read_csv(delisting_dates_filepath,
+                            show_col_types = FALSE) %>%
+    arrange(tase_id) %>%
+    mutate(delisting_date = mdy(delisting_date))
+
+
+  comps_data = ipo_dates %>%
+    full_join(delisted_dates, by = "tase_id") %>%
+    mutate(quotation_period = difftime(delisting_date, ipo_date)) %>%
+    mutate(quotation_period = time_length(quotation_period,"years"))  %>%
+    mutate(across(starts_with("tase_id"), as.character)) %>%
+    filter(quotation_period >= 0 | is.na(quotation_period)) %>%
+    group_by(tase_id, ipo_date) %>%
+    arrange(ipo_date, delisting_date) %>%
+    slice(1) %>%
+    ungroup() %>%
+    filter(year(ipo_date) >= 2005)
+
+  return(comps_data)
+
+
+
+}

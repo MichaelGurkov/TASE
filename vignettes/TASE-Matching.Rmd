@@ -12,106 +12,46 @@ library(lubridate)
 
 ```{r Import_tase_comps_list}
 
-del_comps_filepath = paste0(Sys.getenv("USERPROFILE"),
+del_comps_filepath = paste0("C:\\Users\\internet",
                             "\\OneDrive - Bank Of Israel",
                             "\\Data\\TASE liquidity",
                             "\\michael files\\delisted_comps.csv")
 
-ipo_filepath = paste0(Sys.getenv("USERPROFILE"),
+ipo_filepath = paste0("C:\\Users\\internet",
                             "\\OneDrive - Bank Of Israel",
                             "\\Data\\TASE liquidity",
                             "\\michael files\\ipo_dates.csv")
 
-delisted_comps = read_csv(del_comps_filepath,
-                          show_col_types = FALSE)
-
-ipo_comps = read_csv(ipo_filepath,
-                          show_col_types = FALSE) %>% 
-  select(tase_id, ipo_date) %>% 
-  mutate(ipo_date = as_date(ipo_date, format = "%d/%m/%Y"))
-
-
-
-ipo_comps = ipo_comps %>% 
-  left_join(delisted_comps %>% 
-              select(tase_id) %>% 
-              distinct() %>% 
-              mutate(delisted = 1)) %>% 
-  mutate(delisted = replace_na(delisted,0))
-
+comps_dates = import_comps_dates_and_status(ipo_filepath,
+                                            del_comps_filepath) %>% 
+  filter(!tase_id %in% c("1286","1701"))
 
 rm(del_comps_filepath, ipo_filepath)
 
 ```
 
 
-
 ```{r match_delisted_and_control_by_size}
 
-df = read_rds(paste0(Sys.getenv("USERPROFILE"),
+df = read_rds(paste0("C:\\Users\\internet",
                      "\\OneDrive - Bank Of Israel\\Data",
                      "\\TASE liquidity\\Rdata files",
                      "\\final_df_2022-11-20.rds"))
 
-matching_table_by_size = match_control_group(ipo_comps = ipo_comps,
-                           data_df = df,
-                           matching_variable = "size",
-                           threshold = 0.15)
+match_by_size = comps_dates %>% 
+  mutate(delisted_status = if_else(is.na(quotation_period),0,1)) %>% 
+  select(tase_id, ipo_date, delisted_status) %>% 
+  match_control_group(data_df = df,
+                      matching_variable = "size",
+                      threshold = 0.15)
+
 
 ```
-
-
-```{r match_delisted_and_control_by_market}
-
-market_df = read_rds(paste0(Sys.getenv("USERPROFILE"),
-                            "\\OneDrive - Bank Of Israel\\Data",
-                            "\\TASE liquidity\\Rdata files",
-                            "\\market_data_2022-11-15.rds")) %>% 
-  select(tase_id = tase_issuer_id,date = date_value, market_value) %>% 
-  filter(complete.cases(.))
-
-market_df = market_df %>% 
-  group_by(tase_id, date = as.yearmon(date)) %>% 
-  summarise(market_value = mean(as.numeric(market_value),
-                                na.rm = TRUE), .groups = "drop")
-  
-
-delisted_comps= ipo_comps %>%
-  filter(delisted == 1) %>% 
-  select(-delisted) %>% 
-  mutate(tase_id = as.character(tase_id)) %>% 
-  mutate(ipo_date = as.yearmon(ipo_date)) %>% 
-  left_join(market_df, by = c("tase_id", "ipo_date" = "date")) %>% 
-  filter(complete.cases(.))
-
-
-control_comps = ipo_comps %>%
-  filter(delisted == 0) %>% 
-  select(-delisted) %>% 
-  mutate(tase_id = as.character(tase_id)) %>% 
-  mutate(ipo_date = as.yearmon(ipo_date)) %>% 
-  left_join(market_df, by = c("tase_id", "ipo_date" = "date")) %>% 
-  filter(complete.cases(.))
-
-
-matching_table_by_market = delisted_comps %>% 
-  full_join(control_comps,
-            by = "ipo_date",
-            suffix = c("_delisted","_control")) %>% 
-  mutate(diff = market_value_delisted / market_value_control - 1) %>% 
-  filter(abs(diff) <= 0.15) %>%
-  select(starts_with("tase_id"),ipo_date)
-
-rm(control_comps, delisted_comps, market_df)
-
-```
-
-
 
 ```{r save_matching_df}
 
 matching_table_by_size %>% 
-  write_csv(paste0(Sys.getenv("USERPROFILE"),
+  write_csv(paste0("C:\\Users\\internet",
                    "\\OneDrive - Bank Of Israel",
                    "\\Data\\TASE liquidity",
                    "\\michael files\\matching_table_by_size.csv"))
@@ -121,48 +61,25 @@ matching_table_by_size %>%
 
 ```{r summary_control_vs_delisted}
 
-delisted_comps_filepath = paste0(Sys.getenv("USERPROFILE"),
-                                 "\\OneDrive - Bank Of Israel",
-                                 "\\Data\\TASE liquidity",
-                                 "\\michael files",
-                                 "\\delisted_comps.csv")
 
-delisted_comps = read_csv(delisted_comps_filepath,
-                          col_types = "cc",
-                          show_col_types = FALSE) %>% 
-  mutate(delisting_date = as.yearqtr(delisting_date,
-                                     format = "%m/%d/%y"))
-
-temp = matching_table_by_size %>% 
-  left_join(delisted_comps,
+matched_comps_summary = match_by_size %>% 
+  left_join(comps_dates %>% 
+              select(tase_id, contains("date")),
             by = c("tase_id_delisted" = "tase_id")) %>% 
-  mutate(dates_seq = map2(ipo_date, delisting_date,
-                          function(ipo_date, delisting_date){
-                            
-                            dates_seq = seq.Date(from = as_date(ipo_date),
-                                                 to = as_date(delisting_date),
-                                                 by = "quarter")
-                            
-                            dates_seq = as.yearqtr(dates_seq)
-                            
-                            return(dates_seq)
-   
-                            
-                          })) %>% 
-  select(starts_with("tase_id"), dates_seq) %>% 
-  unnest(dates_seq)
+  pivot_to_join_format() %>% 
+  left_join(df, by = c("tase_id",c("time_period" = "date")))
 
-
-matching_table_by_size = matching_table_by_size %>% 
-  left_join(delisted_comps, by = c("tase_id_delisted" = "tase_id"))
-
-
-control_df = df %>% 
-  inner_join(matching_table_by_size %>% 
-               select(tase_id_control),
-             by = c("tase_id" = "tase_id_control")) %>% 
-  rename(tase_id_control = tase_id)
-
+matched_comps_summary = matched_comps_summary %>% 
+  select(-time_period) %>% 
+  group_by(tase_id, comp_type) %>% 
+  summarise(across(everything(), ~mean(., na.rm = TRUE)),
+            .groups = "drop") %>% 
+  select(-tase_id) %>% 
+  group_by(comp_type) %>% 
+  summarise(across(everything(), ~round(median(., na.rm = TRUE),2)),
+            .groups = "drop") %>% 
+  pivot_longer(-comp_type) %>% 
+  pivot_wider(names_from = comp_type)
 
 ```
 
