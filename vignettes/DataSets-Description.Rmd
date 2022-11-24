@@ -349,25 +349,104 @@ df %>%
 
 # Dataset EDA
 
-```{r plot_missing_structure}
+```{r Import_data}
 
-matched %>% 
-  map_dbl(., ~sum(is.na(.)) / length(.)) %>% 
-  as_tibble() %>% 
-  mutate(col_names = names(df)) %>% 
-  ggplot(aes(value, reorder(col_names, value))) + 
-  geom_col() + 
-  scale_x_continuous(labels = scales::percent_format()) + 
-  xlab(NULL) + ylab(NULL) + ggtitle("Missing values share")
+del_comps_filepath = paste0("C:\\Users\\internet",
+                            "\\OneDrive - Bank Of Israel",
+                            "\\Data\\TASE liquidity",
+                            "\\michael files\\delisted_comps.csv")
+
+ipo_filepath = paste0("C:\\Users\\internet",
+                            "\\OneDrive - Bank Of Israel",
+                            "\\Data\\TASE liquidity",
+                            "\\michael files\\ipo_dates.csv")
+
+comps_dates = import_comps_dates_and_status(ipo_filepath,
+                                            del_comps_filepath) %>% 
+  filter(!tase_id %in% c("1286","1701"))
+
+
+df = read_rds(paste0("C:\\Users\\internet",
+                     "\\OneDrive - Bank Of Israel\\Data",
+                     "\\TASE liquidity\\Rdata files",
+                     "\\final_df_2022-11-20.rds"))
+
+
+matched_df = get_matched_df(df, comps_dates,
+                            matching_variable = "size",
+                            threshold = 0.15)
   
+  
+rm(del_comps_filepath, ipo_filepath)
 
 
 ```
 
-```{r plot_missing_structure_by_year}
+
+## Delisted comps
+
+```{r get_delisted_comps}
+
+delisted_comps_df = df %>% 
+  inner_join(comps_dates %>% 
+  filter(!is.na(delisting_date)) %>% 
+  select(tase_id) %>% 
+  distinct(), by = "tase_id")
+  
+
+```
+
+```{r box_plot}
+
+delisted_comps_df %>% 
+  select(-total_assets, -intangible_assets) %>% 
+  pivot_longer(-c(tase_id, date)) %>% 
+  filter(complete.cases(.)) %>% 
+  filter(is.finite(value)) %>%
+  group_by(name) %>% 
+  filter(value >= quantile(value,0.1) & 
+         value <= quantile(value,0.9)) %>% 
+  ungroup() %>% 
+  group_by(tase_id, name) %>% 
+  summarise(value = mean(value, na.rm = TRUE), .groups = "drop") %>% 
+  ggplot(aes(y = value)) + 
+  geom_boxplot() + 
+  facet_wrap(~name, scales = "free")
+
+```
+
+```{r delisted_comps_by_roa}
+
+delisted_comps_df %>% 
+  filter(is.finite(roa)) %>% 
+  group_by(tase_id) %>% 
+  summarise(avg_roa = mean(roa, na.rm = TRUE),
+            .groups = "drop") %>% 
+  ggplot(aes(x = avg_roa, y = reorder(tase_id, avg_roa))) + 
+  geom_col() + 
+  xlab(NULL) + ylab(NULL)
+
+delisted_comps_df %>% 
+  filter(is.finite(roa)) %>% 
+  group_by(tase_id) %>% 
+  summarise(avg_roa = mean(roa, na.rm = TRUE),
+            .groups = "drop") %>% 
+  filter(avg_roa < -2) %>% 
+  pull(tase_id) %>% 
+  unique()
 
 
+```
 
+```{r plot_comp_status}
+
+delisted_comps_df %>% 
+  filter(tase_id == 1595) %>% 
+  pivot_longer(-c(tase_id, date)) %>% 
+  ggplot(aes(date, value)) + 
+  geom_line() + 
+  facet_wrap(~name, scales = "free") + 
+  xlab(NULL) + ylab(NULL)
 
 ```
 
