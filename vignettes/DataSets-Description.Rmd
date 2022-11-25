@@ -71,10 +71,12 @@ ipo_dates = read_csv(ipo_filepath,
                           show_col_types = FALSE) %>% 
   select(tase_id, ipo_date) %>% 
   mutate(ipo_date = dmy(ipo_date)) %>% 
+  mutate(tase_id = as.character(tase_id)) %>% 
   arrange(tase_id)
 
 delisted_comps = ipo_dates %>% 
  full_join(delisted_dates, by = "tase_id") %>% 
+  mutate(tase_id = as.character(tase_id)) %>% 
   mutate(quotation_period = difftime(delisting_date, ipo_date)) %>% 
   mutate(quotation_period = time_length(quotation_period,"years")) %>% 
   filter(quotation_period >= 0) %>% 
@@ -382,10 +384,99 @@ rm(del_comps_filepath, ipo_filepath)
 
 ```
 
+## IPO
+
+```{r ipo_price_df}
+
+
+market_file_path = paste0(Sys.getenv("USERPROFILE"),
+                          "\\OneDrive - Bank Of Israel\\Data",
+                          "\\TASE liquidity\\Rdata files",
+                          "\\market_data_2022-11-15.rds")
+
+
+ipo_price_df = import_boi_market_data(market_file_path) %>% 
+  inner_join(ipo_dates %>% 
+               select(tase_id) %>% 
+               mutate(tase_id = as.character(tase_id)) %>% 
+               distinct(), by = "tase_id") %>% 
+  select(sec_id, tase_id, date, close)
+
+
+rm(market_file_path)
+
+
+```
+
+```{r average_3_year_returns}
+
+ipo_ret_df = ipo_price_df %>% 
+  left_join(ipo_dates, by = "tase_id") %>% 
+  mutate(days_diff = date - ipo_date) %>% 
+  filter(days_diff < 365) %>% 
+  group_by(sec_id, tase_id, ipo_date) %>% 
+  arrange(date) %>% 
+  slice(1, length(date)) %>% 
+  summarise(sec_ret = (close[2] / close[1] - 1) / 3, .groups = "drop")
+
+ipo_ret_df %>% 
+  filter(complete.cases(.)) %>% 
+  filter(sec_ret <= quantile(sec_ret, 0.95)) %>% 
+  group_by(year = year(ipo_date)) %>% 
+  summarise(avg_ret = mean(sec_ret), .groups = "drop") %>% 
+  ggplot(aes(x = year, y = avg_ret)) + 
+  geom_col(aes(fill = (avg_ret >= 0)), show.legend = FALSE) + 
+  scale_y_continuous(labels = scales::percent_format()) + 
+  xlab(NULL) + ylab(NULL) + ggtitle("Average 3 years returns of IPO firms")
+
+```
+
+```{r average_3_year_market_adjusted_returns}
+
+ta_125 = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                         "\\OneDrive - Bank Of Israel",
+                         "\\Data\\TASE liquidity",
+                         "\\michael files\\TA125.csv"),
+                  show_col_types = FALSE,
+                  col_names = c("date","basis","open",
+                                "close","hi","low","market_cap"),
+                  skip = 1) %>% 
+  select(date, ta_125 = close) %>% 
+  mutate(date = dmy(date))
+
+
+ipo_ret__adj_df = ipo_price_df %>% 
+  left_join(ta_125, by = "date") %>% 
+  left_join(ipo_dates, by = "tase_id") %>% 
+  mutate(days_diff = date - ipo_date) %>% 
+  filter(days_diff < 365) %>% 
+  group_by(sec_id, tase_id, ipo_date) %>% 
+  arrange(date) %>% 
+  slice(1, length(date)) %>% 
+  summarise(sec_ret_adj = (close[2] / close[1] - 1) -  
+              (ta_125[2] / ta_125[1] - 1)/ 3, .groups = "drop")
+
+
+
+ipo_ret__adj_df %>% 
+  filter(complete.cases(.)) %>% 
+  filter(sec_ret_adj <= quantile(sec_ret_adj, 0.95)) %>% 
+  group_by(year = year(ipo_date)) %>% 
+  summarise(avg_ret = mean(sec_ret_adj), .groups = "drop") %>% 
+  ggplot(aes(x = year, y = avg_ret)) + 
+  geom_col(aes(fill = (avg_ret >= 0)), show.legend = FALSE) + 
+  scale_y_continuous(labels = scales::percent_format()) + 
+  xlab(NULL) + ylab(NULL) + 
+  ggtitle("Average 3 years market adjusted returns of IPO firms")
+
+
+
+```
+
 
 ## Delisted comps
 
-```{r get_delisted_comps}
+```{r get_delisted_comps_df}
 
 delisted_comps_df = df %>% 
   inner_join(comps_dates %>% 
@@ -447,6 +538,46 @@ delisted_comps_df %>%
   geom_line() + 
   facet_wrap(~name, scales = "free") + 
   xlab(NULL) + ylab(NULL)
+
+```
+
+
+```{r get_delisted_comps_market_df}
+
+market_file_path = paste0(Sys.getenv("USERPROFILE"),
+                          "\\OneDrive - Bank Of Israel\\Data",
+                          "\\TASE liquidity\\Rdata files",
+                          "\\market_data_2022-11-15.rds")
+
+
+delisted_ret_df = import_boi_market_data(market_file_path) %>% 
+  inner_join(delisted_dates %>% 
+               select(tase_id) %>% 
+               mutate(tase_id = as.character(tase_id)) %>% 
+               distinct(), by = "tase_id") %>% 
+  select(sec_id, tase_id, date, close)
+
+delisted_ret_df = delisted_ret_df%>% 
+  group_by(sec_id) %>% 
+  arrange(date) %>% 
+  mutate(sec_ret = c(NA, diff(log(close)))) %>% 
+  ungroup()
+
+rm(market_file_path)
+
+
+```
+
+
+```{r}
+
+delisted_ret_df %>% 
+  group_by(sec_id) %>% 
+  summarise(avg_ret = mean(sec_ret, na.rm = TRUE), .groups = "drop") %>% 
+  ggplot(aes(x = avg_ret)) + 
+  geom_histogram()
+  
+
 
 ```
 
