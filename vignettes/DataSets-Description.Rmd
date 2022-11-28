@@ -48,7 +48,6 @@ vars_list = read_csv(paste0(Sys.getenv("USERPROFILE"),
 
 ```
 
-# IPO and delisting dates
 
 ```{r import_dates}
 
@@ -65,6 +64,7 @@ ipo_filepath = paste0(Sys.getenv("USERPROFILE"),
 delisted_dates = read_csv(del_comps_filepath,
                           show_col_types = FALSE) %>% 
   arrange(tase_id) %>% 
+  mutate(tase_id = as.character(tase_id)) %>% 
   mutate(delisting_date = mdy(delisting_date))
 
 ipo_dates = read_csv(ipo_filepath,
@@ -74,20 +74,22 @@ ipo_dates = read_csv(ipo_filepath,
   mutate(tase_id = as.character(tase_id)) %>% 
   arrange(tase_id)
 
-delisted_comps = ipo_dates %>% 
+ipo_and_delisting_dates = ipo_dates %>% 
  full_join(delisted_dates, by = "tase_id") %>% 
   mutate(tase_id = as.character(tase_id)) %>% 
   mutate(quotation_period = difftime(delisting_date, ipo_date)) %>% 
   mutate(quotation_period = time_length(quotation_period,"years")) %>% 
-  filter(quotation_period >= 0) %>% 
-  arrange(ipo_date) %>% 
-  filter(year(ipo_date) >= 2005)
+  filter(quotation_period >= 0 | is.na(quotation_period)) %>% 
+  arrange(ipo_date)
 
 
-rm(del_comps_filepath, ipo_filepath)
+rm(del_comps_filepath, ipo_filepath, delisted_dates, ipo_dates)
 
 ```
 
+
+
+# IPO and delisting dates
 
 # Financial reports dataset
 
@@ -353,12 +355,12 @@ df %>%
 
 ```{r Import_data}
 
-del_comps_filepath = paste0("C:\\Users\\internet",
+del_comps_filepath = paste0(Sys.getenv("USERPROFILE"),
                             "\\OneDrive - Bank Of Israel",
                             "\\Data\\TASE liquidity",
                             "\\michael files\\delisted_comps.csv")
 
-ipo_filepath = paste0("C:\\Users\\internet",
+ipo_filepath = paste0(Sys.getenv("USERPROFILE"),
                             "\\OneDrive - Bank Of Israel",
                             "\\Data\\TASE liquidity",
                             "\\michael files\\ipo_dates.csv")
@@ -368,7 +370,7 @@ comps_dates = import_comps_dates_and_status(ipo_filepath,
   filter(!tase_id %in% c("1286","1701"))
 
 
-df = read_rds(paste0("C:\\Users\\internet",
+df = read_rds(paste0(Sys.getenv("USERPROFILE"),
                      "\\OneDrive - Bank Of Israel\\Data",
                      "\\TASE liquidity\\Rdata files",
                      "\\final_df_2022-11-20.rds"))
@@ -386,7 +388,7 @@ rm(del_comps_filepath, ipo_filepath)
 
 ## IPO
 
-```{r ipo_price_df}
+```{r market_df}
 
 
 market_file_path = paste0(Sys.getenv("USERPROFILE"),
@@ -395,39 +397,28 @@ market_file_path = paste0(Sys.getenv("USERPROFILE"),
                           "\\market_data_2022-11-15.rds")
 
 
-ipo_price_df = import_boi_market_data(market_file_path) %>% 
-  inner_join(ipo_dates %>% 
-               select(tase_id) %>% 
-               mutate(tase_id = as.character(tase_id)) %>% 
-               distinct(), by = "tase_id") %>% 
-  select(sec_id, tase_id, date, close)
-
+market_df  = import_boi_market_data(market_file_path) %>% 
+  filter(!is.na(close))
 
 rm(market_file_path)
 
 
+
+
+
+
 ```
 
-```{r average_3_year_returns}
+```{r check_first_dates_against_ipo}
 
-ipo_ret_df = ipo_price_df %>% 
-  left_join(ipo_dates, by = "tase_id") %>% 
-  mutate(days_diff = date - ipo_date) %>% 
-  filter(days_diff < 365) %>% 
-  group_by(sec_id, tase_id, ipo_date) %>% 
-  arrange(date) %>% 
-  slice(1, length(date)) %>% 
-  summarise(sec_ret = (close[2] / close[1] - 1) / 3, .groups = "drop")
-
-ipo_ret_df %>% 
-  filter(complete.cases(.)) %>% 
-  filter(sec_ret <= quantile(sec_ret, 0.95)) %>% 
-  group_by(year = year(ipo_date)) %>% 
-  summarise(avg_ret = mean(sec_ret), .groups = "drop") %>% 
-  ggplot(aes(x = year, y = avg_ret)) + 
-  geom_col(aes(fill = (avg_ret >= 0)), show.legend = FALSE) + 
-  scale_y_continuous(labels = scales::percent_format()) + 
-  xlab(NULL) + ylab(NULL) + ggtitle("Average 3 years returns of IPO firms")
+temp = market_df %>% 
+  group_by(tase_id) %>% 
+  summarise(date = min(date), .groups = "drop") %>% 
+  left_join(ipo_and_delisting_dates %>% 
+              group_by(tase_id) %>% 
+              summarise(ipo_date = min(ipo_date), .groups = "drop"),
+            by = "tase_id") %>% 
+  mutate(days_diff = date - ipo_date)
 
 ```
 
@@ -445,30 +436,240 @@ ta_125 = read_csv(paste0(Sys.getenv("USERPROFILE"),
   mutate(date = dmy(date))
 
 
-ipo_ret__adj_df = ipo_price_df %>% 
+ret_df = market_df %>% 
+  select(sec_id, tase_id, date, close) %>% 
+  filter(!is.na(close)) %>% 
   left_join(ta_125, by = "date") %>% 
-  left_join(ipo_dates, by = "tase_id") %>% 
-  mutate(days_diff = date - ipo_date) %>% 
-  filter(days_diff < 365) %>% 
-  group_by(sec_id, tase_id, ipo_date) %>% 
+  group_by(sec_id, tase_id) %>% 
   arrange(date) %>% 
+  mutate(days_diff = date - min(date)) %>% 
+  filter(days_diff <= 365 * 3) %>% 
   slice(1, length(date)) %>% 
-  summarise(sec_ret_adj = (close[2] / close[1] - 1) -  
-              (ta_125[2] / ta_125[1] - 1)/ 3, .groups = "drop")
+  summarise(sec_ret = (close[2] / close[1] - 1) / 3,
+            sec_ret_adj = ((close[2] / close[1] - 1) -  
+              (ta_125[2] / ta_125[1] - 1))/ 3,
+            .groups = "drop")
+
+ret_df = ret_df %>% 
+  left_join(market_df %>% 
+              group_by(tase_id, sec_id) %>% 
+              summarise(first_date = min(date), .groups = "drop"),
+            by = c("tase_id","sec_id"))
+
+```
+
+```{r average_style_adjusted_returns}
+
+style_matched_comps = market_df %>% 
+  select(tase_id,sec_id, date, market_value) %>% 
+  group_by(tase_id,sec_id) %>% 
+  arrange(date) %>%
+  slice(1) %>% 
+  ungroup() %>% 
+  filter(year(date) >= 2000) %>% 
+  left_join(market_df %>% 
+              select(tase_id,sec_id, date, market_value),
+            by = "date", suffix = c("_ipo","_control")) %>% 
+  group_by(tase_id_ipo, sec_id_ipo) %>% 
+  mutate(market_diff = abs(market_value_control - market_value_ipo)) %>% 
+  mutate(market_diff = market_diff / (market_value_control +
+                                        market_value_ipo)) %>% 
+  arrange(market_diff) %>% 
+  slice(2) %>% 
+  ungroup() %>% 
+  select(tase_id_ipo,sec_id_ipo, tase_id_control, sec_id_control)
+
+control_comps_with_first_dates = style_matched_comps %>% 
+  left_join(ret_df %>% 
+              select(tase_id, sec_id, first_date),
+            by = c("tase_id_ipo" = "tase_id",
+                   "sec_id_ipo" = "sec_id"))
 
 
 
-ipo_ret__adj_df %>% 
-  filter(complete.cases(.)) %>% 
-  filter(sec_ret_adj <= quantile(sec_ret_adj, 0.95)) %>% 
-  group_by(year = year(ipo_date)) %>% 
-  summarise(avg_ret = mean(sec_ret_adj), .groups = "drop") %>% 
-  ggplot(aes(x = year, y = avg_ret)) + 
-  geom_col(aes(fill = (avg_ret >= 0)), show.legend = FALSE) + 
+style_ret = market_df %>% 
+  filter(!is.na(close)) %>% 
+  select(tase_id, sec_id, date, close) %>% 
+  inner_join(control_comps_with_first_dates,
+             by = c("tase_id" = "tase_id_control",
+                    "sec_id" = "sec_id_control")) %>% 
+  group_by(tase_id, sec_id, tase_id_ipo, sec_id_ipo) %>% 
+  arrange(date) %>% 
+  mutate(days_diff = date - first_date) %>% 
+  filter(days_diff >= 0 & days_diff <= 365 * 3) %>% 
+  slice(1, length(close)) %>% 
+  summarise(sec_ret_style = (close[2] / close[1] - 1) / 3, .groups = "drop")
+
+
+
+ret_df = ret_df %>% 
+  left_join(style_ret %>% 
+              select(tase_id = tase_id_ipo,
+                     sec_id = sec_id_ipo,
+                     sec_ret_style),
+            by = c("tase_id", "sec_id")) %>% 
+  mutate(sec_ret_style = sec_ret - sec_ret_style)
+
+
+
+```
+
+
+```{r plot_ipo_long_run_performance}
+
+ret_df %>% 
+  mutate(year = year(first_date)) %>% 
+  select(year, contains("ret")) %>% 
+  pivot_longer(-year) %>% 
+  filter(!is.na(value)) %>% 
+  group_by(year, name) %>% 
+  summarise(value = median(value), .groups = "drop") %>% 
+  filter(year >= 2000) %>% 
+  ggplot(aes(as.character(year), value)) + 
+  geom_col(aes(fill = name), position = "dodge")  + 
   scale_y_continuous(labels = scales::percent_format()) + 
   xlab(NULL) + ylab(NULL) + 
-  ggtitle("Average 3 years market adjusted returns of IPO firms")
+  theme(legend.title = element_blank()) + 
+  ggtitle("Long run performance of IPO comps")
 
+
+```
+
+
+
+```{r check_return_for_temp_tase_id, eval=FALSE}
+
+temp_tase_id = "1363"
+
+temp_price_df = market_df %>% 
+  filter(!is.na(close)) %>% 
+  filter(tase_id == temp_tase_id) %>% 
+  arrange(date)
+
+temp_price_df %>% 
+  ggplot(aes(date,close)) + 
+  geom_line()
+
+temp_first_market_price_date = min(temp_price_df$date)
+
+temp_last_market_price_date = max(which((temp_price_df$date - min(temp_price_df$date)) <= 365 * 3))
+
+temp_last_market_price_date = temp_price_df$date[temp_last_market_price_date]
+
+temp_ret = temp_price_df %>% 
+  filter(date %in% c(temp_first_market_price_date,
+                     temp_last_market_price_date)) %>% 
+  summarise(ret = c(close[2] / close[1] - 1) / 3) %>% 
+  pull(ret)
+
+all.equal(ret_df %>% 
+  filter(tase_id == temp_tase_id) %>% 
+    pull(sec_ret), temp_ret)
+
+rm(list = str_subset(ls(), "temp"))
+
+
+```
+
+```{r check_market_adjusted_return_for_temp_tase_id, eval=FALSE}
+
+temp_tase_id = "1363"
+
+temp_price_df = market_df %>% 
+  filter(!is.na(close)) %>% 
+  filter(tase_id == temp_tase_id) %>% 
+  arrange(date)
+
+temp_first_market_price_date = min(temp_price_df$date)
+
+temp_last_market_price_date = max(which((temp_price_df$date - min(temp_price_df$date)) <= 365 * 3))
+
+temp_last_market_price_date = temp_price_df$date[temp_last_market_price_date]
+
+temp_ret = temp_price_df %>% 
+  filter(date %in% c(temp_first_market_price_date,
+                     temp_last_market_price_date)) %>% 
+  summarise(ret = c(close[2] / close[1] - 1) / 3) %>% 
+  pull(ret)
+
+temp_market_ret = ta_125 %>% 
+  arrange(date) %>% 
+  filter(date %in% c(temp_first_market_price_date,
+                     temp_last_market_price_date)) %>% 
+  summarise(ret = c(ta_125[2] / ta_125[1] - 1) / 3) %>% 
+  pull(ret)
+
+all.equal(ret_df %>% 
+  filter(tase_id == temp_tase_id) %>% 
+    pull(sec_ret_adj), (temp_ret - temp_market_ret))
+
+rm(list = str_subset(ls(), "temp"))
+
+
+```
+
+
+```{r check_style_return_for_temp_tase_id, eval=FALSE}
+
+temp_tase_id_ipo = "1363"
+
+temp_price_df_ipo = market_df %>% 
+  filter(!is.na(close)) %>% 
+  filter(tase_id == temp_tase_id_ipo) %>% 
+  arrange(date)
+
+temp_market = temp_price_df_ipo %>% 
+  select(tase_id, date, market_value) %>% 
+  arrange(date) %>% 
+  slice(1) %>% 
+  left_join(market_df %>% 
+              select(tase_id, date, market_value),
+            by = "date", suffix = c("_ipo","_control")) %>% 
+  mutate(market_diff = abs(market_value_ipo - market_value_control)) %>% 
+  mutate(market_diff = market_diff / (market_value_ipo +
+                                        market_value_control)) %>% 
+  arrange(market_diff) %>% 
+  slice(2) %>% 
+  select(tase_id_ipo,tase_id_control)
+  
+
+temp_first_market_price_date_ipo = min(temp_price_df_ipo$date)
+
+temp_last_market_price_date_ipo = max(which((temp_price_df_ipo$date - min(temp_price_df_ipo$date)) <= 365 * 3))
+
+temp_last_market_price_date_ipo = temp_price_df_ipo$date[temp_last_market_price_date_ipo]
+
+temp_ret_ipo = temp_price_df_ipo %>% 
+  filter(date %in% c(temp_first_market_price_date_ipo,
+                     temp_last_market_price_date_ipo)) %>% 
+  summarise(ret = c(close[2] / close[1] - 1) / 3) %>% 
+  pull(ret)
+
+# Control ret
+
+temp_price_df_control = market_df %>% 
+  filter(!is.na(close)) %>% 
+  filter(tase_id == temp_market$tase_id_control) %>% 
+  arrange(date)
+
+temp_first_market_price_date_control = temp_first_market_price_date_ipo
+
+temp_last_market_price_date_control = max(which((temp_price_df_control$date - temp_first_market_price_date_ipo <= 365 * 3)))
+
+temp_last_market_price_date_control = temp_price_df_control$date[temp_last_market_price_date_control]
+
+temp_ret_control = temp_price_df_control %>% 
+  filter(date %in% c(temp_first_market_price_date_control,
+                     temp_last_market_price_date_control)) %>% 
+  summarise(ret = c(close[2] / close[1] - 1) / 3) %>% 
+  pull(ret)
+
+
+all.equal(ret_df %>% 
+  filter(tase_id == temp_tase_id_ipo) %>% 
+    pull(sec_ret_style), temp_ret_ipo - temp_ret_control)
+
+rm(list = str_subset(ls(), "temp"))
 
 
 ```
