@@ -443,7 +443,7 @@ ret_df = market_df %>%
   group_by(sec_id, tase_id) %>% 
   arrange(date) %>% 
   mutate(days_diff = date - min(date)) %>% 
-  filter(days_diff <= 365 * 3) %>% 
+  filter(days_diff == 0 | days_diff %in% 1090:1100) %>% 
   slice(1, length(date)) %>% 
   summarise(sec_ret = (close[2] / close[1] - 1) / 3,
             sec_ret_adj = ((close[2] / close[1] - 1) -  
@@ -456,19 +456,22 @@ ret_df = ret_df %>%
               summarise(first_date = min(date), .groups = "drop"),
             by = c("tase_id","sec_id"))
 
+rm(ta_125)
+
 ```
 
 ```{r average_style_adjusted_returns}
 
 style_matched_comps = market_df %>% 
   select(tase_id,sec_id, date, market_value) %>% 
+  filter(!is.na(market_value)) %>% 
   group_by(tase_id,sec_id) %>% 
   arrange(date) %>%
   slice(1) %>% 
   ungroup() %>% 
-  filter(year(date) >= 2000) %>% 
   left_join(market_df %>% 
-              select(tase_id,sec_id, date, market_value),
+              select(tase_id,sec_id, date, market_value) %>% 
+              filter(!is.na(market_value)),
             by = "date", suffix = c("_ipo","_control")) %>% 
   group_by(tase_id_ipo, sec_id_ipo) %>% 
   mutate(market_diff = abs(market_value_control - market_value_ipo)) %>% 
@@ -477,6 +480,7 @@ style_matched_comps = market_df %>%
   arrange(market_diff) %>% 
   slice(2) %>% 
   ungroup() %>% 
+  filter(market_diff < 0.2) %>%
   select(tase_id_ipo,sec_id_ipo, tase_id_control, sec_id_control)
 
 control_comps_with_first_dates = style_matched_comps %>% 
@@ -496,7 +500,7 @@ style_ret = market_df %>%
   group_by(tase_id, sec_id, tase_id_ipo, sec_id_ipo) %>% 
   arrange(date) %>% 
   mutate(days_diff = date - first_date) %>% 
-  filter(days_diff >= 0 & days_diff <= 365 * 3) %>% 
+  filter(days_diff == 0 | days_diff %in% 1090:1100) %>% 
   slice(1, length(close)) %>% 
   summarise(sec_ret_style = (close[2] / close[1] - 1) / 3, .groups = "drop")
 
@@ -510,7 +514,7 @@ ret_df = ret_df %>%
             by = c("tase_id", "sec_id")) %>% 
   mutate(sec_ret_style = sec_ret - sec_ret_style)
 
-
+rm(style_matched_comps, style_ret,control_comps_with_first_dates)
 
 ```
 
@@ -531,6 +535,21 @@ ret_df %>%
   xlab(NULL) + ylab(NULL) + 
   theme(legend.title = element_blank()) + 
   ggtitle("Long run performance of IPO comps")
+
+
+ret_df %>% 
+  mutate(year = year(first_date)) %>% 
+  select(year, contains("ret")) %>% 
+  pivot_longer(-year) %>% 
+  filter(!is.na(value)) %>% 
+  group_by(year, name) %>% 
+  summarise(value = median(value), .groups = "drop") %>% 
+  filter(year >= 2000) %>% 
+  pivot_wider() %>% 
+  write_csv(paste0("C:\\Users\\Home",
+                   "\\OneDrive - Bank Of Israel\\current_work",
+                   "\\annual_report\\2022",
+                   "\\data\\plots\\long_run_ipo.csv"))
 
 
 ```
@@ -633,15 +652,15 @@ temp_market = temp_price_df_ipo %>%
   select(tase_id_ipo,tase_id_control)
   
 
-temp_first_market_price_date_ipo = min(temp_price_df_ipo$date)
+temp_first_date_ipo = min(temp_price_df_ipo$date)
 
-temp_last_market_price_date_ipo = max(which((temp_price_df_ipo$date - min(temp_price_df_ipo$date)) <= 365 * 3))
+temp_last_date_ipo = max(which((temp_price_df_ipo$date - min(temp_price_df_ipo$date)) %in% 1090:1100))
 
-temp_last_market_price_date_ipo = temp_price_df_ipo$date[temp_last_market_price_date_ipo]
+temp_last_date_ipo = temp_price_df_ipo$date[temp_last_date_ipo]
 
 temp_ret_ipo = temp_price_df_ipo %>% 
-  filter(date %in% c(temp_first_market_price_date_ipo,
-                     temp_last_market_price_date_ipo)) %>% 
+  filter(date %in% c(temp_first_date_ipo,
+                     temp_last_date_ipo)) %>% 
   summarise(ret = c(close[2] / close[1] - 1) / 3) %>% 
   pull(ret)
 
@@ -652,15 +671,15 @@ temp_price_df_control = market_df %>%
   filter(tase_id == temp_market$tase_id_control) %>% 
   arrange(date)
 
-temp_first_market_price_date_control = temp_first_market_price_date_ipo
+temp_first_date_control = temp_first_date_ipo
 
-temp_last_market_price_date_control = max(which((temp_price_df_control$date - temp_first_market_price_date_ipo <= 365 * 3)))
+temp_last_date_control = max(which((temp_price_df_control$date - temp_first_date_control) %in% 1090:1100))
 
-temp_last_market_price_date_control = temp_price_df_control$date[temp_last_market_price_date_control]
+temp_last_date_control = temp_price_df_control$date[temp_last_date_control]
 
 temp_ret_control = temp_price_df_control %>% 
-  filter(date %in% c(temp_first_market_price_date_control,
-                     temp_last_market_price_date_control)) %>% 
+  filter(date %in% c(temp_first_date_control,
+                     temp_last_date_control)) %>% 
   summarise(ret = c(close[2] / close[1] - 1) / 3) %>% 
   pull(ret)
 
