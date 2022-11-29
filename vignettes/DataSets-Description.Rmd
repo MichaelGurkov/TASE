@@ -388,6 +388,40 @@ rm(del_comps_filepath, ipo_filepath)
 
 ## IPO
 
+```{r import_ta_125}
+
+ta_125_old = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                             "\\OneDrive - Bank Of Israel\\Data\\BoI",
+                             "\\Stocks\\stocks_index.csv"),
+                      show_col_types = FALSE) %>% 
+  select(date, ta_125) %>% 
+  mutate(date = dmy(date)) %>% 
+  filter(complete.cases(.))
+
+ta_125 = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                         "\\OneDrive - Bank Of Israel",
+                         "\\Data\\TASE liquidity",
+                         "\\michael files\\TA125.csv"),
+                  show_col_types = FALSE,
+                  col_names = c("date","basis","open",
+                                "close","hi","low","market_cap"),
+                  skip = 1) %>% 
+  select(date, ta_125 = close) %>% 
+  mutate(date = dmy(date)) %>% 
+  filter(complete.cases(.))
+
+ta_125 = ta_125 %>% 
+  full_join(ta_125_old, by = "date",
+            suffix = c("_new","_old")) %>% 
+  mutate(ta_125 = coalesce(ta_125_new, ta_125_old)) %>% 
+  select(date, ta_125)
+
+rm(ta_125_old)
+
+
+```
+
+
 ```{r market_df}
 
 
@@ -409,6 +443,46 @@ rm(market_file_path)
 
 ```
 
+```{r make_ret_for_all_comps_df}
+
+calculate_return = function(price, days_diff){
+  
+  ret_gross =  price / price[days_diff == 0]
+  
+  ret_annulized = ret_gross ^ (365 / as.numeric(days_diff)) - 1
+  
+  return(ret_annulized)
+                               
+                               
+  
+}
+
+ret_for_all_comps_df = market_df %>% 
+  select(tase_id, sec_id, date, close) %>% 
+  left_join(ta_125, by = "date") %>% 
+  group_by(tase_id, sec_id) %>% 
+  arrange(date) %>% 
+  mutate(trade_dur = date - min(date)) %>% 
+  mutate(across(c("close","ta_125"),
+                .fns = ~ calculate_return(price = .,
+                                          days_diff = trade_dur),
+                .names = "{col}_ret")) %>% 
+  select(-c("close","ta_125")) %>% 
+  ungroup() %>% 
+  mutate(market_adj_ret = close_ret - ta_125_ret)
+
+ret_for_all_comps_df %>% 
+  write_rds(paste0(Sys.getenv("USERPROFILE"),
+                          "\\OneDrive - Bank Of Israel\\Data",
+                          "\\TASE liquidity\\Rdata files",
+                          "\\ret_for_all_comps_df.rds"))
+
+rm(calculate_return)
+
+```
+
+
+
 ```{r check_first_dates_against_ipo}
 
 temp = market_df %>% 
@@ -424,16 +498,6 @@ temp = market_df %>%
 
 ```{r average_3_year_market_adjusted_returns}
 
-ta_125 = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                         "\\OneDrive - Bank Of Israel",
-                         "\\Data\\TASE liquidity",
-                         "\\michael files\\TA125.csv"),
-                  show_col_types = FALSE,
-                  col_names = c("date","basis","open",
-                                "close","hi","low","market_cap"),
-                  skip = 1) %>% 
-  select(date, ta_125 = close) %>% 
-  mutate(date = dmy(date))
 
 
 ret_df = market_df %>% 
