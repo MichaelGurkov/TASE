@@ -267,4 +267,11 @@ get_matched_df = function(df, comps_dates,
 
 
 
+#' This functions cleans the dirty dataframe
+#'
+clean_df = function(dirty_df){
 
+
+
+
+}

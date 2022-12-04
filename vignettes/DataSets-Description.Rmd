@@ -457,30 +457,50 @@ calculate_return = function(price, days_diff){
   
 }
 
-ret_for_all_comps_df = market_df %>% 
-  select(tase_id, sec_id, date, close) %>% 
-  left_join(ta_125, by = "date") %>% 
-  group_by(tase_id, sec_id) %>% 
-  arrange(date) %>% 
-  mutate(trade_dur = date - min(date)) %>% 
-  mutate(across(c("close","ta_125"),
-                .fns = ~ calculate_return(price = .,
-                                          days_diff = trade_dur),
-                .names = "{col}_ret")) %>% 
-  select(-c("close","ta_125")) %>% 
-  ungroup() %>% 
-  mutate(market_adj_ret = close_ret - ta_125_ret)
+# ret_for_all_comps_df = market_df %>% 
+#   select(tase_id, sec_id, date, close) %>% 
+#   left_join(ta_125, by = "date") %>% 
+#   group_by(tase_id, sec_id) %>% 
+#   arrange(date) %>% 
+#   mutate(trade_dur = date - min(date)) %>% 
+#   mutate(across(c("close","ta_125"),
+#                 .fns = ~ calculate_return(price = .,
+#                                           days_diff = trade_dur),
+#                 .names = "{col}_ret")) %>% 
+#   select(-c("close","ta_125")) %>% 
+#   ungroup() %>% 
+#   mutate(market_adj_ret = close_ret - ta_125_ret)
 
-ret_for_all_comps_df %>% 
-  write_rds(paste0(Sys.getenv("USERPROFILE"),
-                          "\\OneDrive - Bank Of Israel\\Data",
-                          "\\TASE liquidity\\Rdata files",
-                          "\\ret_for_all_comps_df.rds"))
+# ret_for_all_comps_df %>% 
+#   write_rds(paste0(Sys.getenv("USERPROFILE"),
+#                           "\\OneDrive - Bank Of Israel\\Data",
+#                           "\\TASE liquidity\\Rdata files",
+#                           "\\ret_for_all_comps_df.rds"))
 
 rm(calculate_return)
 
+
+
+
 ```
 
+```{r ret_df_for_all}
+
+ret_for_all_comps_df = read_rds(paste0(
+  Sys.getenv("USERPROFILE"),
+  "\\OneDrive - Bank Of Israel\\Data",
+  "\\TASE liquidity\\Rdata files",
+  "\\ret_for_all_comps_df.rds"))
+
+
+# ret_for_all_comps_df = write_rds(paste0(
+#   Sys.getenv("USERPROFILE"),
+#   "\\OneDrive - Bank Of Israel\\Data",
+#   "\\TASE liquidity\\Rdata files",
+#   "\\ret_for_all_comps_df.rds"))
+
+
+```
 
 
 ```{r check_first_dates_against_ipo}
