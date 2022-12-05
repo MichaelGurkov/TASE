@@ -23,15 +23,17 @@ stocks_ipo = read_csv(paste0("C:\\Users\\internet",
                       show_col_types = FALSE) %>% 
   mutate(tase_id = as.character(tase_id))
 
-itai_ipos = read_csv(paste0("C:\\Users\\internet",
-                             "\\OneDrive - Bank Of Israel",
-                             "\\Data\\TASE liquidity",
-                             "\\michael files\\itai_ipos.csv"),
-                      show_col_types = FALSE) %>% 
-  mutate(tase_id = as.character(tase_id))
 
 ```
 
+```{r import_ta_125}
+
+ta_125 = read_csv(paste0("C:\\Users\\internet",
+                         "\\OneDrive - Bank Of Israel\\Data",
+                         "\\TASE liquidity\\michael files",
+                         "\\TA125.csv"), show_col_types = FALSE)
+
+```
 
 ```{r import_market_df}
 
@@ -55,37 +57,161 @@ rm(market_file_path)
 ```
 
 
-```{r import_cumulative_ret_df_for_all}
+```{r plot_ipo_price_itai, eval=FALSE}
 
-cum_ret_for_all_comps_df = read_rds(paste0(
-  Sys.getenv("USERPROFILE"),
-  "\\OneDrive - Bank Of Israel\\Data",
-  "\\TASE liquidity\\Rdata files",
-  "\\ret_for_all_comps_df.rds"))
+itai_ipos = read_csv(paste0("C:\\Users\\internet",
+                             "\\OneDrive - Bank Of Israel",
+                             "\\Data\\TASE liquidity",
+                             "\\michael files\\itai_ipos.csv"),
+                      show_col_types = FALSE) %>% 
+  mutate(tase_id = as.character(tase_id))
 
 
-# ret_for_all_comps_df = write_rds(paste0(
-#   Sys.getenv("USERPROFILE"),
-#   "\\OneDrive - Bank Of Israel\\Data",
-#   "\\TASE liquidity\\Rdata files",
-#   "\\ret_for_all_comps_df.rds"))
+market_df %>% 
+  inner_join(select(itai_ipos, tase_id)) %>% 
+  filter(date >= dmy("30-06-2021") & date <= dmy("31-01-2022")) %>% 
+  group_by(date) %>% 
+  summarise(market_value = sum(market_value, na.rm = TRUE),
+            .groups = "drop") %>% 
+  mutate(market_value = market_value /
+           market_value[date == min(date)] * 100) %>% 
+  left_join(ta_125 %>% 
+              select(1:2) %>% 
+              set_names(c("date"),"ta_125") %>% 
+              mutate(date = dmy(date)) %>% 
+              filter(date >= dmy("30-06-2021") & 
+                       date <= dmy("31-01-2022")) %>% 
+              mutate(ta_125 = ta_125 / ta_125[date == min(date)] * 100),
+            by = "date") %>% 
+  pivot_longer(-date) %>% 
+  # filter(date<= dmy("20-01-2022")) %>% 
+  ggplot(aes(date, value, color = name)) + 
+  geom_line() + 
+  ylim(c(90,125))
+
+```
+
+```{r check_for_specific_case, eval=FALSE}
+
+market_df %>% 
+  filter(tase_id == 1092) %>% 
+  select(tase_id, sec_id, date, close) %>% 
+  mutate(trade_duration = date - min(date)) %>% 
+  filter(trade_duration == 0 | trade_duration == 1094) %>% 
+  arrange(date) %>% 
+  summarise(sec_ret = (close[2] / close[1] - 1) / 3)
+
+
+ret_df %>% 
+  filter(tase_id == 1092)
 
 
 ```
 
 
-```{r plot_ipo_price}
 
-market_df %>% 
-  inner_join(select(itai_ipos, tase_id)) %>% 
-  filter(date >= dmy("30-06-2021") & date <= dmy("31-01-2022")) %>% 
-  group_by(tase_id) %>% 
-  mutate(close = close / close[date == min(date)]) %>% 
-  group_by(date) %>% 
-  summarise(qs = quantile(close, c(0.25,0.5,0.75)),
-            probs = c(0.25,0.5,0.75), .groups = "drop") %>% 
-  ggplot(aes(date, qs, color = as.character(probs))) + 
-  geom_line()
+# Long run performance
+
+
+```{r calculate_ret}
+
+price_df = market_df %>% 
+  select(tase_id, sec_id,date, close) %>% 
+  inner_join(stocks_ipo %>% 
+               select(tase_id))
+
+index_df = ta_125 %>% 
+  rename(index = ta_125)
+
+ret_df = calculate_cumulative_return(price_df = price_df,
+                                     index_df = index_df,
+                                     horizon = 365 * 3) %>% 
+  mutate(across(contains("ret"), ~ . / 3))
+
+
+ret_df = ret_df %>% 
+  left_join(stocks_ipo %>% 
+              select(tase_id, tase_sector, year) %>% 
+              distinct(), by = "tase_id")
+
+```
+
+
+```{r plot_ipo_long_run_performance_by_sector}
+
+library(tidytext)
+
+ret_df %>% 
+  select(contains("tase"), contains("ret")) %>%
+  pivot_longer(-c(tase_id,tase_sector),
+               names_to = "adjustment") %>% 
+  group_by(adjustment, tase_sector) %>% 
+  summarise(avg = mean(value), med = median(value),
+            .groups = "drop") %>% 
+  pivot_longer(-c(adjustment,tase_sector)) %>% 
+  ggplot(aes(x = value,
+             y = reorder_within(tase_sector, value, adjustment),
+             fill = name)) + 
+  geom_col(position = "dodge") + 
+  facet_wrap(~adjustment, scales = "free") + 
+  scale_y_reordered() + 
+  scale_x_continuous(labels = scales::percent_format()) +
+  xlab(NULL) + ylab(NULL)
+  
+
+
+# ret_df %>% 
+#   select(contains("tase"), contains("ret")) %>%
+#   pivot_longer(-c(tase_id,tase_sector),
+#                names_to = "adjustment") %>% 
+#   group_by(adjustment, tase_sector) %>% 
+#   summarise(avg = mean(value),
+#             .groups = "drop") %>% 
+#   pivot_wider(names_from = adjustment, values_from = avg) %>% 
+  # write_csv(paste0("C:\\Users\\internet",
+  #                  "\\OneDrive - Bank Of Israel\\current_work",
+  #                  "\\annual_report\\2022\\data",
+  #                  "\\plots\\long_run_ipo_by_sector.csv"))
+
+```
+
+
+
+```{r plot_ipo_long_run_performance_by_year}
+
+ret_df %>% 
+  select(tase_id, year, contains("ret")) %>%
+  pivot_longer(-c(tase_id, year),
+               names_to = "adjustment") %>% 
+  group_by(adjustment, year) %>% 
+  summarise(avg = mean(value), med = median(value),
+            .groups = "drop") %>% 
+  pivot_longer(-c(adjustment,year)) %>% 
+  ggplot(aes(x = year,
+             y = value,
+             fill = name)) + 
+  geom_col(position = "dodge") + 
+  facet_wrap(~adjustment, scales = "free") + 
+  scale_y_continuous(labels = scales::percent_format()) +
+  xlab(NULL) + ylab(NULL)
+
+
+# ret_df %>% 
+#   select(tase_id, year, contains("ret")) %>%
+#   pivot_longer(-c(tase_id, year),
+#                names_to = "adjustment") %>% 
+#   group_by(adjustment, year) %>% 
+#   summarise(avg = mean(value),
+#             .groups = "drop") %>% 
+#   pivot_wider(names_from = "adjustment",values_from = "avg") %>% 
+#   write_csv(paste0("C:\\Users\\internet",
+#                    "\\OneDrive - Bank Of Israel\\current_work",
+#                    "\\annual_report\\2022\\data",
+#                    "\\plots\\long_run_ipo_by_year.csv"))
+
+  
+  
+
 
 ```
 

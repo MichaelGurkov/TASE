@@ -85,3 +85,31 @@ pivot_to_join_format = function(match_table){
 
 
 }
+
+
+#' This function calculates cumulative gross and adjusted return
+#'
+calculate_cumulative_return = function(price_df, index_df, horizon){
+
+  price_df = price_df %>%
+    group_by(tase_id, sec_id) %>%
+    mutate(trade_duration = date - min(date)) %>%
+    ungroup()
+
+  ret_df = price_df %>%
+    left_join(index_df, by = "date") %>%
+    group_by(tase_id, sec_id) %>%
+    filter(trade_duration == 0 |
+             trade_duration %in% (horizon + + c(-3:3))) %>%
+    slice(1, length(date)) %>%
+    arrange(date) %>%
+    summarise(sec_ret = (close[2] / close[1] - 1),
+              sec_ret_adj = (close[2] / close[1] - 1) -
+                            (index[2] / index[1] - 1),
+              .groups = "drop")
+
+  return(ret_df)
+
+
+
+}
