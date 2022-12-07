@@ -16,7 +16,7 @@ devtools::load_all()
 
 ```{r import_ipo_list}
 
-stocks_ipo = read_csv(paste0("C:\\Users\\internet",
+stocks_ipo = read_csv(paste0(Sys.getenv("USERPROFILE"),
                              "\\OneDrive - Bank Of Israel",
                              "\\Data\\TASE liquidity",
                              "\\michael files\\stocks_ipo.csv"),
@@ -28,7 +28,7 @@ stocks_ipo = read_csv(paste0("C:\\Users\\internet",
 
 ```{r import_ta_125}
 
-ta_125 = read_csv(paste0("C:\\Users\\internet",
+ta_125 = read_csv(paste0(Sys.getenv("USERPROFILE"),
                          "\\OneDrive - Bank Of Israel\\Data",
                          "\\TASE liquidity\\michael files",
                          "\\TA125.csv"), show_col_types = FALSE)
@@ -108,9 +108,49 @@ ret_df %>%
 
 ```
 
+# Desc stats
+
 
 
 # Long run performance
+
+In order to asses the long run performance of IPO's I calculate the buy and hold return 
+
+
+```{r cumulative_returns}
+
+cum_ret_df = price_df %>% 
+  group_by(tase_id, sec_id, date = as.yearmon(date)) %>% 
+  summarise(close = mean(close, na.rm = TRUE), .groups = "drop") %>% 
+  group_by(tase_id, sec_id) %>% 
+  arrange(date) %>% 
+  mutate(trade_periods = date - date[1]) %>% 
+  mutate(ret = log(close) - log(close[1])) %>% 
+  ungroup()
+
+
+```
+
+
+```{r plot_cum_ret}
+
+cum_ret_df  %>% 
+  filter(trade_periods <= 12 * 5) %>%
+  group_by(trade_periods) %>% 
+  summarise(across(ret,.fns = list(mean = mean,
+                                   median = median),
+                   .names = "{.col}_{.fn}")) %>% 
+  pivot_longer(-trade_periods, names_to = "metric") %>% 
+  mutate(metric = str_remove(metric,"ret_")) %>% 
+  # group_by(metric) %>% 
+  # arrange(trade_periods) %>% 
+  # mutate(value = slide_dbl(value, mean,.before = 5,.after = 5)) %>% 
+  # ungroup() %>% 
+  ggplot(aes(as.numeric(trade_periods), value, color = metric)) + 
+  geom_line()
+  
+
+```
 
 
 ```{r calculate_ret}
@@ -126,7 +166,18 @@ index_df = ta_125 %>%
 ret_df = calculate_cumulative_return(price_df = price_df,
                                      index_df = index_df,
                                      horizon = 365 * 3) %>% 
-  mutate(across(contains("ret"), ~ . / 3))
+  mutate(across(contains("ret"), ~ . / 3)) %>% 
+  mutate(horizon = 3) %>% 
+  bind_rows(calculate_cumulative_return(price_df = price_df,
+                                     index_df = index_df,
+                                     horizon = 365 * 5) %>% 
+  mutate(across(contains("ret"), ~ . / 5)) %>% 
+  mutate(horizon = 5)) %>% 
+  bind_rows(calculate_cumulative_return(price_df = price_df,
+                                     index_df = index_df,
+                                     horizon = 365 * 1) %>% 
+  mutate(across(contains("ret"), ~ . / 1)) %>% 
+  mutate(horizon = 1))
 
 
 ret_df = ret_df %>% 
@@ -141,20 +192,24 @@ ret_df = ret_df %>%
 
 library(tidytext)
 
+
 ret_df %>% 
-  select(contains("tase"), contains("ret")) %>%
-  pivot_longer(-c(tase_id,tase_sector),
+  select(-year) %>%
+  pivot_longer(-c(tase_id,sec_id,tase_sector, horizon),
                names_to = "adjustment") %>% 
-  group_by(adjustment, tase_sector) %>% 
-  summarise(avg = mean(value), med = median(value),
+  group_by(horizon,tase_sector,adjustment) %>% 
+  summarise(avg = mean(value, na.rm = TRUE),
+            med = median(value, na.rm = TRUE),
             .groups = "drop") %>% 
-  pivot_longer(-c(adjustment,tase_sector)) %>% 
+  filter(adjustment == "sec_ret_adj") %>%
+  select(-adjustment) %>% 
+  pivot_longer(-c(tase_sector, horizon)) %>% 
   ggplot(aes(x = value,
-             y = reorder_within(tase_sector, value, adjustment),
-             fill = name)) + 
+             y = reorder_within(tase_sector, value, horizon)),
+             fill = name) + 
   geom_col(position = "dodge") + 
-  facet_wrap(~adjustment, scales = "free") + 
-  scale_y_reordered() + 
+  facet_wrap(~horizon, scales = "free") + 
+  scale_y_reordered() +
   scale_x_continuous(labels = scales::percent_format()) +
   xlab(NULL) + ylab(NULL)
   
