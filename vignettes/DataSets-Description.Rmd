@@ -207,6 +207,31 @@ legacy_market_df = legacy_market_df %>%
 ```
 
 
+```{r validation, eval=FALSE}
+
+temp_tase = 1268
+
+temp_sec = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                           "\\OneDrive - Bank Of Israel\\Data",
+                           "\\TASE liquidity\\michael files\\files_",
+                           "from_TASE_website\\",temp_tase,".csv"),
+                    show_col_types = FALSE) %>% 
+  select(1:2) %>% 
+  set_names(c("date","tase_close_adj")) %>% 
+  mutate(date = dmy(date))
+
+market_df %>% 
+  filter(tase_id == temp_tase) %>% 
+  select(date, close) %>% 
+  full_join(temp_sec, by = "date") %>% 
+  pivot_longer(-date) %>% 
+  ggplot(aes(date, value, color = name)) + 
+  geom_line()
+
+
+```
+
+
 
 # Final dataset
 
