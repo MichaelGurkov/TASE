@@ -145,31 +145,39 @@ finrep_df %>%
 
 ```{r Import_market_data}
 
-raw_market_vars = vars_list %>% 
-  filter(data_source == "market_data") %>% 
-  filter(category == "raw") %>% 
-  pull(df_varname)
+# raw_market_vars = vars_list %>% 
+#   filter(data_source == "market_data") %>% 
+#   filter(category == "raw") %>% 
+#   pull(df_varname)
+# 
+# 
+# final_market_vars = vars_list %>% 
+#   filter(data_source == "market_data") %>% 
+#   filter(category == "final") %>% 
+#   filter(!df_varname == "car") %>% 
+#   pull(df_varname)
+# 
+# 
+# market_file_path = paste0(Sys.getenv("USERPROFILE"),
+#                           "\\OneDrive - Bank Of Israel\\Data",
+#                           "\\TASE liquidity\\Rdata files",
+#                           "\\market_data_2022-11-15.rds")
+# 
+# 
+# raw_oracle_market_df = import_boi_market_data(market_file_path)
+# 
+# final_market_vars[!final_market_vars %in% names(market_df)]
 
 
-final_market_vars = vars_list %>% 
-  filter(data_source == "market_data") %>% 
-  filter(category == "final") %>% 
-  filter(!df_varname == "car") %>% 
-  pull(df_varname)
-
-
-market_file_path = paste0(Sys.getenv("USERPROFILE"),
+raw_oracle_market_df = read_rds(paste0(Sys.getenv("USERPROFILE"),
                           "\\OneDrive - Bank Of Israel\\Data",
                           "\\TASE liquidity\\Rdata files",
-                          "\\market_data_2022-11-15.rds")
+                          "\\working_data\\market_df.rds"))
 
 
-raw_oracle_market_df = import_boi_market_data(market_file_path)
+# market_df = raw_oracle_market_df %>% 
+#   make_market_df()
 
-market_df = raw_oracle_market_df %>% 
-  make_market_df()
-
-final_market_vars[!final_market_vars %in% names(market_df)]
 
 
 # rm(market_file_path,raw_oracle_market_df)
@@ -206,30 +214,42 @@ legacy_market_df = legacy_market_df %>%
 
 ```
 
+```{r magnitude_validation}
 
-```{r validation, eval=FALSE}
+get_power_diff = function(temp_vec){
+    
+    power_vec = floor(log10(temp_vec))
+    
+    power_diff = max(diff(power_vec))
+    
+    return(power_diff)
+    
+  }
 
-temp_tase = 1268
+price_jumps_comps = raw_oracle_market_df %>% 
+  inner_join(stocks_ipo %>% 
+               select(tase_id)) %>% 
+  group_by(tase_id, sec_id) %>% 
+  summarise(power_diff = get_power_diff(close), .groups = "drop") %>% 
+  arrange(desc(power_diff)) %>% 
+  filter(power_diff > 2)
 
-temp_sec = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                           "\\OneDrive - Bank Of Israel\\Data",
-                           "\\TASE liquidity\\michael files\\files_",
-                           "from_TASE_website\\",temp_tase,".csv"),
-                    show_col_types = FALSE) %>% 
-  select(1:2) %>% 
-  set_names(c("date","tase_close_adj")) %>% 
-  mutate(date = dmy(date))
+temp_df = raw_oracle_market_df %>% 
+  filter(tase_id == "1550") %>% 
+  arrange(date) %>% 
+  ggplot(aes(date, close)) + 
+  geom_line()
 
-market_df %>% 
-  filter(tase_id == temp_tase) %>% 
-  select(date, close) %>% 
-  full_join(temp_sec, by = "date") %>% 
-  pivot_longer(-date) %>% 
-  ggplot(aes(date, value, color = name)) + 
+raw_oracle_market_df %>% 
+  filter(tase_id == "1550") %>% 
+  arrange(date) %>% 
+  mutate(close = c(NA, diff(log(close)))) %>% 
+  ggplot(aes(date, close)) + 
   geom_line()
 
 
 ```
+
 
 
 

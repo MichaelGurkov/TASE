@@ -1,0 +1,372 @@
+
+```{r load_libraries}
+
+library(tidyverse)
+
+library(lubridate)
+
+library(zoo)
+
+```
+
+# IPO data
+
+```{r import_ipo_dates_from_all_sources}
+
+mos_ipo = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                             "\\OneDrive - Bank Of Israel",
+                             "\\Data\\TASE liquidity",
+                             "\\michael files\\stocks_ipo.csv"),
+                      show_col_types = FALSE) %>% 
+  mutate(tase_id = as.character(tase_id)) %>% 
+  select(tase_id,month, year_mos = year)
+
+cognus_ipo = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                             "\\OneDrive - Bank Of Israel",
+                             "\\Data\\TASE liquidity",
+                             "\\michael files\\ipo_dates.csv"),
+                      show_col_types = FALSE) %>% 
+  mutate(ipo_date = dmy(ipo_date)) %>% 
+  mutate(year_cognus = year(ipo_date)) %>% 
+  mutate(tase_id = as.character(tase_id))
+
+market_ipo = market_df %>% 
+  group_by(tase_id, sec_id) %>% 
+  summarise(first_trading_date = min(date), .groups = "drop") %>% 
+  mutate(year_market = year(first_trading_date))
+
+```
+
+
+```{r compare_ipo_years}
+
+temp = mos_ipo %>%
+  inner_join(market_ipo,by = "tase_id") %>% 
+  mutate(years_diff = year_mos - year_market) %>% 
+  arrange(years_diff)
+
+
+
+```
+
+
+
+# Market data
+
+```{r import_market_df}
+
+oracle_market_df = read_rds(paste0(Sys.getenv("USERPROFILE"),
+                          "\\OneDrive - Bank Of Israel\\Data",
+                          "\\TASE liquidity\\Rdata files",
+                          "\\working_data\\market_df.rds"))
+
+stocks_ipo = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                             "\\OneDrive - Bank Of Israel",
+                             "\\Data\\TASE liquidity",
+                             "\\michael files\\stocks_ipo.csv"),
+                      show_col_types = FALSE) %>% 
+  mutate(tase_id = as.character(tase_id))
+
+
+```
+
+```{r import_tase_df}
+
+
+# short_files = list.files(paste0(Sys.getenv("USERPROFILE"),
+#                                 "\\OneDrive - Bank Of Israel\\Data\\TASE liquidity",
+#                                 "\\michael files\\files_from_TASE_website"),
+#                          full.names = TRUE,pattern = "*.csv$")
+# 
+# long_files = list.files(paste0(Sys.getenv("USERPROFILE"),
+#                                 "\\OneDrive - Bank Of Israel\\Data\\TASE liquidity",
+#                                 "\\michael files\\files_from_TASE_website\\raw_format"),
+#                          full.names = TRUE) 
+# 
+# 
+# temp = map_dfr(short_files, function(temp_filepth){
+#   
+#   comp_num = str_extract(temp_filepth,
+#                          pattern = "[0-9]+\\.csv$") %>% 
+#     str_remove(pattern = "\\.csv")
+#   
+#   print(comp_num)
+#   
+#   
+#   temp_df = read_csv(temp_filepth,
+#                      show_col_types = FALSE) %>% 
+#     select(1:2) %>% 
+#     set_names(c("date","tase_close_adj")) %>% 
+#     mutate(date = dmy(date)) %>% 
+#     mutate(tase_id = comp_num)
+#   
+#   return(temp_df)
+#     
+#   
+#   
+#   
+#   
+# })
+# 
+# 
+# 
+# tase_df = map_dfr(long_files, function(temp_filepth){
+#   
+#   comp_num = str_extract(temp_filepth,
+#                          pattern = "[0-9]+\\.csv$") %>% 
+#     str_remove(pattern = "\\.csv")
+#   
+#   print(comp_num)
+#   
+#   
+#   temp_df = read_csv(temp_filepth,skip = 2,
+#                      show_col_types = FALSE) %>% 
+#     select(1:2) %>% 
+#     set_names(c("date","tase_close_adj")) %>% 
+#     mutate(date = dmy(date)) %>% 
+#     mutate(tase_id = comp_num)
+#   
+#   return(temp_df)
+#     
+#   
+#   
+#   
+#   
+# })
+# 
+# tase_df = tase_df %>% 
+#   bind_rows(temp)
+
+
+tase_df = read_rds(paste0(Sys.getenv("USERPROFILE"),
+                   "\\OneDrive - Bank Of Israel\\Data",
+                   "\\TASE liquidity\\Rdata files",
+                   "\\working_data\\tase_validation_df.rds"))
+
+
+
+```
+
+```{r calculate_price_jumps}
+
+get_power_diff = function(temp_vec){
+    
+    power_vec = floor(log10(temp_vec))
+    
+    power_diff = max(diff(power_vec))
+    
+    return(power_diff)
+    
+  }
+
+price_jumps_comps = oracle_market_df %>% 
+  inner_join(stocks_ipo %>% 
+               select(tase_id)) %>% 
+  group_by(tase_id, sec_id) %>% 
+  summarise(power_diff = get_power_diff(close), .groups = "drop") %>% 
+  arrange(desc(power_diff)) %>% 
+  filter(power_diff > 2)
+
+rm(get_power_diff)
+
+
+```
+
+```{r validation_functions}
+
+get_price_df = function(temp_oracle_market_df, temp_tase_df,
+                        temp_tase_id){
+  
+  temp_price_df = temp_oracle_market_df %>% 
+    select(tase_id, sec_id, date, oracle_price = close)%>% 
+    filter(tase_id == temp_tase_id) %>% 
+    arrange(date)
+  
+  
+  if(temp_tase_id %in% temp_tase_df$tase_id){
+    
+    temp_price_df = temp_price_df  %>% 
+      full_join(tase_df %>% 
+                  filter(tase_id == temp_tase_id) %>% 
+                  rename(tase_price = tase_close_adj),
+                by = c("tase_id","date")) %>% 
+      filter(complete.cases(.))
+    
+  } else {
+    
+    return(temp_price_df)
+    
+    
+  }
+  
+  
+
+
+  temp_price_df = temp_price_df %>% 
+    mutate(facet_category = "raw")
+  
+  temp_price_df = temp_price_df %>% 
+    bind_rows(temp_price_df %>% 
+                mutate(diff = (oracle_price - tase_price) /
+                         (oracle_price + tase_price)) %>% 
+                mutate(diff = 2 * abs(diff)) %>% 
+                mutate(facet_category = if_else(diff < 0.05,
+                                                "small_diff","big_diff")) %>% 
+                select(-diff))
+  
+  temp_price_df = temp_price_df %>% 
+    bind_rows(temp_price_df %>% 
+                filter(facet_category == "big_diff") %>% 
+                mutate(across(c("oracle_price","tase_price"), ~. / .[1])) %>% 
+                mutate(facet_category = "normalized"))
+  
+  
+  temp_price_df = temp_price_df %>% 
+    mutate(facet_category = factor(facet_category,
+                                   levels = c("raw",
+                                              "big_diff",
+                                              "small_diff",
+                                              "normalized")))
+
+  
+  
+  return(temp_price_df)
+  
+  
+  
+}
+
+```
+
+
+
+
+```{r 1473}
+
+temp_price_df = get_price_df(oracle_market_df, tase_df, "1473")
+
+
+temp_price_df %>% 
+  pivot_longer(cols = c("oracle_price","tase_price")) %>% 
+  ggplot(aes(date, value)) + 
+  facet_grid(cols = vars(name),rows = vars(facet_category),
+             scales = "free") + 
+  scale_y_continuous(labels = scales::number_format()) + 
+  geom_line() + 
+  xlab(NULL) + ylab(NULL)
+
+rm(temp_price_df)
+
+
+
+```
+
+
+
+```{r 1268}
+
+temp_price_df = get_price_df(oracle_market_df, tase_df, "1268")
+
+
+temp_price_df %>% 
+  pivot_longer(cols = c("oracle_price","tase_price")) %>% 
+  ggplot(aes(date, value)) + 
+  facet_grid(cols = vars(name),rows = vars(facet_category),
+             scales = "free") + 
+  scale_y_continuous(labels = scales::number_format()) + 
+  geom_line() + 
+  xlab(NULL) + ylab(NULL)
+
+rm(temp_price_df)
+
+
+
+```
+
+
+
+```{r 1287}
+
+temp_price_df = get_price_df(oracle_market_df, tase_df, "1287")
+
+
+temp_price_df %>% 
+  pivot_longer(cols = c("oracle_price","tase_price")) %>% 
+  ggplot(aes(date, value)) + 
+  facet_grid(cols = vars(name),rows = vars(facet_category),
+             scales = "free") + 
+  scale_y_continuous(labels = scales::number_format()) + 
+  geom_line() + 
+  xlab(NULL) + ylab(NULL)
+
+rm(temp_price_df)
+
+
+
+```
+
+
+
+```{r 1550}
+
+temp_price_df = get_price_df(oracle_market_df, tase_df, "1550")
+
+
+temp_price_df %>% 
+  pivot_longer(cols = c("oracle_price","tase_price")) %>% 
+  ggplot(aes(date, value)) + 
+  facet_grid(cols = vars(name),rows = vars(facet_category),
+             scales = "free") + 
+  scale_y_continuous(labels = scales::number_format()) + 
+  geom_line() + 
+  xlab(NULL) + ylab(NULL)
+
+rm(temp_price_df)
+
+
+
+```
+
+
+
+```{r 422}
+
+temp_price_df = get_price_df(oracle_market_df, tase_df, "422")
+
+
+temp_price_df %>% 
+  pivot_longer(cols = c("oracle_price","tase_price")) %>% 
+  ggplot(aes(date, value)) + 
+  facet_grid(cols = vars(name),rows = vars(facet_category),
+             scales = "free") + 
+  scale_y_continuous(labels = scales::number_format()) + 
+  geom_line() + 
+  xlab(NULL) + ylab(NULL)
+
+rm(temp_price_df)
+
+
+
+```
+
+
+```{r 456}
+
+temp_price_df = get_price_df(oracle_market_df, tase_df, "456")
+
+
+temp_price_df %>% 
+  pivot_longer(cols = c("oracle_price","tase_price")) %>% 
+  ggplot(aes(date, value)) + 
+  facet_grid(cols = vars(name),rows = vars(facet_category),
+             scales = "free") + 
+  scale_y_continuous(labels = scales::number_format()) + 
+  geom_line() + 
+  xlab(NULL) + ylab(NULL)
+
+rm(temp_price_df)
+
+
+
+```
+

@@ -14,24 +14,14 @@ devtools::load_all()
 ```
 
 
-```{r import_ipo_list}
-
-stocks_ipo = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                             "\\OneDrive - Bank Of Israel",
-                             "\\Data\\TASE liquidity",
-                             "\\michael files\\stocks_ipo.csv"),
-                      show_col_types = FALSE) %>% 
-  mutate(tase_id = as.character(tase_id))
-
-
-```
-
 ```{r import_ta_125}
 
 ta_125 = read_csv(paste0(Sys.getenv("USERPROFILE"),
                          "\\OneDrive - Bank Of Israel\\Data",
                          "\\TASE liquidity\\michael files",
-                         "\\TA125.csv"), show_col_types = FALSE)
+                         "\\TA125.csv"),
+                  show_col_types = FALSE) %>% 
+  mutate(date = dmy(date))
 
 ```
 
@@ -67,21 +57,68 @@ market_df = read_rds(paste0(Sys.getenv("USERPROFILE"),
 ```
 
 
+```{r import_ipo_list}
+
+stocks_ipo = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                             "\\OneDrive - Bank Of Israel",
+                             "\\Data\\TASE liquidity",
+                             "\\michael files\\stocks_ipo.csv"),
+                      show_col_types = FALSE) %>% 
+  mutate(tase_id = as.character(tase_id))
+
+stocks_ipo = stocks_ipo %>% 
+  mutate(tase_id = recode(tase_id,
+                          `456` = "259"))
+
+ipo_trade_dur_df = market_df %>% 
+  group_by(tase_id, sec_id) %>% 
+  summarise(tibble(first_trade_year = year(min(date)),
+                   trade_years = (max(date) - min(date)) %/% dyears(1)),
+            .groups = "drop")
+
+stocks_ipo = stocks_ipo %>% 
+  left_join(ipo_trade_dur_df, by = "tase_id") %>% 
+  arrange(tase_id) %>% 
+  filter(!is.na(trade_years))
+
+
+
+num_ipo = stocks_ipo %>% 
+  count(tase_id, sort = TRUE)
+
+
+stocks_ipo = stocks_ipo %>% 
+  inner_join(num_ipo %>% 
+               filter(n == 1) %>% 
+               select(tase_id), by = "tase_id")
+
+rm(ipo_trade_dur_df)
+
+```
+
 ```{r cumulative_returns}
 
 cum_ret_df = market_df %>% 
   select(tase_id, sec_id,date, close) %>% 
   inner_join(stocks_ipo %>% 
-               select(tase_id)) %>% 
+               select(tase_id),by = "tase_id") %>% 
+  left_join(ta_125, by = "date") %>% 
   group_by(tase_id, sec_id, date = as.yearmon(date)) %>% 
-  summarise(close = mean(close, na.rm = TRUE), .groups = "drop") %>% 
+  summarise(across(c("close","ta_125"),~mean(., na.rm = TRUE)),
+            .groups = "drop") %>% 
   group_by(tase_id, sec_id) %>% 
   arrange(date) %>% 
   mutate(trade_periods = (date - date[1])) %>% 
   mutate(trade_periods = round(trade_periods,4)) %>%
-  mutate(cum_ret = log(close) - log(close[1])) %>% 
+  mutate(across(c("close","ta_125"),
+                ~log(.) - log(.[1]),
+                .names = "{.col}_cum_ret")) %>% 
   # mutate(avg_ret = cum_ret / trade_periods) %>% 
-  ungroup()
+  ungroup() %>% 
+  mutate(close_adj_cum_ret = close_cum_ret - ta_125_cum_ret) %>% 
+  select(tase_id, sec_id,date, trade_periods,
+         cum_ret = close_cum_ret,
+         adj_cum_ret = close_adj_cum_ret)
 
 
 ```
@@ -89,38 +126,19 @@ cum_ret_df = market_df %>%
 
 # Desc stats
 
-```{r clasify_num_ipo}
-
-num_ipo = stocks_ipo %>% 
-  count(tase_id, sort = TRUE)
-
-```
-
 
 The sample contains `r nrow(num_ipo)` companies that performed
 initial public offering on TASE. `r sum(num_ipo$n > 1)` of the
 companies exited the market and came back later again performing an
 IPO. For now this companies are excluded from the analysis.
 
-```{r exclude_returning_comps}
-
-
-cum_ret_df = cum_ret_df %>% 
-  anti_join(num_ipo %>% 
-              filter(n > 1) %>% 
-              select(tase_id), by = "tase_id")
-
-```
-
-
 ## Attrition
 
 ```{r plot_attrition}
 
 cum_ret_df %>% 
-  mutate(years = round(trade_periods / 12,2)) %>% 
-  count(years,name = "num_of_comps") %>% 
-  ggplot(aes(years,num_of_comps)) + 
+  count(trade_periods,name = "num_of_comps") %>% 
+  ggplot(aes(trade_periods,num_of_comps)) + 
   geom_line() + 
   xlab(NULL) + ylab(NULL) + 
   ggtitle("Number of trading IPO companies (years since IPO)")
@@ -132,71 +150,28 @@ cum_ret_df %>%
 
 ```{r ipo_trade_duration}
 
-ipo_trade_dur_df = cum_ret_df %>% 
-  group_by(tase_id, sec_id) %>% 
-  summarise(trade_len = max(date) - min(date),
-            .groups = "drop") %>% 
-  mutate(trade_len = round(trade_len,2)) %>% 
-  group_by(tase_id) %>% 
-  summarise(trade_len = mean(trade_len, na.rm = TRUE))
-
-
-stocks_ipo %>% 
-  select(-comp_name_heb) %>% 
-  inner_join(ipo_trade_dur_df, by = "tase_id") %>% 
-  filter(year == 2007)
-  ggplot(aes(x = as.character(year), y = trade_len)) + 
-  geom_boxplot() + 
+ggplot() + 
+  geom_boxplot(data = stocks_ipo,
+               aes(x = as.character(first_trade_year), y = trade_years)) + 
+  geom_point(data = tibble(year = as.character(1993:2022),
+                           floor = 2022 - 1993:2022),
+             aes(x =  year, y = floor), color = "blue") +
   xlab(NULL) + ylab(NULL)
 
 
-  
-  
+
 
 ```
 
 
 IPO companies exit the market quite quickly. The mean trading
-periond is 'r round(mean(ipo_trade_dur_df$trade_len),2' years
+periond is 'r round(mean(stocks_ipo$trade_years),2)' years
 median trading perions is
-'r round(median(ipo_trade_dur_df$trade_len),2)' years.
+'r round(median(stocks_ipo$trade_years),2)' years.
 
 # Long run performance
 
 In order to asses the long run performance of IPO's I calculate the buy and hold return 
-
-
-```{r ,eval=FALSE}
-
-volatile_comps = cum_ret_df %>% 
-  group_by(tase_id, sec_id) %>% 
-  summarise(ret_sd = sd(cum_ret, na.rm = TRUE), .groups = "drop") %>% 
-  arrange(desc(ret_sd))
-
-
-market_df %>% 
-  inner_join(volatile_comps %>% 
-               slice(40:45) %>% 
-               select(tase_id), by = "tase_id") %>% 
-  group_by(tase_id) %>% 
-  arrange(date) %>% 
-  # mutate(close = close / close[1]) %>% 
-  # ungroup() %>% 
-  ggplot(aes(date, close)) + 
-  geom_line() + 
-  facet_wrap(~tase_id, scales = "free") +
-  xlab(NULL) + ylab(NULL)
-
-
-
-market_df %>% 
-  filter(tase_id == 1803) %>% 
-  arrange(date) %>% 
-  select(date, close) %>% 
-  head()
-
-
-```
 
 
 ```{r plot_cum_ret}
@@ -204,15 +179,17 @@ market_df %>%
 cum_ret_df  %>% 
   filter(trade_periods <= 10) %>%
   group_by(trade_periods) %>% 
-  summarise(across(cum_ret,.fns = list(mean = mean,
-                                   median = median),
+  summarise(across(contains("cum_ret"),
+                   .fns = list(mean = mean, median = median),
                    .names = "{.col}_{.fn}")) %>% 
   pivot_longer(-trade_periods, names_to = "metric") %>% 
-  mutate(metric = str_remove(metric,"ret_")) %>% 
-  ggplot(aes(trade_periods, value, color = metric)) + 
+  extract(metric, into = c("adjustment","summary_measure"),
+          regex = "(.*)_([^_]+$)") %>% 
+  ggplot(aes(trade_periods, value, color = summary_measure)) + 
   geom_line() + 
   scale_y_continuous(labels = scales::percent_format()) + 
-  scale_x_continuous(breaks = seq(0,10,2)) + 
+  facet_wrap(~adjustment, scales = "free") + 
+  scale_x_continuous(breaks = seq(0,10,2)) +
   xlab("Years since IPO") + ylab(NULL) + 
   ggtitle("Cumulative returns since IPO")
 

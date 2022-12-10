@@ -113,3 +113,28 @@ calculate_cumulative_return = function(price_df, index_df, horizon){
 
 
 }
+
+
+#' This function mutates the price data
+#'
+clean_price_data = function(price_vec){
+
+  power_vec = floor(log10(price_vec))
+
+  diff_power_vec = diff(power_vec)
+
+  break_index = which(diff_power_vec == max(diff_power_vec))
+
+  price_vec[1: break_index] = price_vec[1: break_index] * 10 ^ max(diff_power_vec)
+
+  10 ^ power_vec
+
+  price_vec * (10 ^ (-power_vec))
+
+
+
+
+
+
+}
+
