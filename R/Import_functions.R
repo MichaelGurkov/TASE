@@ -99,7 +99,6 @@ import_boi_market_data = function(filepath){
     rename_all(tolower) %>%
     rename(tase_id = tase_issuer_id,
            sec_id = security_ident_num_tase,
-           close = close_rate_adj,
            date = date_value) %>%
     mutate(date = as_date(date)) %>%
     mutate(sec_id = as.character(as.numeric(sec_id)))
@@ -107,7 +106,6 @@ import_boi_market_data = function(filepath){
 
   df = df %>%
     mutate(across(-c(sec_id,tase_id, date), as.numeric))
-
 
 
   return(df)

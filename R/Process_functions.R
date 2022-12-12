@@ -267,9 +267,22 @@ get_matched_df = function(df, comps_dates,
 
 
 
-#' This functions cleans the dirty dataframe
+#' This functions calculates adjusted price
 #'
-clean_df = function(dirty_df){
+calculate_adjusted_price = function(df,
+                                    base_rate_threshold = 1){
+
+  adjusted_df = df %>%
+    filter(!is.na(base_rate)) %>%
+    group_by(tase_id, sec_id) %>%
+    filter(abs(base_rate -  base_rate_threshold) > 0.1) %>%
+    arrange(date) %>%
+    mutate(daily_gross_ret = close_rate / base_rate) %>%
+    mutate(close_adjusted = close_rate[1] * c(1,cumprod(daily_gross_ret)[-1])) %>%
+    ungroup()
+
+  return(adjusted_df)
+
 
 
 

@@ -27,32 +27,15 @@ ta_125 = read_csv(paste0(Sys.getenv("USERPROFILE"),
 
 ```{r import_market_df}
 
-# 
-# market_file_path = paste0(Sys.getenv("USERPROFILE"),
-#                           "\\OneDrive - Bank Of Israel\\Data",
-#                           "\\TASE liquidity\\Rdata files",
-#                           "\\market_data_2022-11-15.rds")
-# 
-# 
-# market_df  = import_boi_market_data(market_file_path) %>% 
-#   filter(!is.na(close))
-# 
-# market_df %>% 
-#   write_rds(paste0(Sys.getenv("USERPROFILE"),
-#                           "\\OneDrive - Bank Of Israel\\Data",
-#                           "\\TASE liquidity\\Rdata files",
-#                           "\\working_data\\market_df.rds"))
-# 
-# rm(market_file_path)
+market_df_filepath = paste0("C:\\Users\\internet",
+                                "\\OneDrive - Bank Of Israel\\Data",
+                                "\\TASE liquidity\\Rdata files",
+                                "\\market_data_2022-12-12.rds")
 
+market_df = import_boi_market_data(market_df_filepath) %>% 
+  calculate_adjusted_price()
 
-market_df = read_rds(paste0(Sys.getenv("USERPROFILE"),
-                          "\\OneDrive - Bank Of Israel\\Data",
-                          "\\TASE liquidity\\Rdata files",
-                          "\\working_data\\market_df.rds"))
-
-
-
+rm(market_df_filepath)
 
 ```
 
@@ -99,26 +82,33 @@ rm(ipo_trade_dur_df)
 ```{r cumulative_returns}
 
 cum_ret_df = market_df %>% 
-  select(tase_id, sec_id,date, close) %>% 
+  select(tase_id, sec_id,date, close = close_adjusted) %>% 
   inner_join(stocks_ipo %>% 
                select(tase_id),by = "tase_id") %>% 
-  left_join(ta_125, by = "date") %>% 
+  left_join(ta_125 %>% 
+              rename(index = ta_125), by = "date") %>% 
   group_by(tase_id, sec_id, date = as.yearmon(date)) %>% 
-  summarise(across(c("close","ta_125"),~mean(., na.rm = TRUE)),
+  summarise(across(c("close","index"),~mean(., na.rm = TRUE)),
             .groups = "drop") %>% 
   group_by(tase_id, sec_id) %>% 
   arrange(date) %>% 
   mutate(trade_periods = (date - date[1])) %>% 
   mutate(trade_periods = round(trade_periods,4)) %>%
-  mutate(across(c("close","ta_125"),
-                ~log(.) - log(.[1]),
-                .names = "{.col}_cum_ret")) %>% 
+  mutate(across(c("close","index"),
+                .fns = list(log_ret = ~log(.) - log(.[1]),
+                            simple_ret = ~ . /.[1] - 1))) %>% 
   # mutate(avg_ret = cum_ret / trade_periods) %>% 
-  ungroup() %>% 
-  mutate(close_adj_cum_ret = close_cum_ret - ta_125_cum_ret) %>% 
-  select(tase_id, sec_id,date, trade_periods,
-         cum_ret = close_cum_ret,
-         adj_cum_ret = close_adj_cum_ret)
+  ungroup()
+
+cum_ret_df = cum_ret_df %>% 
+  select(-c("close","index")) %>% 
+  pivot_longer(contains("ret"),names_to = "category") %>% 
+   extract(category, into = c("source","ret_type"),
+          regex = "^([^_]*)_(.*)") %>% 
+  pivot_wider(names_from = source) %>% 
+  mutate(index_adj = close - index) %>% 
+  select(-index) %>% 
+  pivot_longer(c("close","index_adj"),names_to = "adjustment_type")
 
 
 ```
@@ -178,17 +168,17 @@ In order to asses the long run performance of IPO's I calculate the buy and hold
 
 cum_ret_df  %>% 
   filter(trade_periods <= 10) %>%
-  group_by(trade_periods) %>% 
-  summarise(across(contains("cum_ret"),
+  filter(ret_type == "simple_ret") %>% 
+  group_by(trade_periods, adjustment_type) %>% 
+  summarise(across(value,
                    .fns = list(mean = mean, median = median),
-                   .names = "{.col}_{.fn}")) %>% 
-  pivot_longer(-trade_periods, names_to = "metric") %>% 
-  extract(metric, into = c("adjustment","summary_measure"),
-          regex = "(.*)_([^_]+$)") %>% 
+                   .names = "{.fn}"), .groups = "drop") %>% 
+  pivot_longer(c("mean","median"), names_to = "summary_measure") %>% 
+  mutate(adjustment_type = factor(adjustment_type,                                  labels = c("Absolute returns","Abnormal(index adjusted) returns"))) %>% 
   ggplot(aes(trade_periods, value, color = summary_measure)) + 
   geom_line() + 
   scale_y_continuous(labels = scales::percent_format()) + 
-  facet_wrap(~adjustment, scales = "free") + 
+  facet_wrap(~adjustment_type, scales = "free") + 
   scale_x_continuous(breaks = seq(0,10,2)) +
   xlab("Years since IPO") + ylab(NULL) + 
   ggtitle("Cumulative returns since IPO")
