@@ -1,0 +1,226 @@
+---
+title: "temp"
+subtitle: 'Preliminary draft'
+author: "Michael Gurkov"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+fontsize: 11pt
+output:
+  rmarkdown::pdf_document:
+    number_sections: true
+abstract: "Text for abstract"
+bibliography: ipo_long_run.bib
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,echo = FALSE,
+  message = FALSE,warning = FALSE,
+  comment = "#>"
+)
+```
+
+
+```{r get_bib_filepath, include = FALSE}
+
+file.copy(paste0(Sys.getenv("USERPROFILE"),
+                 "\\OneDrive - Bank Of Israel",
+                 "\\References\\ipo_long_run.bib"),
+          "ipo_long_run.bib")
+
+```
+
+<!-- import_data -->
+
+
+```{r load_libraries}
+
+library(tidyverse)
+
+library(xts)
+
+library(lubridate)
+
+library(stargazer)
+
+devtools::load_all()
+
+# library(MiscImport)
+
+```
+
+
+```{r import_ta_125}
+
+ta_125 = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                         "\\OneDrive - Bank Of Israel\\Data",
+                         "\\TASE liquidity\\michael files",
+                         "\\TA125.csv"),
+                  show_col_types = FALSE) %>% 
+  mutate(date = dmy(date))
+
+```
+
+```{r import_market_df, cache=TRUE}
+
+market_df_filepath = paste0("C:\\Users\\internet",
+                                "\\OneDrive - Bank Of Israel\\Data",
+                                "\\TASE liquidity\\Rdata files",
+                                "\\market_data_2022-12-12.rds")
+
+market_df = import_boi_market_data(market_df_filepath) %>% 
+  calculate_adjusted_price() %>% 
+  filter(date <= max(ta_125$date))
+
+rm(market_df_filepath)
+
+```
+
+
+```{r import_ipo_list}
+
+stocks_ipo = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                             "\\OneDrive - Bank Of Israel",
+                             "\\Data\\TASE liquidity",
+                             "\\michael files\\stocks_ipo.csv"),
+                      show_col_types = FALSE) %>% 
+  mutate(tase_id = as.character(tase_id))
+
+stocks_ipo = stocks_ipo %>% 
+  mutate(tase_id = recode(tase_id,
+                          `456` = "259"))
+
+ipo_trade_dur_df = market_df %>% 
+  group_by(tase_id, sec_id) %>% 
+  summarise(tibble(first_trade_year = year(min(date)),
+                   trade_years = (max(date) - min(date)) %/% dyears(1)),
+            .groups = "drop")
+
+stocks_ipo = stocks_ipo %>% 
+  left_join(ipo_trade_dur_df, by = "tase_id") %>% 
+  arrange(tase_id) %>% 
+  filter(!is.na(trade_years))
+
+
+
+num_ipo = stocks_ipo %>% 
+  count(tase_id, sort = TRUE)
+
+
+stocks_ipo = stocks_ipo %>% 
+  inner_join(num_ipo %>% 
+               filter(n == 1) %>% 
+               select(tase_id), by = "tase_id")
+
+rm(ipo_trade_dur_df)
+
+```
+
+```{r cumulative_returns}
+
+cum_ret_df = market_df %>% 
+  select(tase_id, sec_id,date, close = close_adjusted) %>% 
+  inner_join(stocks_ipo %>% 
+               select(tase_id),by = "tase_id") %>% 
+  left_join(ta_125 %>% 
+              rename(index = ta_125), by = "date") %>% 
+  group_by(tase_id, sec_id) %>% 
+  arrange(date) %>% 
+  mutate(month = as.numeric(date - date[1]) %/% 22) %>% 
+  group_by(tase_id, sec_id, month) %>% 
+  summarise(across(c("close","index"),~mean(., na.rm = TRUE)),
+            .groups = "drop") 
+
+cum_ret_df = cum_ret_df %>% 
+  group_by(tase_id, sec_id) %>% 
+  mutate(across(c("close","index"),
+                .fns = list(log_ret = ~log(.) - log(.[1]),
+                            simple_ret = ~ . /.[1] - 1))) %>% 
+  ungroup()
+
+cum_ret_df = cum_ret_df %>% 
+  select(-c("close","index")) %>% 
+  pivot_longer(contains("ret"),names_to = "category") %>% 
+   extract(category, into = c("source","ret_type"),
+          regex = "^([^_]*)_(.*)") %>% 
+  pivot_wider(names_from = source) %>% 
+  mutate(index_adj = close - index) %>% 
+  select(-index) %>% 
+  pivot_longer(c("close","index_adj"),names_to = "adjustment_type")
+
+
+```
+
+
+
+\section{LitReview}
+
+A seminal paper that analyses the long run performance of IPO is @RITTER1991
+The author studies a sample of US IPO's that went public during 1975-1984 period.
+The findings confirm that in the 3 years after going public the IPO's
+are underpriced relative to comparable traded firms (matched by size and industry)
+
+\section{Data and Methodology}
+
+
+To evaluate the long-run performance of initial public offerings, two measures are used: (1) cumulative average adjusted returns (CAR) calculated with monthly portfolio rebalancing, where the adjusted returns are computed using several different benchmarks, and (2) 3-year buy and hold returns for both the IPOs and a set of matching firms.  The matching firms are represented by TASE listed securities that are to some extent matched by industry and market capitalization with each IPO.
+
+The cumulative return is calculated on a monthly basis where months are defined as successive 21-trading-day periods relative to the IPO date. Thus, month 0 consists of event days 1-21, month 2 consists of event days 22-43, etc.
+```{r plot_IPO}
+
+ipo_stats_by_year = stocks_ipo %>% 
+  select(-comp_name_heb) %>% 
+  group_by(year) %>% 
+  summarise(num_ipo = length(domestic_issue),
+            total_domestic_issue = sum(domestic_issue), .groups = "drop")
+
+ipo_stats_by_year %>% 
+  ggplot(aes(year, num_ipo)) + 
+  geom_col() + 
+  xlab(NULL) + ylab(NULL) + ggtitle("Number of IPO comps")
+
+```
+
+
+```{r table_ipo, results='asis'}
+
+ipo_stats_by_year %>% 
+  mutate(year = as.character(year)) %>% 
+  rename(Year = year, `No. of IPO's` = num_ipo,
+         `Total gross proceeds` = total_domestic_issue) %>% 
+  as.data.frame() %>% 
+  stargazer(header = FALSE,summary = FALSE,digits = 0, rownames = FALSE)
+
+```
+
+
+
+
+```{r plot_cum_ret}
+
+cum_ret_df  %>% 
+  filter(month <= 200) %>%
+  filter(ret_type == "simple_ret") %>% 
+  group_by(month, adjustment_type) %>% 
+  summarise(across(value,
+                   .fns = list(mean = mean, median = median),
+                   .names = "{.fn}"), .groups = "drop") %>% 
+  pivot_longer(c("mean","median"), names_to = "summary_measure") %>% 
+  mutate(adjustment_type = factor(adjustment_type,                                  labels = c("Absolute returns","Abnormal(index adjusted) returns"))) %>% 
+  ggplot(aes(month, value, color = summary_measure)) + 
+  geom_line() + 
+  scale_y_continuous(labels = scales::percent_format()) + 
+  facet_wrap(~adjustment_type, scales = "free") + 
+  # scale_x_continuous(breaks = seq(0,10,2)) +
+  xlab("Years since IPO") + ylab(NULL) + 
+  ggtitle("Cumulative returns since IPO")
+
+
+
+```
+
+
+\newpage
+
+\section{References}
+
+<div id="refs"></div>

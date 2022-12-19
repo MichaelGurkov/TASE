@@ -31,6 +31,7 @@ file.copy(paste0(Sys.getenv("USERPROFILE"),
 ```
 
 
+
 A seminal paper that analyses the long run performance of IPO is @RITTER1991
 The author studies a sample of US IPO's that went public during 1975-1984 period.
 The findings confirm that in the 3 years after going public the IPO's
