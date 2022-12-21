@@ -117,7 +117,7 @@ rm(ipo_trade_dur_df)
 
 ```{r cumulative_returns}
 
-cum_ret_df = market_df %>% 
+ret_df = market_df %>% 
   select(tase_id, sec_id,date, close = close_adjusted) %>% 
   inner_join(stocks_ipo %>% 
                select(tase_id),by = "tase_id") %>% 
@@ -130,22 +130,46 @@ cum_ret_df = market_df %>%
   summarise(across(c("close","index"),~mean(., na.rm = TRUE)),
             .groups = "drop") 
 
-cum_ret_df = cum_ret_df %>% 
+ret_df = ret_df %>% 
   group_by(tase_id, sec_id) %>% 
+  arrange(month) %>% 
   mutate(across(c("close","index"),
-                .fns = list(log_ret = ~log(.) - log(.[1]),
-                            simple_ret = ~ . /.[1] - 1))) %>% 
-  ungroup()
+                .fns = list(log_ret = ~log(.) - log(lag(.)),
+                            simple_ret = ~ . /lag(.) - 1))) %>% 
+  ungroup() %>% 
+  select(-c("close","index"))
 
-cum_ret_df = cum_ret_df %>% 
-  select(-c("close","index")) %>% 
+ret_df = ret_df  %>% 
   pivot_longer(contains("ret"),names_to = "category") %>% 
    extract(category, into = c("source","ret_type"),
           regex = "^([^_]*)_(.*)") %>% 
   pivot_wider(names_from = source) %>% 
   mutate(index_adj = close - index) %>% 
   select(-index) %>% 
-  pivot_longer(c("close","index_adj"),names_to = "adjustment_type")
+  pivot_longer(c("close","index_adj"),
+               names_to = "adjustment_type")
+
+
+cum_ret_df = ret_df  %>%
+  filter(month <= 120) %>%
+  filter(ret_type == "simple_ret") %>%
+  group_by(month, adjustment_type) %>%
+  summarise(across(
+    value,
+    .fns = list(mean = mean, median = median),
+    .names = "{.fn}"
+  ), .groups = "drop") %>%
+  pivot_longer(c("mean", "median"), names_to = "summary_measure") %>%
+  mutate(adjustment_type = factor(
+    adjustment_type,
+    labels = c("Absolute returns",
+               "Abnormal (index adjusted) returns")
+  )) %>%
+  filter(complete.cases(.)) %>% 
+  group_by(adjustment_type, summary_measure) %>% 
+  arrange(month) %>% 
+  mutate(value = cumsum(value)) %>% 
+  ungroup()
 
 
 ```
@@ -162,10 +186,14 @@ are underpriced relative to comparable traded firms (matched by size and industr
 \section{Data and Methodology}
 
 
-To evaluate the long-run performance of initial public offerings, two measures are used: (1) cumulative average adjusted returns (CAR) calculated with monthly portfolio rebalancing, where the adjusted returns are computed using several different benchmarks, and (2) 3-year buy and hold returns for both the IPOs and a set of matching firms.  The matching firms are represented by TASE listed securities that are to some extent matched by industry and market capitalization with each IPO.
+The sample consists of `r length(unique(stocks_ipo$tase_id))` initial public offerings in `r paste(range(stocks_ipo$year), collapse = "-")` period. This is
+the entire universe of initial public offerings for this period.
 
-The cumulative return is calculated on a monthly basis where months are defined as successive 21-trading-day periods relative to the IPO date. Thus, month 0 consists of event days 1-21, month 2 consists of event days 22-43, etc.
-```{r plot_IPO}
+Figure \ref{plot_num_ipo} shows the distributions of the IPO over time. We can
+see that the IPO's come in "waves" meaning that there is a large concentration
+in certain periods.
+
+```{r plot_IPO, fig.cap="Number of IPO's by year \\label{plot_num_ipo}"}
 
 ipo_stats_by_year = stocks_ipo %>% 
   select(-comp_name_heb) %>% 
@@ -181,6 +209,32 @@ ipo_stats_by_year %>%
 ```
 
 
+To evaluate the long-run performance of initial public offerings, two measures are used: (1) cumulative average adjusted returns (CAR) calculated with monthly portfolio rebalancing, where the adjusted returns are computed using several different benchmarks, and (2) 3-year buy and hold returns for both the IPOs and a set of matching firms.  The matching firms are represented by TASE listed securities that are to some extent matched by industry and market capitalization with each IPO.
+
+The cumulative return is calculated on a monthly basis where months are defined as successive 21-trading-day periods relative to the IPO date. Thus, month 0 consists of event days 1-21, month 2 consists of event days 22-43, etc.
+
+Benchmark adjusted returns are calculated as a difference between monthly raw
+return and the monthly return of benchmark index (TA 125).
+Thus, the benchmark return is defined as:
+
+\begin{equation}
+  ar_{i,t} = r_{i,t} - r_{benchmark,t}
+\end{equation}
+
+and the adjusted return for the portfolio of N stocks is the simple average
+of the adjusted returns of the individual stocks.
+
+\begin{equation}
+  AR_{t} = \frac{1}{N} \Sigma_{i = 1}^{N}ar_{i,t}
+\end{equation}
+
+The cumulative benchmark-adjusted aftermarket performance from event
+month q to event month s is the summation of the average benchmark-adjusted returns:
+
+\begin{equation}
+  CAR_{q,s} = \Sigma_{t = q}^{s}AR_{t}
+\end{equation}
+
 ```{r table_ipo, results='asis'}
 
 ipo_stats_by_year %>% 
@@ -193,30 +247,115 @@ ipo_stats_by_year %>%
 ```
 
 
+\section{Results}
 
 
-```{r plot_cum_ret}
+<!-- check whether most of the firms dropped? -->
+
+<!-- plot attrition by years -->
+
+```{r plot_attrition, eval=FALSE}
 
 cum_ret_df  %>% 
-  filter(month <= 200) %>%
-  filter(ret_type == "simple_ret") %>% 
-  group_by(month, adjustment_type) %>% 
-  summarise(across(value,
-                   .fns = list(mean = mean, median = median),
-                   .names = "{.fn}"), .groups = "drop") %>% 
-  pivot_longer(c("mean","median"), names_to = "summary_measure") %>% 
-  mutate(adjustment_type = factor(adjustment_type,                                  labels = c("Absolute returns","Abnormal(index adjusted) returns"))) %>% 
-  ggplot(aes(month, value, color = summary_measure)) + 
+  inner_join(stocks_ipo %>% 
+               select(tase_id),by = "tase_id") %>% 
+  select(month, tase_id, sec_id) %>% 
+  distinct() %>%
+  count(month,name = "num_of_comps") %>%
+  ggplot(aes(month,num_of_comps)) + 
   geom_line() + 
-  scale_y_continuous(labels = scales::percent_format()) + 
-  facet_wrap(~adjustment_type, scales = "free") + 
-  # scale_x_continuous(breaks = seq(0,10,2)) +
-  xlab("Years since IPO") + ylab(NULL) + 
-  ggtitle("Cumulative returns since IPO")
+  xlab(NULL) + ylab(NULL) + 
+  ggtitle("Number of trading IPO companies (years since IPO)")
 
 
 
 ```
+
+```{r motivating_example, eval=FALSE}
+
+
+market_df %>% 
+  select(tase_id, sec_id, date, close_adjusted) %>% 
+  inner_join(stocks_ipo %>% 
+               select(tase_id) %>% 
+               slice_sample(n = 15)) %>% 
+  left_join(ta_125, by = "date") %>% 
+  group_by(tase_id, sec_id) %>% 
+  arrange(date) %>% 
+  mutate(across(c("close_adjusted", "ta_125"), ~./.[1])) %>% 
+  ungroup() %>% 
+  pivot_longer(-c(tase_id, sec_id, date)) %>% 
+  ggplot(aes(date, value, color = name)) + 
+  geom_line() + 
+  facet_wrap(~tase_id, scales = "free")
+  ggplot(aes(date))
+
+
+
+```
+
+
+```{r plot_cum_ret}
+
+cum_ret_df %>% 
+  ggplot(aes(month, value, color = summary_measure)) +
+  geom_line() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  facet_wrap( ~ adjustment_type, scales = "free") +
+  # scale_x_continuous(breaks = seq(0,10,2)) +
+  xlab("Months since IPO") + ylab(NULL) +
+  ggtitle("Cumulative returns since IPO") +
+  theme(legend.title = element_blank())
+
+
+
+```
+
+
+\section{Robustness}
+
+
+```{r cumulative_returns_from_trading_start, eval=FALSE}
+
+cum_ret_df_robust = market_df %>% 
+  select(tase_id, sec_id,date, close = close_adjusted) %>% 
+  inner_join(stocks_ipo %>% 
+               select(tase_id),by = "tase_id") %>% 
+  left_join(ta_125 %>% 
+              rename(index = ta_125), by = "date") %>% 
+  group_by(tase_id, sec_id) %>% 
+  arrange(date) %>% 
+  mutate(month = as.numeric(date - date[1]) %/% 22) %>% 
+  group_by(tase_id, sec_id, month) %>% 
+  summarise(across(c("close","index"),~mean(., na.rm = TRUE)),
+            .groups = "drop") 
+
+cum_ret_df_robust = cum_ret_df_robust %>% 
+  group_by(tase_id, sec_id) %>% 
+  mutate(across(c("close","index"),
+                .fns = list(log_ret = ~log(.) - log(.[1]),
+                            simple_ret = ~ . /.[1] - 1))) %>% 
+  ungroup() %>% 
+  select(-c("close","index"))
+
+cum_ret_df_robust = cum_ret_df_robust  %>% 
+  pivot_longer(contains("ret"),names_to = "category") %>% 
+   extract(category, into = c("source","ret_type"),
+          regex = "^([^_]*)_(.*)") %>% 
+  pivot_wider(names_from = source) %>% 
+  mutate(index_adj = close - index) %>% 
+  select(-index) %>% 
+  pivot_longer(c("close","index_adj"),
+               names_to = "adjustment_type")
+
+
+```
+
+
+
+ * \textcolor{red}{start with average first week price}
+ * \textcolor{red}{calculate abnormal return using CAPM residuals}
 
 
 \newpage
