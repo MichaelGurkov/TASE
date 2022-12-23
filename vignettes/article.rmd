@@ -62,7 +62,7 @@ ta_125 = read_csv(paste0(Sys.getenv("USERPROFILE"),
 
 ```{r import_market_df, cache=TRUE}
 
-market_df_filepath = paste0("C:\\Users\\internet",
+market_df_filepath = paste0(Sys.getenv("USERPROFILE"),
                                 "\\OneDrive - Bank Of Israel\\Data",
                                 "\\TASE liquidity\\Rdata files",
                                 "\\market_data_2022-12-12.rds")
@@ -74,7 +74,6 @@ market_df = import_boi_market_data(market_df_filepath) %>%
 rm(market_df_filepath)
 
 ```
-
 
 ```{r import_ipo_list}
 
@@ -115,55 +114,137 @@ rm(ipo_trade_dur_df)
 
 ```
 
-```{r cumulative_returns}
 
-ret_df = market_df %>% 
+<!-- Matching by sector -->
+
+
+```{r match_control_comps}
+
+tase_sector_df = read_csv(paste0("C:\\Users\\Home",
+                                 "\\OneDrive - Bank Of Israel\\Data",
+                                 "\\TASE liquidity\\michael files",
+                                 "\\tase_sector_classification.csv"),
+                          show_col_types = FALSE) %>% 
+  select(-comp_name_hebrew) %>% 
+  filter(!tase_sector == "#N/A") %>% 
+  mutate(date = as.yearmon(date, format = "%d/%m/%Y")) %>% 
+  mutate(across(-date, as.character)) %>% 
+  select(-tase_sub_sector)
+
+
+ipo_control_match_df = market_df %>% 
+  select(tase_id, sec_id, date, market_value) %>% 
+  inner_join(stocks_ipo %>% 
+               select(tase_id), by = "tase_id") %>% 
+  group_by(tase_id, sec_id) %>% 
+  summarise(first_date = date[date == min(date)],
+            first_market_value = market_value[date == min(date)],
+            .groups = "drop") %>% 
+  filter(!is.na(first_market_value)) %>% 
+  mutate(date = as.yearmon(first_date)) %>% 
+  left_join(tase_sector_df, by = c("tase_id","date")) %>% 
+  filter(!is.na(tase_sector)) %>% 
+  unite(id, tase_id:sec_id)
+
+target_market_df = market_df %>% 
+  select(tase_id, sec_id, date, market_value) %>%
+  filter(complete.cases(.)) %>% 
+  mutate(date_yearmon = as.yearmon(date)) %>% 
+  left_join(tase_sector_df,
+            by = c("tase_id","date_yearmon" = "date")) %>% 
+  select(-date_yearmon) %>% 
+  unite(id, tase_id:sec_id)
+
+
+
+ipo_control_match_df = ipo_control_match_df %>% 
+  left_join(target_market_df,
+            by = c("first_date" = "date", "tase_sector"),
+            suffix = c("_ipo","_control")) %>% 
+  group_by(id_ipo) %>% 
+  mutate(value_diff = abs(market_value / first_market_value - 1)) %>% 
+  arrange(value_diff) %>% 
+  slice(2) %>% 
+  ungroup() %>% 
+  filter(value_diff <= 0.1)
+  
+
+rm(target_market_df,tase_sector_df)
+
+
+```
+
+
+
+```{r price_df}
+
+benchmark_df =  market_df %>% 
+  select(tase_id, sec_id,date, control = close_adjusted) %>% 
+  unite(id_control,tase_id:sec_id) %>% 
+  inner_join(ipo_control_match_df %>% 
+              select(contains("id")),
+             by = "id_control") %>% 
+  rename(id = id_ipo)
+
+
+price_df = market_df %>% 
   select(tase_id, sec_id,date, close = close_adjusted) %>% 
   inner_join(stocks_ipo %>% 
-               select(tase_id),by = "tase_id") %>% 
+               select(tase_id),by = "tase_id") %>%
   left_join(ta_125 %>% 
               rename(index = ta_125), by = "date") %>% 
-  group_by(tase_id, sec_id) %>% 
-  arrange(date) %>% 
-  mutate(month = as.numeric(date - date[1]) %/% 22) %>% 
-  group_by(tase_id, sec_id, month) %>% 
-  summarise(across(c("close","index"),~mean(., na.rm = TRUE)),
-            .groups = "drop") 
+  mutate(id = paste(tase_id, sec_id, sep = "_")) %>% 
+  left_join(benchmark_df,by = c("date", "id")) %>% 
+  select(-c(tase_id,sec_id,id_control))
 
-ret_df = ret_df %>% 
-  group_by(tase_id, sec_id) %>% 
+rm(benchmark_df)
+
+```
+
+
+
+```{r cumulative_returns}
+
+ret_df = price_df %>% 
+  group_by(id) %>% 
+  mutate(month = as.numeric(date - date[date == min(date)]) %/% 22 + 1) %>% 
+  group_by(id, month) %>% 
+  summarise(across(c("close","index","control"), ~mean(., na.rm = TRUE)),
+            .groups = "drop_last") %>% 
   arrange(month) %>% 
-  mutate(across(c("close","index"),
-                .fns = list(log_ret = ~log(.) - log(lag(.)),
-                            simple_ret = ~ . /lag(.) - 1))) %>% 
+  mutate(across(c("close","index", "control"),
+                ~ . /lag(.) - 1,
+                .names = "{.col}_ret")) %>% 
   ungroup() %>% 
-  select(-c("close","index"))
+  select(-c("close","index","control"))
 
-ret_df = ret_df  %>% 
-  pivot_longer(contains("ret"),names_to = "category") %>% 
-   extract(category, into = c("source","ret_type"),
-          regex = "^([^_]*)_(.*)") %>% 
-  pivot_wider(names_from = source) %>% 
-  mutate(index_adj = close - index) %>% 
-  select(-index) %>% 
-  pivot_longer(c("close","index_adj"),
-               names_to = "adjustment_type")
+adj_ret_df = ret_df %>% 
+  pivot_longer(c("index_ret","control_ret"),
+               names_to = "benchmark",
+               values_to = "benchmark_ret") %>% 
+  filter(complete.cases(.)) %>% 
+  mutate(adjusted_ret = close_ret - benchmark_ret) %>% 
+  select(-benchmark_ret) %>% 
+  pivot_wider(names_from = "benchmark",
+              values_from = "adjusted_ret") %>% 
+  pivot_longer(-c(id,month),names_to = "adjustment_type")
 
-
-cum_ret_df = ret_df  %>%
-  filter(month <= 120) %>%
-  filter(ret_type == "simple_ret") %>%
+avg_adj_ret_df = adj_ret_df%>%
   group_by(month, adjustment_type) %>%
-  summarise(across(
-    value,
-    .fns = list(mean = mean, median = median),
-    .names = "{.fn}"
-  ), .groups = "drop") %>%
+  summarise(across(value,
+                   .fns = list(mean = ~mean(.,na.rm = TRUE),
+                               median = ~median(.,na.rm = TRUE)),
+                   .names = "{.fn}"), .groups = "drop")
+
+
+cum_ret_df = avg_adj_ret_df  %>%
+  filter(month <= 120)  %>%
   pivot_longer(c("mean", "median"), names_to = "summary_measure") %>%
   mutate(adjustment_type = factor(
     adjustment_type,
-    labels = c("Absolute returns",
-               "Abnormal (index adjusted) returns")
+    labels = c("Raw returns",
+               "Abnormal (index adjusted) returns",
+               "Control group returns")
   )) %>%
   filter(complete.cases(.)) %>% 
   group_by(adjustment_type, summary_measure) %>% 
@@ -171,6 +252,13 @@ cum_ret_df = ret_df  %>%
   mutate(value = cumsum(value)) %>% 
   ungroup()
 
+
+```
+
+
+```{r clean_up}
+
+rm(ipo_control_match_df,ta_125,ret_df, market_df)
 
 ```
 
@@ -205,6 +293,22 @@ ipo_stats_by_year %>%
   ggplot(aes(year, num_ipo)) + 
   geom_col() + 
   xlab(NULL) + ylab(NULL) + ggtitle("Number of IPO comps")
+
+```
+
+
+
+
+```{r plot_IPO_by_sectors}
+
+stocks_ipo %>% 
+  count(year, tase_sector) %>% 
+  mutate(tase_sector = factor(tase_sector)) %>% 
+  mutate(tase_sector = fct_lump_n(tase_sector, n = 5)) %>% 
+  ggplot(aes(year, n)) + 
+  geom_col(aes(fill = tase_sector)) + 
+  scale_fill_viridis_d() + 
+  xlab(NULL) + ylab(NULL) + ggtitle("IPO by sector")
 
 ```
 
@@ -298,11 +402,11 @@ market_df %>%
 ```{r plot_cum_ret}
 
 cum_ret_df %>% 
-  ggplot(aes(month, value, color = summary_measure)) +
+  ggplot(aes(month, value, color = adjustment_type)) +
   geom_line() +
   geom_hline(yintercept = 0, linetype = "dashed") +
   scale_y_continuous(labels = scales::percent_format()) +
-  facet_wrap( ~ adjustment_type, scales = "free") +
+  facet_wrap( ~ summary_measure, scales = "free") +
   # scale_x_continuous(breaks = seq(0,10,2)) +
   xlab("Months since IPO") + ylab(NULL) +
   ggtitle("Cumulative returns since IPO") +

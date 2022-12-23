@@ -1,0 +1,108 @@
+
+```{r choose_ipo_control}
+
+temp_ipo_tase_id = "1794"
+
+temp_control_tase_id = "1668"
+
+
+```
+
+
+
+```{r temp_price_df}
+
+temp_price_df = market_df %>% 
+  select(tase_id, date, close_adjusted) %>% 
+  filter(tase_id %in% c(temp_ipo_tase_id, temp_control_tase_id)) %>% 
+  mutate(tase_id = recode(tase_id,
+                          !!sym(temp_control_tase_id) := "control",
+                          !!sym(temp_ipo_tase_id) := "close")) %>% 
+  pivot_wider(names_from = tase_id, values_from = close_adjusted) %>% 
+  filter(!is.na(close)) %>% 
+  left_join(ta_125, by = "date") %>% 
+  rename(index = ta_125) %>% 
+  select(date, close, index, control)
+
+
+all.equal(temp_price_df, price_df %>% 
+            filter(id == "1794_1162775") %>% 
+            select(date, close, index, control))
+  
+
+
+
+```
+
+
+```{r temp_ret_df}
+
+
+temp_ret_df = temp_price_df %>% 
+  mutate(month = as.numeric(date - date[date == min(date)]) %/% 22 + 1) %>% 
+  group_by(month) %>% 
+  summarise(across(-date,~mean(., na.rm = TRUE)),
+            .groups = "drop_last") %>% 
+  arrange(month) %>% 
+  mutate(across(-month,~ . /lag(.) - 1,
+                .names = "{.col}_ret")) %>% 
+  select(month, contains("ret"))
+
+
+all.equal(temp_ret_df,ret_df  %>% 
+            filter(id == "1794_1162775") %>% 
+            select(-id))
+
+
+```
+
+
+```{r temp_adjusted_ret}
+
+temp_adj_ret_df = temp_ret_df %>% 
+  pivot_longer(-c(month, close_ret),
+               names_to = "benchmark",
+               values_to = "benchmark_ret") %>% 
+  filter(complete.cases(.)) %>% 
+  mutate(adjusted_ret = close_ret - benchmark_ret) %>% 
+  select(-benchmark_ret) %>% 
+  pivot_wider(names_from = "benchmark",
+              values_from = "adjusted_ret") %>% 
+  pivot_longer(-month,names_to = "adjustment_type")
+
+all.equal(temp_adj_ret_df, adj_ret_df %>% 
+            filter(id == "1794_1162775") %>% 
+            select(-id))
+
+
+```
+
+
+```{r temp_cum_ret}
+
+temp_cum_ret = temp_adj_ret_df %>% 
+  filter(month <= 120) %>% 
+  group_by(adjustment_type) %>% 
+  arrange(month) %>% 
+  mutate(value = cumsum(value)) %>% 
+  ungroup()
+
+
+```
+
+
+```{r plot_returns}
+
+temp_cum_ret %>% 
+  pivot_longer(-month) %>% 
+  ggplot(aes(month, value, color = name)) + 
+  geom_line()
+
+
+ret_df %>% 
+  filter(id == "1794_1162775") %>% 
+  ggplot(aes(month, value, color = adjustment_type)) + 
+  geom_line()
+
+```
+
