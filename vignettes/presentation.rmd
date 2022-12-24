@@ -1,14 +1,6 @@
 ---
-title: "temp"
-subtitle: 'Preliminary draft'
-author: "Michael Gurkov"
-date: "`r format(Sys.time(), '%B %d, %Y')`"
-fontsize: 11pt
 output:
-  rmarkdown::pdf_document:
-    number_sections: true
-abstract: "Text for abstract"
-bibliography: ipo_long_run.bib
+  rmarkdown::beamer_presentation
 ---
 
 ```{r setup, include = FALSE}
@@ -19,15 +11,6 @@ knitr::opts_chunk$set(
 )
 ```
 
-
-```{r get_bib_filepath, include = FALSE}
-
-file.copy(paste0(Sys.getenv("USERPROFILE"),
-                 "\\OneDrive - Bank Of Israel",
-                 "\\References\\ipo_long_run.bib"),
-          "ipo_long_run.bib")
-
-```
 
 <!-- import_data -->
 
@@ -149,7 +132,6 @@ price_df = make_price_df(market_df,ipo_control_match_df,ta_125)
 ```
 
 
-
 ```{r cumulative_returns}
 
 ret_df = calculate_return_df(price_df)
@@ -160,6 +142,57 @@ cum_ret_df = ret_df %>%
 ```
 
 
+
+```{r best_ipos, eval=FALSE}
+
+best_ipos_tase_id = ret_df %>% 
+  separate(id,into = c("tase_id","sec_id"), sep = "_") %>% 
+  inner_join(stocks_ipo %>% 
+               select(tase_id),by = "tase_id") %>% 
+  filter(month <= 36) %>%
+  filter(adjustment_type == "index_ret") %>% 
+  group_by(tase_id) %>% 
+  summarise(value = sum(value), .groups = "drop") %>% 
+  slice_max(value, n = 3)
+
+
+price_df %>%
+  separate(id,into = c("tase_id","sec_id"), sep = "_") %>% 
+  inner_join(best_ipos_tase_id %>% 
+               select(tase_id), by = "tase_id") %>% 
+  select(tase_id, date, close, index, control) %>% 
+  group_by(tase_id) %>% 
+  mutate(across(c("close", "index", "control"),
+                ~./.[date == min(date)])) %>% 
+  ungroup() %>% 
+  pivot_longer(-c("tase_id", "date")) %>% 
+  ggplot(aes(date, value, color = name)) + 
+  geom_line() + 
+  facet_wrap(~tase_id, scales = "free")
+
+
+
+ret_df %>%
+  separate(id,into = c("tase_id","sec_id"), sep = "_") %>% 
+  filter(tase_id == 1465) %>% 
+  filter(!adjustment_type == "control_ret") %>% 
+  ggplot(aes(month, value, fill = adjustment_type)) + 
+  geom_col(position = "dodge")
+
+price_df %>%
+  separate(id,into = c("tase_id","sec_id"), sep = "_") %>% 
+  filter(tase_id == 1465) %>% 
+  select(date, close, index) %>% 
+  mutate(across(c("close", "index"), ~./.[date == min(date)])) %>% 
+  pivot_longer(-date) %>% 
+  ggplot(aes(date, value, color = name)) + 
+  geom_line()
+
+
+```
+
+
+
 ```{r clean_up}
 
 rm(ipo_control_match_df,ta_125,ret_df, market_df)
@@ -168,24 +201,11 @@ rm(ipo_control_match_df,ta_125,ret_df, market_df)
 
 
 
-\section{LitReview}
-
-A seminal paper that analyses the long run performance of IPO is @RITTER1991
-The author studies a sample of US IPO's that went public during 1975-1984 period.
-The findings confirm that in the 3 years after going public the IPO's
-are underpriced relative to comparable traded firms (matched by size and industry)
-
-\section{Data and Methodology}
 
 
-The sample consists of `r length(unique(stocks_ipo$tase_id))` initial public offerings in `r paste(range(stocks_ipo$year), collapse = "-")` period. This is
-the entire universe of initial public offerings for this period.
+# IPO
 
-Figure \ref{plot_num_ipo} shows the distributions of the IPO over time. We can
-see that the IPO's come in "waves" meaning that there is a large concentration
-in certain periods.
-
-```{r plot_IPO, fig.cap="Number of IPO's by year \\label{plot_num_ipo}"}
+```{r plot_IPO}
 
 ipo_stats_by_year = stocks_ipo %>% 
   select(-comp_name_heb) %>% 
@@ -201,7 +221,7 @@ ipo_stats_by_year %>%
 ```
 
 
-
+# IPO by sectors
 
 ```{r plot_IPO_by_sectors}
 
@@ -216,51 +236,6 @@ stocks_ipo %>%
 
 ```
 
-
-To evaluate the long-run performance of initial public offerings, two measures are used: (1) cumulative average adjusted returns (CAR) calculated with monthly portfolio rebalancing, where the adjusted returns are computed using several different benchmarks, and (2) 3-year buy and hold returns for both the IPOs and a set of matching firms.  The matching firms are represented by TASE listed securities that are to some extent matched by industry and market capitalization with each IPO.
-
-The cumulative return is calculated on a monthly basis where months are defined as successive 21-trading-day periods relative to the IPO date. Thus, month 0 consists of event days 1-21, month 2 consists of event days 22-43, etc.
-
-Benchmark adjusted returns are calculated as a difference between monthly raw
-return and the monthly return of benchmark index (TA 125).
-Thus, the benchmark return is defined as:
-
-\begin{equation}
-  ar_{i,t} = r_{i,t} - r_{benchmark,t}
-\end{equation}
-
-and the adjusted return for the portfolio of N stocks is the simple average
-of the adjusted returns of the individual stocks.
-
-\begin{equation}
-  AR_{t} = \frac{1}{N} \Sigma_{i = 1}^{N}ar_{i,t}
-\end{equation}
-
-The cumulative benchmark-adjusted aftermarket performance from event
-month q to event month s is the summation of the average benchmark-adjusted returns:
-
-\begin{equation}
-  CAR_{q,s} = \Sigma_{t = q}^{s}AR_{t}
-\end{equation}
-
-```{r table_ipo, results='asis'}
-
-ipo_stats_by_year %>% 
-  mutate(year = as.character(year)) %>% 
-  rename(Year = year, `No. of IPO's` = num_ipo,
-         `Total gross proceeds` = total_domestic_issue) %>% 
-  as.data.frame() %>% 
-  stargazer(header = FALSE,summary = FALSE,digits = 0, rownames = FALSE)
-
-```
-
-
-\section{Results}
-
-
-<!-- check whether most of the firms dropped? -->
-
-<!-- plot attrition by years -->
 
 ```{r plot_attrition, eval=FALSE}
 
@@ -302,6 +277,7 @@ market_df %>%
 
 ```
 
+# Cumulative returns
 
 ```{r plot_cum_ret}
 
@@ -321,53 +297,4 @@ cum_ret_df %>%
 ```
 
 
-\section{Robustness}
 
-
-```{r cumulative_returns_from_trading_start, eval=FALSE}
-
-cum_ret_df_robust = market_df %>% 
-  select(tase_id, sec_id,date, close = close_adjusted) %>% 
-  inner_join(stocks_ipo %>% 
-               select(tase_id),by = "tase_id") %>% 
-  left_join(ta_125 %>% 
-              rename(index = ta_125), by = "date") %>% 
-  group_by(tase_id, sec_id) %>% 
-  arrange(date) %>% 
-  mutate(month = as.numeric(date - date[1]) %/% 22) %>% 
-  group_by(tase_id, sec_id, month) %>% 
-  summarise(across(c("close","index"),~mean(., na.rm = TRUE)),
-            .groups = "drop") 
-
-cum_ret_df_robust = cum_ret_df_robust %>% 
-  group_by(tase_id, sec_id) %>% 
-  mutate(across(c("close","index"),
-                .fns = list(log_ret = ~log(.) - log(.[1]),
-                            simple_ret = ~ . /.[1] - 1))) %>% 
-  ungroup() %>% 
-  select(-c("close","index"))
-
-cum_ret_df_robust = cum_ret_df_robust  %>% 
-  pivot_longer(contains("ret"),names_to = "category") %>% 
-   extract(category, into = c("source","ret_type"),
-          regex = "^([^_]*)_(.*)") %>% 
-  pivot_wider(names_from = source) %>% 
-  mutate(index_adj = close - index) %>% 
-  select(-index) %>% 
-  pivot_longer(c("close","index_adj"),
-               names_to = "adjustment_type")
-
-
-```
-
-
-
- * \textcolor{red}{start with average first week price}
- * \textcolor{red}{calculate abnormal return using CAPM residuals}
-
-
-\newpage
-
-\section{References}
-
-<div id="refs"></div>
