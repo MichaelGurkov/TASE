@@ -180,84 +180,73 @@ make_reg_df = function(market_df, finrep_df,
 
 
 #' This function matches delisted and control companies by
-#' selected varible
-#'
-#' @param comps_list table with tase_ id, ipo_date, delisted_status
-#'
-#' @param matching_variable the variable control group is matched on
-#'
+#' sector and market cap
 #' @param threshold allowed percentage difference between delisted
 #'  and control comps
 #'
 #'
-match_control_group = function(comps_list, data_df,
-                               matching_variable,
-                               threshold){
+match_control_group = function(market_df, tase_sector_df,
+                               stocks_ipo,threshold = 0.1){
 
-  data_df = data_df %>%
-    select(tase_id, date, all_of(matching_variable)) %>%
-    filter(complete.cases(.))
+  ipo_control_match_df = market_df %>%
+    select(tase_id, sec_id, date, market_value) %>%
+    inner_join(stocks_ipo %>%
+                 select(tase_id), by = "tase_id") %>%
+    group_by(tase_id, sec_id) %>%
+    summarise(first_date = date[date == min(date)],
+              first_market_value = market_value[date == min(date)],
+              .groups = "drop") %>%
+    filter(!is.na(first_market_value)) %>%
+    mutate(date = as.yearmon(first_date)) %>%
+    left_join(tase_sector_df, by = c("tase_id","date")) %>%
+    filter(!is.na(tase_sector)) %>%
+    unite(id, tase_id:sec_id)
 
-  delisted_comps= comps_list %>%
-    filter(delisted_status == 1) %>%
-    select(tase_id, ipo_date) %>%
-    mutate(tase_id = as.character(tase_id)) %>%
-    mutate(ipo_date = as.yearqtr(ipo_date)) %>%
-    left_join(data_df, by = c("tase_id", "ipo_date" = "date")) %>%
-    filter(complete.cases(.))
-
-
-  control_comps = comps_list %>%
-    filter(delisted_status == 0) %>%
-    select(tase_id, ipo_date) %>%
-    mutate(tase_id = as.character(tase_id)) %>%
-    mutate(ipo_date = as.yearqtr(ipo_date)) %>%
-    left_join(data_df, by = c("tase_id", "ipo_date" = "date")) %>%
-    filter(complete.cases(.))
-
-  del_var = paste0(matching_variable,"_delisted")
-
-  control_var = paste0(matching_variable,"_control")
+  target_market_df = market_df %>%
+    select(tase_id, sec_id, date, market_value) %>%
+    filter(complete.cases(.)) %>%
+    mutate(date_yearmon = as.yearmon(date)) %>%
+    left_join(tase_sector_df,
+              by = c("tase_id","date_yearmon" = "date")) %>%
+    select(-date_yearmon) %>%
+    unite(id, tase_id:sec_id)
 
 
-  matching_table = delisted_comps %>%
-    full_join(control_comps,
-              by = "ipo_date",
-              suffix = c("_delisted","_control")) %>%
-    mutate(diff = !!sym(del_var) / !!sym(control_var) - 1) %>%
-    filter(abs(diff) <= threshold) %>%
-    select("tase_id_delisted","tase_id_control") %>%
-    mutate(across(starts_with("tase_id"),as.character))
 
-  return(matching_table)
+  ipo_control_match_df = ipo_control_match_df %>%
+    left_join(target_market_df,
+              by = c("first_date" = "date", "tase_sector"),
+              suffix = c("_ipo","_control")) %>%
+    group_by(id_ipo) %>%
+    mutate(value_diff = abs(market_value / first_market_value - 1)) %>%
+    arrange(value_diff) %>%
+    slice(2) %>%
+    ungroup() %>%
+    filter(value_diff <= threshold)
+
+
+  return(ipo_control_match_df)
 
 
 }
 
-#' This function returns matched df
+
+#' This functions calculates adjusted price
 #'
-#'
-get_matched_df = function(df, comps_dates,
-                          matching_variable,
-                          threshold){
+calculate_adjusted_price = function(df,
+                                    base_rate_threshold = 1){
 
+  adjusted_df = df %>%
+    filter(!is.na(base_rate)) %>%
+    group_by(tase_id, sec_id) %>%
+    filter(abs(base_rate -  base_rate_threshold) > 0.1) %>%
+    arrange(date) %>%
+    mutate(daily_gross_ret = close_rate / base_rate) %>%
+    mutate(close_adjusted = close_rate[1] * c(1,cumprod(daily_gross_ret)[-1])) %>%
+    ungroup()
 
-  matched_table = comps_dates %>%
-    mutate(delisted_status = if_else(is.na(quotation_period),0,1)) %>%
-    select(tase_id, ipo_date, delisted_status) %>%
-    match_control_group(data_df = df,
-                        matching_variable = matching_variable,
-                        threshold = threshold)
+  return(adjusted_df)
 
-
-  matched_comps_df = matched_table %>%
-    left_join(comps_dates %>%
-                select(tase_id, contains("date")),
-              by = c("tase_id_delisted" = "tase_id")) %>%
-    pivot_to_join_format() %>%
-    left_join(df, by = c("tase_id",c("time_period" = "date")))
-
-  return(matched_comps_df)
 
 
 
@@ -265,13 +254,41 @@ get_matched_df = function(df, comps_dates,
 }
 
 
-
-
-#' This functions cleans the dirty dataframe
+#' This function makes price df by joining price data for securities and
+#' benchmarks
 #'
-clean_df = function(dirty_df){
+make_price_df = function(market_df,ipo_control_match_df,ta_125 ){
 
+  benchmark_df =  market_df %>%
+    select(tase_id, sec_id,date, control = close_adjusted) %>%
+    unite(id_control,tase_id:sec_id) %>%
+    inner_join(ipo_control_match_df %>%
+                 select(contains("id")),
+               by = "id_control") %>%
+    rename(id = id_ipo)
+
+
+  price_df = market_df %>%
+    select(tase_id, sec_id,date, close = close_adjusted) %>%
+    inner_join(stocks_ipo %>%
+                 select(tase_id),by = "tase_id") %>%
+    left_join(ta_125 %>%
+                rename(index = ta_125), by = "date") %>%
+    mutate(id = paste(tase_id, sec_id, sep = "_")) %>%
+    left_join(benchmark_df,by = c("date", "id")) %>%
+    select(-c(tase_id,sec_id,id_control))
+
+
+  price_df = price_df %>%
+    group_by(id) %>%
+    mutate(month = as.numeric(date - date[date == min(date)]) %/% 22 + 1) %>%
+    group_by(id, month) %>%
+    summarise(across(c("close","index","control"), ~mean(., na.rm = TRUE)),
+              .groups = "drop")
+
+  return(price_df)
 
 
 
 }
+

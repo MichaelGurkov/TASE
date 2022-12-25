@@ -87,30 +87,88 @@ pivot_to_join_format = function(match_table){
 }
 
 
-#' This function calculates cumulative gross and adjusted return
+#' This function calculates raw and adjusted return
 #'
-calculate_cumulative_return = function(price_df, index_df, horizon){
-
-  price_df = price_df %>%
-    group_by(tase_id, sec_id) %>%
-    mutate(trade_duration = date - min(date)) %>%
-    ungroup()
+calculate_return_df = function(price_df){
 
   ret_df = price_df %>%
-    left_join(index_df, by = "date") %>%
-    group_by(tase_id, sec_id) %>%
-    filter(trade_duration == 0 |
-             trade_duration %in% (horizon + + c(-3:3))) %>%
-    slice(1, length(date)) %>%
-    arrange(date) %>%
-    summarise(sec_ret = (close[2] / close[1] - 1),
-              sec_ret_adj = (close[2] / close[1] - 1) -
-                            (index[2] / index[1] - 1),
-              .groups = "drop")
+    group_by(id) %>%
+    arrange(month) %>%
+    mutate(across(c("close","index", "control"),
+                  ~ . /lag(.) - 1,
+                  .names = "{.col}_ret")) %>%
+    ungroup() %>%
+    select(-c("close","index","control"))
 
-  return(ret_df)
+  adj_ret_df = ret_df %>%
+    pivot_longer(c("index_ret","control_ret"),
+                 names_to = "benchmark",
+                 values_to = "benchmark_ret") %>%
+    filter(complete.cases(.)) %>%
+    mutate(adjusted_ret = close_ret - benchmark_ret) %>%
+    select(-benchmark_ret) %>%
+    pivot_wider(names_from = "benchmark",
+                values_from = "adjusted_ret") %>%
+    pivot_longer(-c(id,month),names_to = "adjustment_type")
 
 
+  return(adj_ret_df)
+
+
+}
+
+
+#' This function calculates cumulative return
+#'
+calculate_cum_return = function(ret_df){
+
+  avg_adj_ret_df = ret_df %>%
+    group_by(month, adjustment_type) %>%
+    summarise(across(value,
+                     .fns = list(mean = ~mean(.,na.rm = TRUE),
+                                 median = ~median(.,na.rm = TRUE)),
+                     .names = "{.fn}"), .groups = "drop")
+
+
+  cum_ret_df = avg_adj_ret_df  %>%
+    filter(month <= 120)  %>%
+    pivot_longer(c("mean", "median"), names_to = "summary_measure") %>%
+    mutate(adjustment_type = factor(
+      adjustment_type,
+      labels = c("Raw returns",
+                 "Abnormal (index adjusted) returns",
+                 "Control group returns")
+    )) %>%
+    filter(complete.cases(.)) %>%
+    group_by(adjustment_type, summary_measure) %>%
+    arrange(month) %>%
+    mutate(value = cumsum(value)) %>%
+    ungroup()
+
+  return(cum_ret_df)
+
+}
+
+
+#' This function calculates holding return
+#'
+calculate_holding_return = function(ret_df){
+
+  three_year_id = ret_df %>%
+    group_by(id, adjustment_type) %>%
+    summarise(len = length(month), .groups = "drop") %>%
+    filter(len >= 36) %>%
+    select(id) %>%
+    distinct()
+
+  hold_ret = ret_df %>%
+    inner_join(three_year_id, by = "id") %>%
+    filter(month <= 36) %>%
+    group_by(id,adjustment_type) %>%
+    summarise(hold_ret = prod(1 + value) - 1, .groups = "drop")
+
+
+  return(hold_ret)
 
 }
 

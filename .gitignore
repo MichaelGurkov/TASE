@@ -8,4 +8,5 @@
 *.pdf
 *.Rd
 *.log
+*.bib
 Variables_Table.csv

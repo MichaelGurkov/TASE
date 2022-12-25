@@ -1,4 +1,16 @@
 
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,echo = FALSE,
+  message = FALSE,warning = FALSE,
+  comment = "#>"
+)
+```
+
+
+<!-- import_data -->
+
+
 ```{r load_libraries}
 
 library(tidyverse)
@@ -6,6 +18,8 @@ library(tidyverse)
 library(xts)
 
 library(lubridate)
+
+library(stargazer)
 
 devtools::load_all()
 
@@ -27,35 +41,18 @@ ta_125 = read_csv(paste0(Sys.getenv("USERPROFILE"),
 
 ```{r import_market_df}
 
-# 
-# market_file_path = paste0(Sys.getenv("USERPROFILE"),
-#                           "\\OneDrive - Bank Of Israel\\Data",
-#                           "\\TASE liquidity\\Rdata files",
-#                           "\\market_data_2022-11-15.rds")
-# 
-# 
-# market_df  = import_boi_market_data(market_file_path) %>% 
-#   filter(!is.na(close))
-# 
-# market_df %>% 
-#   write_rds(paste0(Sys.getenv("USERPROFILE"),
-#                           "\\OneDrive - Bank Of Israel\\Data",
-#                           "\\TASE liquidity\\Rdata files",
-#                           "\\working_data\\market_df.rds"))
-# 
-# rm(market_file_path)
+market_df_filepath = paste0(Sys.getenv("USERPROFILE"),
+                                "\\OneDrive - Bank Of Israel\\Data",
+                                "\\TASE liquidity\\Rdata files",
+                                "\\market_data_2022-12-12.rds")
 
+market_df = import_boi_market_data(market_df_filepath) %>% 
+  calculate_adjusted_price() %>% 
+  filter(date <= max(ta_125$date))
 
-market_df = read_rds(paste0(Sys.getenv("USERPROFILE"),
-                          "\\OneDrive - Bank Of Israel\\Data",
-                          "\\TASE liquidity\\Rdata files",
-                          "\\working_data\\market_df.rds"))
-
-
-
+rm(market_df_filepath)
 
 ```
-
 
 ```{r import_ipo_list}
 
@@ -96,186 +93,164 @@ rm(ipo_trade_dur_df)
 
 ```
 
+
+<!-- Matching by sector -->
+
+
+```{r match_control_comps}
+
+tase_sector_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                                 "\\OneDrive - Bank Of Israel\\Data",
+                                 "\\TASE liquidity\\michael files",
+                                 "\\tase_sector_classification.csv"),
+                          show_col_types = FALSE) %>% 
+  select(-comp_name_hebrew) %>% 
+  filter(!tase_sector == "#N/A") %>% 
+  mutate(date = as.yearmon(date, format = "%d/%m/%Y")) %>% 
+  mutate(across(-date, as.character)) %>% 
+  select(-tase_sub_sector)
+
+
+ipo_control_match_df = match_control_group(market_df,
+                                           tase_sector_df,stocks_ipo)
+
+```
+
+
+
+```{r price_df}
+
+price_df = make_price_df(market_df,ipo_control_match_df,ta_125)
+
+
+```
+
+
+
 ```{r cumulative_returns}
 
-cum_ret_df = market_df %>% 
-  select(tase_id, sec_id,date, close) %>% 
-  inner_join(stocks_ipo %>% 
-               select(tase_id),by = "tase_id") %>% 
-  left_join(ta_125, by = "date") %>% 
-  group_by(tase_id, sec_id, date = as.yearmon(date)) %>% 
-  summarise(across(c("close","ta_125"),~mean(., na.rm = TRUE)),
-            .groups = "drop") %>% 
-  group_by(tase_id, sec_id) %>% 
-  arrange(date) %>% 
-  mutate(trade_periods = (date - date[1])) %>% 
-  mutate(trade_periods = round(trade_periods,4)) %>%
-  mutate(across(c("close","ta_125"),
-                ~log(.) - log(.[1]),
-                .names = "{.col}_cum_ret")) %>% 
-  # mutate(avg_ret = cum_ret / trade_periods) %>% 
-  ungroup() %>% 
-  mutate(close_adj_cum_ret = close_cum_ret - ta_125_cum_ret) %>% 
-  select(tase_id, sec_id,date, trade_periods,
-         cum_ret = close_cum_ret,
-         adj_cum_ret = close_adj_cum_ret)
+ret_df = calculate_return_df(price_df)
 
+ret_df = ret_df %>% 
+  mutate(tase_id = str_extract(id,"^[0-9]+")) %>% 
+  left_join(stocks_ipo %>% 
+              select(tase_id, tase_sector), by = "tase_id") %>% 
+  select(-tase_id)
+
+cum_ret_df = ret_df %>% 
+  calculate_cum_return()
 
 ```
 
 
-# Desc stats
+```{r holding_returns}
+
+hold_ret = calculate_holding_return(ret_df)
+
+```
 
 
-The sample contains `r nrow(num_ipo)` companies that performed
-initial public offering on TASE. `r sum(num_ipo$n > 1)` of the
-companies exited the market and came back later again performing an
-IPO. For now this companies are excluded from the analysis.
+```{r}
 
-## Attrition
-
-```{r plot_attrition}
-
-cum_ret_df %>% 
-  count(trade_periods,name = "num_of_comps") %>% 
-  ggplot(aes(trade_periods,num_of_comps)) + 
-  geom_line() + 
-  xlab(NULL) + ylab(NULL) + 
-  ggtitle("Number of trading IPO companies (years since IPO)")
+stocks_ipo %>% 
+  count(year) %>% 
+  left_join(ta_125 %>% 
+              group_by(year = year(date)) %>% 
+              summarise(ta_125 = mean(ta_125), .groups = "drop"),
+            by = "year") %>% 
+  write_csv(paste0(Sys.getenv("USERPROFILE"),
+                   "\\OneDrive - Bank Of Israel\\current_work",
+                   "\\annual_report\\2022\\data",
+                   "\\plots\\ipo_vs_ta_125.csv"))
 
 
 
 ```
 
 
-```{r ipo_trade_duration}
-
-ggplot() + 
-  geom_boxplot(data = stocks_ipo,
-               aes(x = as.character(first_trade_year), y = trade_years)) + 
-  geom_point(data = tibble(year = as.character(1993:2022),
-                           floor = 2022 - 1993:2022),
-             aes(x =  year, y = floor), color = "blue") +
-  xlab(NULL) + ylab(NULL)
-
-
-
-
-```
-
-
-IPO companies exit the market quite quickly. The mean trading
-periond is 'r round(mean(stocks_ipo$trade_years),2)' years
-median trading perions is
-'r round(median(stocks_ipo$trade_years),2)' years.
-
-# Long run performance
-
-In order to asses the long run performance of IPO's I calculate the buy and hold return 
 
 
 ```{r plot_cum_ret}
 
-cum_ret_df  %>% 
-  filter(trade_periods <= 10) %>%
-  group_by(trade_periods) %>% 
-  summarise(across(contains("cum_ret"),
-                   .fns = list(mean = mean, median = median),
-                   .names = "{.col}_{.fn}")) %>% 
-  pivot_longer(-trade_periods, names_to = "metric") %>% 
-  extract(metric, into = c("adjustment","summary_measure"),
-          regex = "(.*)_([^_]+$)") %>% 
-  ggplot(aes(trade_periods, value, color = summary_measure)) + 
-  geom_line() + 
-  scale_y_continuous(labels = scales::percent_format()) + 
-  facet_wrap(~adjustment, scales = "free") + 
-  scale_x_continuous(breaks = seq(0,10,2)) +
-  xlab("Years since IPO") + ylab(NULL) + 
-  ggtitle("Cumulative returns since IPO")
-
-
-
-```
-
-
-```{r plot_ipo_long_run_performance_by_sector}
-
-library(tidytext)
-
-
-ret_df %>% 
-  select(-year) %>%
-  pivot_longer(-c(tase_id,sec_id,tase_sector, horizon),
-               names_to = "adjustment") %>% 
-  group_by(horizon,tase_sector,adjustment) %>% 
-  summarise(avg = mean(value, na.rm = TRUE),
-            med = median(value, na.rm = TRUE),
-            .groups = "drop") %>% 
-  filter(adjustment == "sec_ret_adj") %>%
-  select(-adjustment) %>% 
-  pivot_longer(-c(tase_sector, horizon)) %>% 
-  ggplot(aes(x = value,
-             y = reorder_within(tase_sector, value, horizon)),
-             fill = name) + 
-  geom_col(position = "dodge") + 
-  facet_wrap(~horizon, scales = "free") + 
-  scale_y_reordered() +
-  scale_x_continuous(labels = scales::percent_format()) +
-  xlab(NULL) + ylab(NULL)
-  
-
-
-# ret_df %>% 
-#   select(contains("tase"), contains("ret")) %>%
-#   pivot_longer(-c(tase_id,tase_sector),
-#                names_to = "adjustment") %>% 
-#   group_by(adjustment, tase_sector) %>% 
-#   summarise(avg = mean(value),
-#             .groups = "drop") %>% 
-#   pivot_wider(names_from = adjustment, values_from = avg) %>% 
-  # write_csv(paste0("C:\\Users\\internet",
-  #                  "\\OneDrive - Bank Of Israel\\current_work",
-  #                  "\\annual_report\\2022\\data",
-  #                  "\\plots\\long_run_ipo_by_sector.csv"))
-
-```
-
-
-```{r plot_ipo_long_run_performance_by_year}
-
-ret_df %>% 
-  select(tase_id, year, contains("ret")) %>%
-  pivot_longer(-c(tase_id, year),
-               names_to = "adjustment") %>% 
-  group_by(adjustment, year) %>% 
-  summarise(avg = mean(value), med = median(value),
-            .groups = "drop") %>% 
-  pivot_longer(-c(adjustment,year)) %>% 
-  ggplot(aes(x = year,
-             y = value,
-             fill = name)) + 
-  geom_col(position = "dodge") + 
-  facet_wrap(~adjustment, scales = "free") + 
+cum_ret_df %>% 
+  ggplot(aes(month, value, color = adjustment_type)) +
+  geom_line() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
   scale_y_continuous(labels = scales::percent_format()) +
-  xlab(NULL) + ylab(NULL)
+  facet_wrap( ~ summary_measure, scales = "free") +
+  # scale_x_continuous(breaks = seq(0,10,2)) +
+  xlab("Months since IPO") + ylab(NULL) +
+  ggtitle("Cumulative returns since IPO") +
+  theme(legend.title = element_blank())
 
 
-# ret_df %>% 
-#   select(tase_id, year, contains("ret")) %>%
-#   pivot_longer(-c(tase_id, year),
-#                names_to = "adjustment") %>% 
-#   group_by(adjustment, year) %>% 
-#   summarise(avg = mean(value),
-#             .groups = "drop") %>% 
-#   pivot_wider(names_from = "adjustment",values_from = "avg") %>% 
-#   write_csv(paste0("C:\\Users\\internet",
-#                    "\\OneDrive - Bank Of Israel\\current_work",
-#                    "\\annual_report\\2022\\data",
-#                    "\\plots\\long_run_ipo_by_year.csv"))
+cum_ret_df %>% 
+  filter(!adjustment_type == "Control group returns") %>% 
+  filter(summary_measure == "median") %>% 
+  select(-summary_measure) %>% 
+  pivot_wider(names_from = adjustment_type) %>% 
+  write_csv(paste0(Sys.getenv("USERPROFILE"),
+                   "\\OneDrive - Bank Of Israel\\current_work",
+                   "\\annual_report\\2022\\data",
+                   "\\plots\\cum_ret_ipo.csv"))
 
+
+
+```
+
+
+
+```{r plot_hold_returns_by_industry}
+
+hold_ret %>% 
+  filter(!adjustment_type == "control_ret") %>% 
+  mutate(tase_id = str_extract(id, "^[0-9]+")) %>% 
+  left_join(stocks_ipo %>% 
+              select(tase_id, tase_sector), by = "tase_id") %>% 
+  count(tase_sector, adjustment_type, sort = TRUE)
+  group_by(tase_sector, adjustment_type) %>% 
+  summarise(avg_ret = mean(hold_ret, na.rm = TRUE),
+            .groups = "drop") %>% 
+  ggplot(aes(x = avg_ret, y = reorder(tase_sector, avg_ret),
+         fill = adjustment_type)) + 
+  geom_col(position = "dodge")
   
+ 
+ 
+```
+
+
+```{r plot_hold_returns_by_year}
+
+hold_ret %>% 
+  filter(!adjustment_type == "control_ret") %>% 
+  mutate(tase_id = str_extract(id, "^[0-9]+")) %>% 
+  left_join(stocks_ipo %>% 
+              select(tase_id, year), by = "tase_id") %>% 
+  group_by(year, adjustment_type) %>% 
+  summarise(avg_ret = mean(hold_ret, na.rm = TRUE),
+            .groups = "drop") %>% 
+  ggplot(aes(x = as.character(year), y = avg_ret,
+         fill = adjustment_type)) + 
+  geom_col(position = "dodge")
+  
+ 
+hold_ret %>% 
+  filter(!adjustment_type == "control_ret") %>% 
+  mutate(tase_id = str_extract(id, "^[0-9]+")) %>% 
+  left_join(stocks_ipo %>% 
+              select(tase_id, year), by = "tase_id") %>% 
+  group_by(year, adjustment_type) %>% 
+  summarise(avg_ret = mean(hold_ret, na.rm = TRUE),
+            .groups = "drop") %>% 
+  pivot_wider(names_from = "adjustment_type",
+              values_from = "avg_ret") %>% 
+  write_csv(paste0(Sys.getenv("USERPROFILE"),
+                   "\\OneDrive - Bank Of Israel\\current_work",
+                   "\\annual_report\\2022\\data",
+                   "\\plots\\hold_return_by_year.csv"))
   
 
-
+ 
 ```
 

@@ -1,0 +1,420 @@
+---
+title: "temp"
+subtitle: 'Preliminary draft'
+author: "Michael Gurkov"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+fontsize: 11pt
+output:
+  rmarkdown::pdf_document:
+    number_sections: true
+abstract: "Text for abstract"
+bibliography: ipo_long_run.bib
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,echo = FALSE,
+  message = FALSE,warning = FALSE,
+  comment = "#>"
+)
+```
+
+
+```{r get_bib_filepath, include = FALSE}
+
+file.copy(paste0(Sys.getenv("USERPROFILE"),
+                 "\\OneDrive - Bank Of Israel",
+                 "\\References\\ipo_long_run.bib"),
+          "ipo_long_run.bib")
+
+```
+
+<!-- import_data -->
+
+
+```{r load_libraries}
+
+library(tidyverse)
+
+library(xts)
+
+library(lubridate)
+
+library(stargazer)
+
+devtools::load_all()
+
+# library(MiscImport)
+
+```
+
+
+```{r import_ta_125}
+
+ta_125 = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                         "\\OneDrive - Bank Of Israel\\Data",
+                         "\\TASE liquidity\\michael files",
+                         "\\TA125.csv"),
+                  show_col_types = FALSE) %>% 
+  mutate(date = dmy(date))
+
+```
+
+```{r import_market_df, cache=TRUE}
+
+market_df_filepath = paste0(Sys.getenv("USERPROFILE"),
+                                "\\OneDrive - Bank Of Israel\\Data",
+                                "\\TASE liquidity\\Rdata files",
+                                "\\market_data_2022-12-12.rds")
+
+market_df = import_boi_market_data(market_df_filepath) %>% 
+  calculate_adjusted_price() %>% 
+  filter(date <= max(ta_125$date))
+
+rm(market_df_filepath)
+
+```
+
+```{r import_ipo_list}
+
+stocks_ipo = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                             "\\OneDrive - Bank Of Israel",
+                             "\\Data\\TASE liquidity",
+                             "\\michael files\\stocks_ipo.csv"),
+                      show_col_types = FALSE) %>% 
+  mutate(tase_id = as.character(tase_id))
+
+stocks_ipo = stocks_ipo %>% 
+  mutate(tase_id = recode(tase_id,
+                          `456` = "259"))
+
+ipo_trade_dur_df = market_df %>% 
+  group_by(tase_id, sec_id) %>% 
+  summarise(tibble(first_trade_year = year(min(date)),
+                   trade_years = (max(date) - min(date)) %/% dyears(1)),
+            .groups = "drop")
+
+stocks_ipo = stocks_ipo %>% 
+  left_join(ipo_trade_dur_df, by = "tase_id") %>% 
+  arrange(tase_id) %>% 
+  filter(!is.na(trade_years))
+
+
+
+num_ipo = stocks_ipo %>% 
+  count(tase_id, sort = TRUE)
+
+
+stocks_ipo = stocks_ipo %>% 
+  inner_join(num_ipo %>% 
+               filter(n == 1) %>% 
+               select(tase_id), by = "tase_id")
+
+rm(ipo_trade_dur_df)
+
+```
+
+
+<!-- Matching by sector -->
+
+
+```{r match_control_comps}
+
+tase_sector_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                                 "\\OneDrive - Bank Of Israel\\Data",
+                                 "\\TASE liquidity\\michael files",
+                                 "\\tase_sector_classification.csv"),
+                          show_col_types = FALSE) %>% 
+  select(-comp_name_hebrew) %>% 
+  filter(!tase_sector == "#N/A") %>% 
+  mutate(date = as.yearmon(date, format = "%d/%m/%Y")) %>% 
+  mutate(across(-date, as.character)) %>% 
+  select(-tase_sub_sector)
+
+
+ipo_control_match_df = match_control_group(market_df,
+                                           tase_sector_df,stocks_ipo)
+
+rm(tase_sector_df)
+
+```
+
+
+
+```{r price_df}
+
+price_df = make_price_df(market_df,ipo_control_match_df,ta_125)
+
+
+```
+
+
+
+```{r cumulative_returns}
+
+ret_df = calculate_return_df(price_df)
+
+ret_df = ret_df %>% 
+  mutate(tase_id = str_extract(id,"^[0-9]+")) %>% 
+  left_join(stocks_ipo %>% 
+              select(tase_id, tase_sector), by = "tase_id") %>% 
+  select(-tase_id)
+
+cum_ret_df = ret_df %>% 
+  calculate_cum_return()
+
+```
+
+
+```{r holding_returns}
+
+hold_ret = calculate_holding_return(ret_df)
+
+```
+
+
+```{r clean_up, eval=FALSE}
+
+rm(ipo_control_match_df,ta_125,ret_df, market_df)
+
+```
+
+
+
+\section{LitReview}
+
+A seminal paper that analyses the long run performance of IPO is @RITTER1991
+The author studies a sample of US IPO's that went public during 1975-1984 period.
+The findings confirm that in the 3 years after going public the IPO's
+are underpriced relative to comparable traded firms (matched by size and industry)
+
+\section{Data and Methodology}
+
+
+The sample consists of `r length(unique(stocks_ipo$tase_id))` initial public offerings in `r paste(range(stocks_ipo$year), collapse = "-")` period. This is
+the entire universe of initial public offerings for this period.
+
+Figure \ref{plot_num_ipo} shows the distributions of the IPO over time. We can see that the IPO's come in "waves" meaning that there is a large concentration in certain periods. Namely, 2000, 2004-2007 and 2020-2021 seem to stand out. As can be seen in Figure \ref{plot_num_ipo_sector} the IPO "waves" are characterized by some dominant sectors. Thus the 2004-2007 IPO consist mainly of commerce, industry and real estate firms while 2020-2021 is mostly technology driven.
+
+```{r plot_IPO, fig.cap="Number of IPO's by year \\label{plot_num_ipo}"}
+
+ipo_stats_by_year = stocks_ipo %>% 
+  select(-comp_name_heb) %>% 
+  group_by(year) %>% 
+  summarise(num_ipo = length(domestic_issue),
+            total_domestic_issue = sum(domestic_issue), .groups = "drop")
+
+ipo_stats_by_year %>% 
+  ggplot(aes(year, num_ipo)) + 
+  geom_col() + 
+  xlab(NULL) + ylab(NULL) + ggtitle("Number of IPO comps")
+
+```
+
+
+
+
+```{r plot_IPO_by_sectors,fig.cap="Number of IPO's by year and sector \\label{plot_num_ipo_sector}"}
+
+stocks_ipo %>% 
+  count(year, tase_sector) %>% 
+  mutate(tase_sector = factor(tase_sector)) %>% 
+  mutate(tase_sector = fct_lump_n(tase_sector, n = 5)) %>% 
+  ggplot(aes(year, n)) + 
+  geom_col(aes(fill = tase_sector)) + 
+  scale_fill_viridis_d() + 
+  xlab(NULL) + ylab(NULL) + ggtitle("IPO by sector")
+
+```
+
+
+To evaluate the long-run performance of initial public offerings, two measures are used: (1) cumulative average adjusted returns (CAR) calculated with monthly portfolio rebalancing, where the adjusted returns are computed using several different benchmarks, and (2) 3-year buy and hold returns for both the IPOs and a set of matching firms.  The matching firms are represented by TASE listed securities that are to some extent matched by industry and market capitalization with each IPO.
+
+The cumulative return is calculated on a monthly basis where months are defined as successive 21-trading-day periods relative to the IPO date. Thus, month 1 consists of event days 1-21, month 2 consists of event days 22-43, etc.
+
+Benchmark adjusted returns are calculated as a difference between monthly raw
+return and the monthly return of benchmark index (TA 125).
+Thus, the benchmark return is defined as:
+
+\begin{equation*}
+  ar_{i,t} = r_{i,t} - r_{benchmark,t}
+\end{equation*}
+
+and the adjusted return for the portfolio of N stocks is the simple average
+of the adjusted returns of the individual stocks.
+
+\begin{equation*}
+  AR_{t} = \frac{1}{N} \sum_{i = 1}^{N}ar_{i,t}
+\end{equation*}
+
+The cumulative benchmark-adjusted aftermarket performance from event
+month q to event month s is the summation of the average benchmark-adjusted returns:
+
+\begin{equation*}
+  CAR_{q,s} = \sum_{t = q}^{s}AR_{t}
+\end{equation*}
+
+When a firm in portfolio p is delisted from TASE, the portfolio
+return for the next month is an equally-weighted average of the remaining firms in the portfolio. The cumulative market-adjusted return for months 1 to 36, $CAR_{1,36}$, thus involves monthly rebalancing, with the proceeds of a delisted firm equally allocated among the surviving members of the portfolio p in each subsequent month.For the month in which an IPO is delisted, the return for both the IPO and the benchmark includes just the days from the start of the month until the delisting.
+
+Following @RITTER1991 I also compute 3-year holding period returns, as an alternative to the use of cumulative average benchmark-adjusted returns, which implicitly assumes monthly portfolio rebalancing. The 3-year holding period is defined as
+
+\begin{equation*}
+  R_{i} = \prod_{t=1}^{36}(1+r_{it})
+\end{equation*}
+
+```{r table_ipo, results='asis'}
+
+ipo_stats_by_year %>% 
+  mutate(year = as.character(year)) %>% 
+  rename(Year = year, `No. of IPO's` = num_ipo,
+         `Total gross proceeds` = total_domestic_issue) %>% 
+  as.data.frame() %>% 
+  stargazer(header = FALSE,summary = FALSE,digits = 0, rownames = FALSE)
+
+```
+
+
+\section{Results}
+
+
+<!-- check whether most of the firms dropped? -->
+
+<!-- plot attrition by years -->
+
+```{r plot_attrition, eval=FALSE}
+
+
+
+
+```
+
+```{r motivating_example, eval=FALSE}
+
+
+market_df %>% 
+  select(tase_id, sec_id, date, close_adjusted) %>% 
+  inner_join(stocks_ipo %>% 
+               select(tase_id) %>% 
+               slice_sample(n = 15)) %>% 
+  left_join(ta_125, by = "date") %>% 
+  group_by(tase_id, sec_id) %>% 
+  arrange(date) %>% 
+  mutate(across(c("close_adjusted", "ta_125"), ~./.[1])) %>% 
+  ungroup() %>% 
+  pivot_longer(-c(tase_id, sec_id, date)) %>% 
+  ggplot(aes(date, value, color = name)) + 
+  geom_line() + 
+  facet_wrap(~tase_id, scales = "free")
+  ggplot(aes(date))
+
+
+
+```
+
+
+```{r plot_cum_ret}
+
+cum_ret_df %>% 
+  ggplot(aes(month, value, color = adjustment_type)) +
+  geom_line() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  facet_wrap( ~ summary_measure, scales = "free") +
+  # scale_x_continuous(breaks = seq(0,10,2)) +
+  xlab("Months since IPO") + ylab(NULL) +
+  ggtitle("Cumulative returns since IPO") +
+  theme(legend.title = element_blank())
+
+
+
+```
+
+
+```{r plot_hold_ret}
+
+q_vec = seq(0.05,0.95, 0.05)
+
+hold_ret %>% 
+  group_by(adjustment_type) %>% 
+  summarise(tibble(returns = quantile(hold_ret,q_vec,na.rm = TRUE),
+                   quantiles = q_vec), .groups = "drop") %>% 
+  ggplot(aes(as.character(quantiles), returns, fill = adjustment_type)) + 
+  geom_col(position = "dodge") + 
+  scale_y_continuous(labels = scales::percent_format()) + 
+  xlab("Quantile") + ylab(NULL) + ggtitle("3 year holding returns")
+
+rm(q_vec)
+
+```
+
+
+```{r plot_returns_by_industry}
+
+ret_df %>% 
+  filter(month <= 36) %>% 
+  group_by(tase_sector, adjustment_type, id) %>% 
+  summarise(ret = prod(1 + value, na.rm = TRUE) - 1,
+            .groups = "drop") %>% 
+  group_by(tase_sector, adjustment_type) %>% 
+  summarise(avg_ret = mean(ret), .groups = "drop") %>% 
+  ggplot(aes(x = avg_ret, y =reorder(tase_sector,avg_ret),
+             fill = adjustment_type)) + 
+  geom_col(position = "dodge") + 
+  facet_wrap(~adjustment_type, scales = "free") + 
+  xlab(NULL) + ylab(NULL)
+
+
+```
+
+
+\section{Robustness}
+
+
+```{r cumulative_returns_from_trading_start, eval=FALSE}
+
+cum_ret_df_robust = market_df %>% 
+  select(tase_id, sec_id,date, close = close_adjusted) %>% 
+  inner_join(stocks_ipo %>% 
+               select(tase_id),by = "tase_id") %>% 
+  left_join(ta_125 %>% 
+              rename(index = ta_125), by = "date") %>% 
+  group_by(tase_id, sec_id) %>% 
+  arrange(date) %>% 
+  mutate(month = as.numeric(date - date[1]) %/% 22) %>% 
+  group_by(tase_id, sec_id, month) %>% 
+  summarise(across(c("close","index"),~mean(., na.rm = TRUE)),
+            .groups = "drop") 
+
+cum_ret_df_robust = cum_ret_df_robust %>% 
+  group_by(tase_id, sec_id) %>% 
+  mutate(across(c("close","index"),
+                .fns = list(log_ret = ~log(.) - log(.[1]),
+                            simple_ret = ~ . /.[1] - 1))) %>% 
+  ungroup() %>% 
+  select(-c("close","index"))
+
+cum_ret_df_robust = cum_ret_df_robust  %>% 
+  pivot_longer(contains("ret"),names_to = "category") %>% 
+   extract(category, into = c("source","ret_type"),
+          regex = "^([^_]*)_(.*)") %>% 
+  pivot_wider(names_from = source) %>% 
+  mutate(index_adj = close - index) %>% 
+  select(-index) %>% 
+  pivot_longer(c("close","index_adj"),
+               names_to = "adjustment_type")
+
+
+```
+
+
+
+ * \textcolor{red}{start with average first week price}
+ * \textcolor{red}{calculate abnormal return using CAPM residuals}
+
+
+\newpage
+
+\section{References}
+
+<div id="refs"></div>
