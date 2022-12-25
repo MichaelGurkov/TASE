@@ -122,7 +122,7 @@ calculate_return_df = function(price_df){
 #'
 calculate_cum_return = function(ret_df){
 
-  avg_adj_ret_df = ret_df%>%
+  avg_adj_ret_df = ret_df %>%
     group_by(month, adjustment_type) %>%
     summarise(across(value,
                      .fns = list(mean = ~mean(.,na.rm = TRUE),
@@ -146,6 +146,28 @@ calculate_cum_return = function(ret_df){
     ungroup()
 
   return(cum_ret_df)
+
+}
+
+
+#' This function calculates holding return
+#'
+calculate_holding_return = function(ret_df){
+
+  three_year_id = ret_df %>%
+    group_by(id, adjustment_type) %>%
+    summarise(len = length(month), .groups = "drop") %>%
+    filter(len >= 36) %>%
+    select(id)
+
+  hold_ret = ret_df %>%
+    inner_join(three_year_id, by = "id") %>%
+    filter(month <= 36) %>%
+    group_by(id,adjustment_type) %>%
+    summarise(hold_ret = prod(1 + value) - 1, .groups = "drop")
+
+
+  return(hold_ret)
 
 }
 
