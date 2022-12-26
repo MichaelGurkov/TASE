@@ -141,16 +141,37 @@ cum_ret_df = ret_df %>%
 
 ```
 
-
+## Best IPO's
 
 ```{r best_ipos, eval=FALSE}
 
-best_ipos_id = ret_df %>% 
-  filter(month <= 36) %>%
-  filter(adjustment_type == "index_ret") %>% 
+price_df %>% 
+  extract(id,into = "tase_id","(^[0-9]+)") %>% 
+  inner_join(stocks_ipo %>% 
+               filter(year == 2004) %>% 
+               select(tase_id) %>% 
+               distinct(), by = "tase_id")%>% 
+  select(tase_id, month, close) %>% 
+  filter(month <= 36) %>% 
+  group_by(tase_id) %>% 
+  arrange(month) %>% 
+  mutate(close = close / close[month == 1]) %>% 
+  ungroup() %>% 
+  ggplot(aes(month, close)) + 
+  geom_line(aes(color = tase_id), show.legend = FALSE) + 
+  geom_hline(yintercept = 1) + 
+  gghighlight::gghighlight(max(close) > 3)
+
+price_df %>% 
+  select(id, month, close) %>% 
+  filter(month <= 36) %>% 
   group_by(id) %>% 
-  summarise(value = sum(value), .groups = "drop") %>% 
-  slice_max(value, n = 3)
+  arrange(month) %>% 
+  mutate(close = close / close[month == 1]) %>% 
+  ungroup() %>% 
+  ggplot(aes(month, close)) + 
+  geom_line(aes(color = id), show.legend = FALSE) + 
+  gghighlight::gghighlight(max(close) > 3)
 
 
 ```
@@ -167,14 +188,14 @@ rm(ipo_control_match_df,ta_125,ret_df, market_df)
 # Examples
 
 
-<!-- 1468_1105204 -->
+<!-- 1212_1091065 -->
 
 
 ```{r compare_prices_with_index}
 
 
-temp_price_1468 = market_df %>% 
-  filter(tase_id == 1468) %>% 
+temp_price_1212 = market_df %>% 
+  filter(tase_id == 1212) %>% 
   select(date,close_adjusted) %>% 
   left_join(ta_125, by = "date") %>% 
   rename(close = close_adjusted, index = ta_125) %>% 
@@ -184,15 +205,15 @@ temp_price_1468 = market_df %>%
             .groups = "drop")
 
 
-# all.equal(temp_price_1468, price_df %>%
-#   filter(id == "1468_1105204") %>% 
+# all.equal(temp_price_1212, price_df %>%
+#   filter(id == "1212_1091065") %>%
 #   select(month, close, index))
 
-# temp_price_1468 %>% 
-#   mutate(across(c("close", "index"), ~./.[month == min(month)])) %>% 
-#   pivot_longer(-month) %>% 
-#   ggplot(aes(month, value, color = name)) + 
-#   geom_line() + 
+# temp_price_1212 %>%
+#   mutate(across(c("close", "index"), ~./.[month == min(month)])) %>%
+#   pivot_longer(-month) %>%
+#   ggplot(aes(month, value, color = name)) +
+#   geom_line() +
 #   xlab(NULL) + ylab(NULL) + ggtitle("Price trajectory of 1468 vs index")
 
 
@@ -201,26 +222,26 @@ temp_price_1468 = market_df %>%
 
 ```{r calculate_returns}
 
-temp_ret_1468 = temp_price_1468  %>% 
+temp_ret_1212 = temp_price_1212  %>% 
   mutate(across(c("close", "index"), ~ . / lag(.) - 1,
                 .names = "{.col}_ret")) %>% 
   filter(complete.cases(.)) %>% 
   select(month, close_ret, index_ret) %>% 
   mutate(index_adjusted_ret = close_ret - index_ret)
 
-# all.equal(temp_ret_1468 %>% 
-#             select(month,close_ret,index_adjusted_ret),
-#           ret_df %>%
-#             filter(id == "1468_1105204") %>% 
-#             filter(!adjustment_type == "control_ret") %>% 
-#             pivot_wider(names_from = "adjustment_type") %>% 
-#             select(month,close_ret,index_adjusted_ret = index_ret))
+all.equal(temp_ret_1212 %>%
+            select(month,close_ret,index_adjusted_ret),
+          ret_df %>%
+            filter(id == "1212_1091065") %>%
+            filter(!adjustment_type == "control_ret") %>%
+            pivot_wider(names_from = "adjustment_type") %>%
+            select(month,close_ret,index_adjusted_ret = index_ret))
 
 
-# temp_ret_1468 %>% 
-#   mutate(across(-month, cumsum)) %>% 
-#   pivot_longer(-month) %>% 
-#   ggplot(aes(month, value, color = name)) + 
+# temp_ret_1212 %>%
+#   mutate(across(-month, cumsum)) %>%
+#   pivot_longer(-month) %>%
+#   ggplot(aes(month, value, color = name)) +
 #   geom_line()
 
 ```
@@ -228,16 +249,16 @@ temp_ret_1468 = temp_price_1468  %>%
 
 ```{r plot}
 
-temp_plot_df = temp_price_1468 %>% 
+temp_plot_df = temp_price_1212 %>% 
   mutate(across(-month, ~ . / .[month == 1])) %>%
   mutate(category = "price") %>% 
   pivot_longer(-c(month, category)) %>% 
-  bind_rows(temp_ret_1468 %>% 
+  bind_rows(temp_ret_1212 %>% 
               rename_with(.cols = ends_with("_ret"),
                           .fn = ~str_remove(.,"_ret")) %>% 
               mutate(category = "ret") %>% 
               pivot_longer(-c(month, category))) %>% 
-  bind_rows(temp_ret_1468 %>% 
+  bind_rows(temp_ret_1212 %>% 
               rename_with(.cols = ends_with("_ret"),
                           .fn = ~str_remove(.,"_ret")) %>% 
               mutate(across(-month, cumsum)) %>% 
@@ -249,18 +270,16 @@ temp_plot_df %>%
   ggplot(aes(month, value, color = name)) + 
   geom_line() + 
   facet_wrap(~category, scales = "free") + 
-  xlab(NULL) + ylab(NULL) + ggtitle("1468 performance") + 
+  xlab(NULL) + ylab(NULL) + ggtitle("1212 performance") + 
   theme(legend.title = element_blank())
+
 
 ```
 
 
-```{r}
+```{r clean_up_temp}
 
-temp = temp_plot_df %>% 
-  # filter(category %in% c("price","ret")) %>% 
-  pivot_wider(names_from = c("name","category"))
-
+rm(list = str_subset(ls(),"temp"))
 
 ```
 

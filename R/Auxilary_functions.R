@@ -155,7 +155,8 @@ calculate_cum_return = function(ret_df){
 calculate_holding_return = function(ret_df){
 
   three_year_id = ret_df %>%
-    group_by(id, adjustment_type) %>%
+    filter(adjustment_type == "close_ret") %>%
+    group_by(id) %>%
     summarise(len = length(month), .groups = "drop") %>%
     filter(len >= 36) %>%
     select(id)
