@@ -154,11 +154,11 @@ price_df = make_price_df(market_df,ipo_control_match_df,ta_125)
 
 ret_df = calculate_return_df(price_df)
 
-ret_df = ret_df %>% 
-  mutate(tase_id = str_extract(id,"^[0-9]+")) %>% 
-  left_join(stocks_ipo %>% 
-              select(tase_id, tase_sector), by = "tase_id") %>% 
-  select(-tase_id)
+# ret_df = ret_df %>% 
+#   mutate(tase_id = str_extract(id,"^[0-9]+")) %>% 
+#   left_join(stocks_ipo %>% 
+#               select(tase_id, tase_sector), by = "tase_id") %>% 
+#   select(-tase_id)
 
 cum_ret_df = ret_df %>% 
   calculate_cum_return()
@@ -169,6 +169,18 @@ cum_ret_df = ret_df %>%
 ```{r holding_returns}
 
 hold_ret = calculate_holding_return(ret_df)
+
+hold_ret = hold_ret %>% 
+  mutate(tase_id = str_extract(id,"^[0-9]+")) %>% 
+  left_join(stocks_ipo %>% 
+              select(tase_id, tase_sector), by = "tase_id")
+
+hold_ret = hold_ret %>% 
+  left_join(stocks_ipo %>%
+              select(tase_id, year), by = "tase_id")
+
+hold_ret = hold_ret %>% 
+  select(-tase_id)
 
 ```
 
@@ -349,21 +361,72 @@ rm(q_vec)
 ```
 
 
-```{r plot_returns_by_industry}
+\subsection {Aftermarket performance by sector}
 
-ret_df %>% 
-  filter(month <= 36) %>% 
-  group_by(tase_sector, adjustment_type, id) %>% 
-  summarise(ret = prod(1 + value, na.rm = TRUE) - 1,
-            .groups = "drop") %>% 
+
+```{r plot_returns_by_sector}
+
+hold_ret %>%
+  filter(complete.cases(.)) %>% 
   group_by(tase_sector, adjustment_type) %>% 
-  summarise(avg_ret = mean(ret), .groups = "drop") %>% 
-  ggplot(aes(x = avg_ret, y =reorder(tase_sector,avg_ret),
-             fill = adjustment_type)) + 
-  geom_col(position = "dodge") + 
+  summarise(avg_ret = mean(hold_ret), .groups = "drop") %>% 
+  ggplot(aes(x = avg_ret,
+             y = tidytext::reorder_within(tase_sector,avg_ret,
+                                          adjustment_type))) + 
+  geom_col(aes(fill = (avg_ret >= 0)),position = "dodge", width = 0.5,
+           show.legend = FALSE) + 
+  geom_vline(xintercept = 0, linetype = "dashed") + 
+  tidytext::scale_y_reordered() + 
+  scale_x_continuous(labels = scales::percent_format()) + 
   facet_wrap(~adjustment_type, scales = "free") + 
   xlab(NULL) + ylab(NULL)
 
+
+hold_ret %>% 
+  filter(tase_sector == "fin_services") %>% 
+  select(id) %>% 
+  distinct()
+
+
+
+```
+
+
+\subsection {Aftermarket performance by year of Issuance}
+
+```{r plot_returns_by_year}
+
+
+hold_ret %>%
+  filter(complete.cases(.)) %>% 
+  group_by(year, adjustment_type) %>% 
+  summarise(avg_ret = mean(hold_ret), .groups = "drop") %>% 
+  ggplot(aes(x = year, y = avg_ret, fill = adjustment_type)) + 
+  geom_col(position = "dodge", width = 0.5) + 
+  scale_fill_viridis_d() + 
+  scale_y_continuous(labels = scales::percent_format()) + 
+  xlab(NULL) + ylab(NULL) + ggtitle("Holding returns by year")
+
+
+
+```
+
+
+\subsection{Regression results}
+
+```{r, eval=FALSE}
+
+
+
+reg_df = hold_ret %>% 
+  filter(!adjustment_type == "control_ret") %>% 
+  pivot_wider(names_from = adjustment_type, values_from = "hold_ret") %>% 
+  mutate(index_ret = close_ret - index_ret) %>% 
+  left_join(stocks_ipo %>% 
+              count(year,name = "vol"), by = "year") %>% 
+  select(-c(id,year))
+
+summary(lm("close_ret ~ index_ret + vol + tase_sector", data = reg_df))
 
 ```
 

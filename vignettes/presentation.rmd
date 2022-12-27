@@ -141,26 +141,10 @@ cum_ret_df = ret_df %>%
 
 ```
 
-## Best IPO's
+## Best IPO's price trajectory
 
-```{r best_ipos, eval=FALSE}
+```{r best_ipos}
 
-price_df %>% 
-  extract(id,into = "tase_id","(^[0-9]+)") %>% 
-  inner_join(stocks_ipo %>% 
-               filter(year == 2004) %>% 
-               select(tase_id) %>% 
-               distinct(), by = "tase_id")%>% 
-  select(tase_id, month, close) %>% 
-  filter(month <= 36) %>% 
-  group_by(tase_id) %>% 
-  arrange(month) %>% 
-  mutate(close = close / close[month == 1]) %>% 
-  ungroup() %>% 
-  ggplot(aes(month, close)) + 
-  geom_line(aes(color = tase_id), show.legend = FALSE) + 
-  geom_hline(yintercept = 1) + 
-  gghighlight::gghighlight(max(close) > 3)
 
 price_df %>% 
   select(id, month, close) %>% 
@@ -171,7 +155,9 @@ price_df %>%
   ungroup() %>% 
   ggplot(aes(month, close)) + 
   geom_line(aes(color = id), show.legend = FALSE) + 
-  gghighlight::gghighlight(max(close) > 3)
+  gghighlight::gghighlight(max(close) > 3 & min(close) >= 0.8) +
+  geom_hline(yintercept = 1, linetype = "dashed") + 
+  xlab("Months since IPO") + ylab(NULL) + ggtitle("IPO price trajectory")
 
 
 ```
@@ -229,13 +215,13 @@ temp_ret_1212 = temp_price_1212  %>%
   select(month, close_ret, index_ret) %>% 
   mutate(index_adjusted_ret = close_ret - index_ret)
 
-all.equal(temp_ret_1212 %>%
-            select(month,close_ret,index_adjusted_ret),
-          ret_df %>%
-            filter(id == "1212_1091065") %>%
-            filter(!adjustment_type == "control_ret") %>%
-            pivot_wider(names_from = "adjustment_type") %>%
-            select(month,close_ret,index_adjusted_ret = index_ret))
+# all.equal(temp_ret_1212 %>%
+#             select(month,close_ret,index_adjusted_ret),
+#           ret_df %>%
+#             filter(id == "1212_1091065") %>%
+#             filter(!adjustment_type == "control_ret") %>%
+#             pivot_wider(names_from = "adjustment_type") %>%
+#             select(month,close_ret,index_adjusted_ret = index_ret))
 
 
 # temp_ret_1212 %>%
@@ -267,6 +253,8 @@ temp_plot_df = temp_price_1212 %>%
 
 temp_plot_df %>% 
   filter(month < 40) %>%
+  mutate(category = factor(category)) %>% 
+  mutate(category = fct_relevel(category,"price")) %>% 
   ggplot(aes(month, value, color = name)) + 
   geom_line() + 
   facet_wrap(~category, scales = "free") + 
@@ -378,5 +366,23 @@ cum_ret_df %>%
 
 ```
 
+# Holding returns
+
+```{r}
+
+hold_ret = calculate_holding_return(ret_df)
+
+hold_ret %>% 
+  group_by(adjustment_type) %>% 
+  summarise(tibble(quantiles = seq(0.05,0.95,0.05),
+                   returns = quantile(hold_ret, seq(0.05,0.95,0.05),
+                                      na.rm = TRUE)), .groups = "drop") %>% 
+  ggplot(aes(as.character(quantiles), returns, fill = adjustment_type)) + 
+  geom_col(position = "dodge") + 
+  scale_y_continuous(labels = scales::percent_format()) + 
+  ylab(NULL) + xlab("Quantiles") + 
+  ggtitle("Distribution of 3 years holding returns")
+
+```
 
 
