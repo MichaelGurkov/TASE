@@ -150,7 +150,7 @@ hold_ret = calculate_holding_return(ret_df)
 ```
 
 
-```{r}
+```{r plot_ipo_waves}
 
 stocks_ipo %>% 
   count(year) %>% 
@@ -168,6 +168,16 @@ stocks_ipo %>%
 ```
 
 
+```{r plot_firms_churn}
+
+ret_df %>% 
+  filter(month < 120) %>% 
+  count(month,adjustment_type, sort = TRUE) %>%
+  tail()
+  ggplot(aes(month, n, fill = adjustment_type)) + 
+  geom_col(position = "dodge")
+
+```
 
 
 ```{r plot_cum_ret}
