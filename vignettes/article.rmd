@@ -13,7 +13,7 @@ bibliography: ipo_long_run.bib
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
-  collapse = TRUE,echo = FALSE,
+  collapse = TRUE,echo = FALSE,eval = FALSE,
   message = FALSE,warning = FALSE,
   comment = "#>"
 )
@@ -32,7 +32,7 @@ file.copy(paste0(Sys.getenv("USERPROFILE"),
 <!-- import_data -->
 
 
-```{r load_libraries}
+```{r load_libraries, eval=TRUE}
 
 library(tidyverse)
 
@@ -75,7 +75,7 @@ rm(market_df_filepath)
 
 ```
 
-```{r import_ipo_list}
+```{r import_ipo_list, eval=TRUE}
 
 stocks_ipo = read_csv(paste0(Sys.getenv("USERPROFILE"),
                              "\\OneDrive - Bank Of Israel",
@@ -88,29 +88,47 @@ stocks_ipo = stocks_ipo %>%
   mutate(tase_id = recode(tase_id,
                           `456` = "259"))
 
-ipo_trade_dur_df = market_df %>% 
-  group_by(tase_id, sec_id) %>% 
-  summarise(tibble(first_trade_year = year(min(date)),
-                   trade_years = (max(date) - min(date)) %/% dyears(1)),
-            .groups = "drop")
-
-stocks_ipo = stocks_ipo %>% 
-  left_join(ipo_trade_dur_df, by = "tase_id") %>% 
-  arrange(tase_id) %>% 
-  filter(!is.na(trade_years))
-
-
-
-num_ipo = stocks_ipo %>% 
-  count(tase_id, sort = TRUE)
+cpi_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                         "\\OneDrive - Bank Of Israel\\Data",
+                         "\\BoI\\monetary_data\\cpi.csv"),
+                  show_col_types = FALSE,
+                  skip = 15,col_names = c("date","cpi")) %>% 
+  mutate(date = dmy(date)) %>% 
+  group_by(year = year(date)) %>% 
+  summarise(cpi = mean(cpi), .groups = "drop") %>% 
+  filter(year >= 2000) %>% 
+  mutate(cpi = cpi / cpi[year == 2000])
 
 
 stocks_ipo = stocks_ipo %>% 
-  inner_join(num_ipo %>% 
-               filter(n == 1) %>% 
-               select(tase_id), by = "tase_id")
+  left_join(cpi_df, by = "year") %>% 
+  mutate(real_domestic_issue = domestic_issue / cpi) %>% 
+  select(-cpi)
 
-rm(ipo_trade_dur_df)
+
+# ipo_trade_dur_df = market_df %>% 
+#   group_by(tase_id, sec_id) %>% 
+#   summarise(tibble(first_trade_year = year(min(date)),
+#                    trade_years = (max(date) - min(date)) %/% dyears(1)),
+#             .groups = "drop")
+# 
+# stocks_ipo = stocks_ipo %>% 
+#   left_join(ipo_trade_dur_df, by = "tase_id") %>% 
+#   arrange(tase_id) %>% 
+#   filter(!is.na(trade_years))
+# 
+# 
+# 
+# num_ipo = stocks_ipo %>% 
+#   count(tase_id, sort = TRUE)
+# 
+# 
+# stocks_ipo = stocks_ipo %>% 
+#   inner_join(num_ipo %>% 
+#                filter(n == 1) %>% 
+#                select(tase_id), by = "tase_id")
+# 
+# rm(ipo_trade_dur_df)
 
 ```
 
@@ -192,99 +210,25 @@ rm(ipo_control_match_df,ta_125,ret_df, market_df)
 ```
 
 
+\section{Data}
 
-\section{LitReview}
-
-A seminal paper that analyses the long run performance of IPO is @RITTER1991
-The author studies a sample of US IPO's that went public during 1975-1984 period.
-The findings confirm that in the 3 years after going public the IPO's
-are underpriced relative to comparable traded firms (matched by size and industry)
-
-\section{Data and Methodology}
-
-
-The sample consists of `r length(unique(stocks_ipo$tase_id))` initial public offerings in `r paste(range(stocks_ipo$year), collapse = "-")` period. This is
-the entire universe of initial public offerings for this period.
-
-Figure \ref{plot_num_ipo} shows the distributions of the IPO over time. We can see that the IPO's come in "waves" meaning that there is a large concentration in certain periods. Namely, 2000, 2004-2007 and 2020-2021 seem to stand out. As can be seen in Figure \ref{plot_num_ipo_sector} the IPO "waves" are characterized by some dominant sectors. Thus the 2004-2007 IPO consist mainly of commerce, industry and real estate firms while 2020-2021 is mostly technology driven.
-
-```{r plot_IPO, fig.cap="Number of IPO's by year \\label{plot_num_ipo}"}
-
-ipo_stats_by_year = stocks_ipo %>% 
-  select(-comp_name_heb) %>% 
-  group_by(year) %>% 
-  summarise(num_ipo = length(domestic_issue),
-            total_domestic_issue = sum(domestic_issue), .groups = "drop")
-
-ipo_stats_by_year %>% 
-  ggplot(aes(year, num_ipo)) + 
-  geom_col() + 
-  xlab(NULL) + ylab(NULL) + ggtitle("Number of IPO comps")
-
-```
-
-
-
-
-```{r plot_IPO_by_sectors,fig.cap="Number of IPO's by year and sector \\label{plot_num_ipo_sector}"}
+```{r results='asis', eval=TRUE}
 
 stocks_ipo %>% 
-  count(year, tase_sector) %>% 
-  mutate(tase_sector = factor(tase_sector)) %>% 
-  mutate(tase_sector = fct_lump_n(tase_sector, n = 5)) %>% 
-  ggplot(aes(year, n)) + 
-  geom_col(aes(fill = tase_sector)) + 
-  scale_fill_viridis_d() + 
-  xlab(NULL) + ylab(NULL) + ggtitle("IPO by sector")
+  select(year, real_domestic_issue) %>% 
+  group_by(year) %>% 
+  summarise(num_ipo = length(real_domestic_issue),
+            real_total_issue = sum(real_domestic_issue),
+            .groups = "drop") %>% 
+  mutate(real_total_issue = round(real_total_issue,2)) %>% 
+  rename(Year = year, `Number of IPO's` = num_ipo,
+         `Real proceeds` = real_total_issue) %>% 
+  as_data_frame() %>% 
+  stargazer(summary = FALSE,header = FALSE, rownames = FALSE,
+            title = "Distribution of IPO's by year")
 
 ```
 
-
-To evaluate the long-run performance of initial public offerings, two measures are used: (1) cumulative average adjusted returns (CAR) calculated with monthly portfolio rebalancing, where the adjusted returns are computed using several different benchmarks, and (2) 3-year buy and hold returns for both the IPOs and a set of matching firms.  The matching firms are represented by TASE listed securities that are to some extent matched by industry and market capitalization with each IPO.
-
-The cumulative return is calculated on a monthly basis where months are defined as successive 21-trading-day periods relative to the IPO date. Thus, month 1 consists of event days 1-21, month 2 consists of event days 22-43, etc.
-
-Benchmark adjusted returns are calculated as a difference between monthly raw
-return and the monthly return of benchmark index (TA 125).
-Thus, the benchmark return is defined as:
-
-\begin{equation*}
-  ar_{i,t} = r_{i,t} - r_{benchmark,t}
-\end{equation*}
-
-and the adjusted return for the portfolio of N stocks is the simple average
-of the adjusted returns of the individual stocks.
-
-\begin{equation*}
-  AR_{t} = \frac{1}{N} \sum_{i = 1}^{N}ar_{i,t}
-\end{equation*}
-
-The cumulative benchmark-adjusted aftermarket performance from event
-month q to event month s is the summation of the average benchmark-adjusted returns:
-
-\begin{equation*}
-  CAR_{q,s} = \sum_{t = q}^{s}AR_{t}
-\end{equation*}
-
-When a firm in portfolio p is delisted from TASE, the portfolio
-return for the next month is an equally-weighted average of the remaining firms in the portfolio. The cumulative market-adjusted return for months 1 to 36, $CAR_{1,36}$, thus involves monthly rebalancing, with the proceeds of a delisted firm equally allocated among the surviving members of the portfolio p in each subsequent month.For the month in which an IPO is delisted, the return for both the IPO and the benchmark includes just the days from the start of the month until the delisting.
-
-Following @RITTER1991 I also compute 3-year holding period returns, as an alternative to the use of cumulative average benchmark-adjusted returns, which implicitly assumes monthly portfolio rebalancing. The 3-year holding period is defined as
-
-\begin{equation*}
-  R_{i} = \prod_{t=1}^{36}(1+r_{it})
-\end{equation*}
-
-```{r table_ipo, results='asis'}
-
-ipo_stats_by_year %>% 
-  mutate(year = as.character(year)) %>% 
-  rename(Year = year, `No. of IPO's` = num_ipo,
-         `Total gross proceeds` = total_domestic_issue) %>% 
-  as.data.frame() %>% 
-  stargazer(header = FALSE,summary = FALSE,digits = 0, rownames = FALSE)
-
-```
 
 
 \section{Results}
@@ -470,9 +414,6 @@ cum_ret_df_robust = cum_ret_df_robust  %>%
 
 ```
 
-
-
- * \textcolor{red}{start with average first week price}
  * \textcolor{red}{calculate abnormal return using CAPM residuals}
 
 
@@ -481,3 +422,57 @@ cum_ret_df_robust = cum_ret_df_robust  %>%
 \section{References}
 
 <div id="refs"></div>
+
+\section{Appendix}
+
+The return measures used in the paper are:
+
+\begin{itemize}
+  \item
+  Cumulative average adjusted returns (CAR)
+  \item
+  Buy and hold abnormal returns (BHAR)
+  \item
+  Calendar time abnormal returns (CTAR)
+\end{itemize}
+
+
+\subsubsection{CAR}
+
+The cumulative return is calculated on a monthly basis where months are defined as successive 21-trading-day periods relative to the IPO date. Thus, month 1 consists of event days 1-21, month 2 consists of event days 22-43, etc.
+
+Benchmark adjusted returns are calculated as a difference between monthly raw
+return and the monthly return of benchmark index.
+Thus, the benchmark return is defined as:
+
+\begin{equation*}
+  ar_{i,t} = r_{i,t} - r_{benchmark,t}
+\end{equation*}
+
+and the adjusted return for the portfolio of N stocks is the simple average
+of the adjusted returns of the individual stocks.
+
+\begin{equation*}
+  AR_{t} = \frac{1}{N} \sum_{i = 1}^{N}ar_{i,t}
+\end{equation*}
+
+
+The cumulative benchmark-adjusted aftermarket performance from event
+month q to event month s is the summation of the average benchmark-adjusted returns:
+
+\begin{equation*}
+  CAR_{q,s} = \sum_{t = q}^{s}AR_{t}
+\end{equation*}
+
+\subsubsection{BHAR}
+
+The buy-and-hold abnormal return (BHAR) is defined as follows:
+
+\begin{equation*}
+  BHAR_{i,T} = \left[\prod_{t = 1}^{T}(1 + r_{i,t}) - 1\right] - \left[\prod_{t = 1}^{T}(1 + r_{m,t}) - 1\right]
+\end{equation*}
+
+Where:
+$r_{i,t}$ - the return of firm $i$ in month $t$
+
+$r_{m,t}$ - the return of corresponding benchmark in month $t$
