@@ -1,103 +1,3 @@
-#' This function prepares the financial reports variables
-#'
-#' @import dplyr
-#'
-make_finrep_df = function(raw_df, selected_x_vars = NULL,
-                          filter_df = FALSE){
-
-  x_vars = c(
-    "leverage",
-    "capex_to_revenue",
-    "roa",
-    "free_cashflow",
-    "intangible"
-  )
-
-  finrep_df = raw_df %>%
-    rename_all(tolower)
-
-  finrep_df = finrep_df %>%
-    select(-starts_with("entity")) %>%
-    mutate(across(-c(starts_with("tase"),"year") &
-                    where(is.character),
-                  as.numeric)) %>%
-    mutate(leverage = total_liabilities / total_assets) %>%
-    mutate(capex_to_revenue = capex_cashflow / revenue) %>%
-    mutate(roa = operating_profit / total_assets) %>%
-    mutate(free_cashflow = operating_cashflow / total_assets)
-
-
-  if(!is.null(selected_x_vars)){
-
-    finrep_df = finrep_df %>%
-      select(date, tase_id, any_of(selected_x_vars))
-
-  }
-
-
-
-  if(filter_df){
-
-    finrep_df = finrep_df %>%
-      filter(complete.cases(.)) %>%
-      filter(across(where(is.numeric), is.finite))
-
-  }
-
-
-  return(finrep_df)
-
-
-
-
-
-
-}
-
-
-#' @title Prepare financial reports data
-#'
-#' @details This function prepares the financial reports
-#' variables data from Oracle format. The original values are given in thousands ILS
-#' and are scaled down by 1000 so that the result is in millions ILS
-#'
-#' @import dplyr
-#'
-make_finrep_oracle_df = function(raw_oracle_df,
-                                 raw_finrep_vars,
-                                 final_finrep_vars){
-
-
-  finrep_df = raw_oracle_df %>%
-    select(tase_id, date = date_yearqtr, any_of(raw_finrep_vars))
-
-  finrep_df = finrep_df %>%
-    mutate(across(-c("tase_id", "date"),as.numeric))
-
-  finrep_df = finrep_df %>%
-    mutate(across(where(is.numeric), ~ . * 10 ^ (-3)))
-
-  finrep_df = finrep_df %>%
-    mutate(leverage = total_liabilities / total_assets) %>%
-    mutate(capex_to_revenue =
-             investing_activities / total_revenue) %>%
-    mutate(roa = operating_profit / total_assets) %>%
-    mutate(free_cashflow = operating_activities / total_assets)
-
-  finrep_df = finrep_df %>%
-    select(tase_id, date, any_of(final_finrep_vars))
-
-
-
-  return(finrep_df)
-
-
-
-
-
-
-}
-
 
 #' This function prepares the market variable variables
 #'
@@ -135,44 +35,6 @@ make_market_df = function(df){
 
 
  return(market_df)
-
-
-}
-
-
-#' This function merges and cleans data to construct reg df
-#'
-#' @import dplyr
-#'
-#' @param raw_data list of finrep and market data
-#'
-#'
-make_reg_df = function(market_df, finrep_df,
-                       final_vars = NULL){
-
-  aggregated_market_df = market_df %>%
-    select(-sec_id) %>%
-    group_by(tase_id, date) %>%
-    summarise(across(everything(), ~mean(.,na.rm = TRUE)),
-              .groups = "drop")
-
-  merged_df = aggregated_market_df %>%
-    full_join(finrep_df, by = c("tase_id","date"))
-
-
-  df = merged_df %>%
-    mutate(mb = market_value / total_assets) %>%
-    mutate(volume = log(volume))
-
-  if(!is.null(final_vars)){
-
-    df = df %>%
-      select(tase_id, date, any_of(final_vars))
-
-  }
-
-  return(df)
-
 
 
 }
@@ -281,7 +143,7 @@ make_price_df = function(market_df,ipo_control_match_df,ta_125 ){
 
   price_df = price_df %>%
     group_by(id) %>%
-    mutate(month = as.numeric(date - date[date == min(date)]) %/% 22 + 1) %>%
+    mutate(month = as.numeric(date - date[date == min(date)]) %/% 22) %>%
     group_by(id, month) %>%
     summarise(across(c("close","index","control"), ~mean(., na.rm = TRUE)),
               .groups = "drop")

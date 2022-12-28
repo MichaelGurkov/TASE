@@ -13,7 +13,7 @@ bibliography: ipo_long_run.bib
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
-  collapse = TRUE,echo = FALSE,eval = FALSE,
+  collapse = TRUE,echo = FALSE,
   message = FALSE,warning = FALSE,
   comment = "#>"
 )
@@ -32,7 +32,7 @@ file.copy(paste0(Sys.getenv("USERPROFILE"),
 <!-- import_data -->
 
 
-```{r load_libraries, eval=TRUE}
+```{r load_libraries}
 
 library(tidyverse)
 
@@ -60,6 +60,21 @@ ta_125 = read_csv(paste0(Sys.getenv("USERPROFILE"),
 
 ```
 
+```{r import_tase_sector}
+
+tase_sector_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                                 "\\OneDrive - Bank Of Israel\\Data",
+                                 "\\TASE liquidity\\michael files",
+                                 "\\tase_sector_classification.csv"),
+                          show_col_types = FALSE) %>% 
+  select(-comp_name_hebrew) %>% 
+  filter(!tase_sector == "#N/A") %>% 
+  mutate(date = as.yearmon(date, format = "%d/%m/%Y")) %>% 
+  mutate(across(-date, as.character)) %>% 
+  select(-tase_sub_sector)
+
+```
+
 ```{r import_market_df, cache=TRUE}
 
 market_df_filepath = paste0(Sys.getenv("USERPROFILE"),
@@ -75,7 +90,7 @@ rm(market_df_filepath)
 
 ```
 
-```{r import_ipo_list, eval=TRUE}
+```{r import_ipo_list}
 
 stocks_ipo = read_csv(paste0(Sys.getenv("USERPROFILE"),
                              "\\OneDrive - Bank Of Israel",
@@ -138,17 +153,6 @@ stocks_ipo = stocks_ipo %>%
 
 ```{r match_control_comps}
 
-tase_sector_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                                 "\\OneDrive - Bank Of Israel\\Data",
-                                 "\\TASE liquidity\\michael files",
-                                 "\\tase_sector_classification.csv"),
-                          show_col_types = FALSE) %>% 
-  select(-comp_name_hebrew) %>% 
-  filter(!tase_sector == "#N/A") %>% 
-  mutate(date = as.yearmon(date, format = "%d/%m/%Y")) %>% 
-  mutate(across(-date, as.character)) %>% 
-  select(-tase_sub_sector)
-
 
 ipo_control_match_df = match_control_group(market_df,
                                            tase_sector_df,stocks_ipo)
@@ -157,8 +161,6 @@ rm(tase_sector_df)
 
 ```
 
-
-
 ```{r price_df}
 
 price_df = make_price_df(market_df,ipo_control_match_df,ta_125)
@@ -166,25 +168,16 @@ price_df = make_price_df(market_df,ipo_control_match_df,ta_125)
 
 ```
 
-
-
 ```{r cumulative_returns}
 
 ret_df = calculate_return_df(price_df)
-
-# ret_df = ret_df %>% 
-#   mutate(tase_id = str_extract(id,"^[0-9]+")) %>% 
-#   left_join(stocks_ipo %>% 
-#               select(tase_id, tase_sector), by = "tase_id") %>% 
-#   select(-tase_id)
 
 cum_ret_df = ret_df %>% 
   calculate_cum_return()
 
 ```
 
-
-```{r holding_returns}
+```{r holding_returns, eval=FALSE}
 
 hold_ret = calculate_holding_return(ret_df)
 
@@ -212,7 +205,7 @@ rm(ipo_control_match_df,ta_125,ret_df, market_df)
 
 \section{Data}
 
-```{r results='asis', eval=TRUE}
+```{r ipo_by_year, results='asis'}
 
 stocks_ipo %>% 
   select(year, real_domestic_issue) %>% 
@@ -230,41 +223,20 @@ stocks_ipo %>%
 ```
 
 
+```{r ipo_by_sector, results='asis'}
 
-\section{Results}
-
-
-<!-- check whether most of the firms dropped? -->
-
-<!-- plot attrition by years -->
-
-```{r plot_attrition, eval=FALSE}
-
-
-
-
-```
-
-```{r motivating_example, eval=FALSE}
-
-
-market_df %>% 
-  select(tase_id, sec_id, date, close_adjusted) %>% 
-  inner_join(stocks_ipo %>% 
-               select(tase_id) %>% 
-               slice_sample(n = 15)) %>% 
-  left_join(ta_125, by = "date") %>% 
-  group_by(tase_id, sec_id) %>% 
-  arrange(date) %>% 
-  mutate(across(c("close_adjusted", "ta_125"), ~./.[1])) %>% 
-  ungroup() %>% 
-  pivot_longer(-c(tase_id, sec_id, date)) %>% 
-  ggplot(aes(date, value, color = name)) + 
-  geom_line() + 
-  facet_wrap(~tase_id, scales = "free")
-  ggplot(aes(date))
-
-
+stocks_ipo %>% 
+  select(tase_sector, real_domestic_issue) %>% 
+  group_by(tase_sector) %>% 
+  summarise(num_ipo = length(real_domestic_issue),
+            real_total_issue = sum(real_domestic_issue),
+            .groups = "drop") %>% 
+  mutate(real_total_issue = round(real_total_issue,2)) %>% 
+  rename(Sector = tase_sector, `Number of IPO's` = num_ipo,
+         `Real proceeds` = real_total_issue) %>% 
+  as_data_frame() %>% 
+  stargazer(summary = FALSE,header = FALSE, rownames = FALSE,
+            title = "Distribution of IPO's by sector")
 
 ```
 
@@ -276,8 +248,6 @@ cum_ret_df %>%
   geom_line() +
   geom_hline(yintercept = 0, linetype = "dashed") +
   scale_y_continuous(labels = scales::percent_format()) +
-  facet_wrap( ~ summary_measure, scales = "free") +
-  # scale_x_continuous(breaks = seq(0,10,2)) +
   xlab("Months since IPO") + ylab(NULL) +
   ggtitle("Cumulative returns since IPO") +
   theme(legend.title = element_blank())
@@ -287,7 +257,16 @@ cum_ret_df %>%
 ```
 
 
-```{r plot_hold_ret}
+
+\section{Results}
+
+
+<!-- check whether most of the firms dropped? -->
+
+<!-- plot attrition by years -->
+
+
+```{r plot_hold_ret, eval=FALSE}
 
 q_vec = seq(0.05,0.95, 0.05)
 
@@ -308,7 +287,7 @@ rm(q_vec)
 \subsection {Aftermarket performance by sector}
 
 
-```{r plot_returns_by_sector}
+```{r plot_returns_by_sector, eval=FALSE}
 
 hold_ret %>%
   filter(complete.cases(.)) %>% 
@@ -338,7 +317,7 @@ hold_ret %>%
 
 \subsection {Aftermarket performance by year of Issuance}
 
-```{r plot_returns_by_year}
+```{r plot_returns_by_year, eval=FALSE}
 
 
 hold_ret %>%
