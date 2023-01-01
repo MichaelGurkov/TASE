@@ -10,7 +10,18 @@ calculate_return_df = function(price_df){
                   ~ . /lag(.) - 1,
                   .names = "{.col}_ret")) %>%
     ungroup() %>%
-    select(-c("close","index","control"))
+    select(-c("close","index","control")) %>%
+    filter(complete.cases(.))
+
+  return(ret_df)
+
+
+}
+
+
+#' This function calculates cumulative return
+#'
+calculate_cum_return = function(ret_df){
 
   adj_ret_df = ret_df %>%
     pivot_longer(c("index_ret","control_ret"),
@@ -23,21 +34,10 @@ calculate_return_df = function(price_df){
                 values_from = "adjusted_ret") %>%
     pivot_longer(-c(id,month),names_to = "adjustment_type")
 
-
-  return(adj_ret_df)
-
-
-}
-
-
-#' This function calculates cumulative return
-#'
-calculate_cum_return = function(ret_df){
-
-  avg_adj_ret_df = ret_df %>%
+  avg_adj_ret_df = adj_ret_df %>%
     group_by(month, adjustment_type) %>%
     summarise(value = mean(value, na.rm = TRUE),
-              comps_num = length(id), .groups = "drop")
+              num_comps = length(id), .groups = "drop")
 
 
   cum_ret_df = avg_adj_ret_df  %>%
@@ -63,18 +63,19 @@ calculate_cum_return = function(ret_df){
 #'
 calculate_holding_return = function(ret_df){
 
-  three_year_id = ret_df %>%
-    filter(adjustment_type == "close_ret") %>%
-    group_by(id) %>%
-    summarise(len = length(month), .groups = "drop") %>%
-    filter(len >= 36) %>%
-    select(id)
+ hold_ret = ret_df %>%
+   group_by(id) %>%
+   arrange(month) %>%
+   mutate(across(ends_with("ret"),~ cumprod(1 + .) - 1)) %>%
+   ungroup()
 
-  hold_ret = ret_df %>%
-    inner_join(three_year_id, by = "id") %>%
-    filter(month <= 36) %>%
-    group_by(id,adjustment_type) %>%
-    summarise(hold_ret = prod(1 + value) - 1, .groups = "drop")
+ hold_ret =  hold_ret %>%
+   group_by(month) %>%
+   summarise(across(ends_with("ret"), ~mean(., na.rm = TRUE)),
+             num_comps = length(id),
+             .groups = "drop") %>%
+   mutate(hold_ret = close_ret - control_ret) %>%
+   select(month, hold_ret, num_comps)
 
 
   return(hold_ret)

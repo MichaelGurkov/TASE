@@ -180,21 +180,9 @@ cum_ret_df = ret_df %>%
 
 ```
 
-```{r holding_returns, eval=FALSE}
+```{r holding_returns}
 
 hold_ret = calculate_holding_return(ret_df)
-
-hold_ret = hold_ret %>% 
-  mutate(tase_id = str_extract(id,"^[0-9]+")) %>% 
-  left_join(stocks_ipo %>% 
-              select(tase_id, tase_sector), by = "tase_id")
-
-hold_ret = hold_ret %>% 
-  left_join(stocks_ipo %>%
-              select(tase_id, year), by = "tase_id")
-
-hold_ret = hold_ret %>% 
-  select(-tase_id)
 
 ```
 
@@ -313,7 +301,7 @@ cum_ret_df %>%
   filter(month %in% c(36, 60, 96)) %>% 
   mutate(value = paste0(round(value * 100,2),"%")) %>% 
   pivot_wider(names_from = adjustment_type) %>% 
-  rename(Month = month, `Number of IPOS` = comps_num,
+  rename(Month = month, `Number of IPOS` = num_comps,
          `Index adjusted returns` = `Abnormal (index adjusted) returns`) %>% 
   as_data_frame() %>% 
   stargazer(header = FALSE, summary = FALSE, label = "car_table",
@@ -321,6 +309,24 @@ cum_ret_df %>%
 
 
 ```
+
+
+
+```{r bhar_table, results='asis'}
+
+hold_ret %>% 
+  filter(month %in% c(36, 60, 96)) %>% 
+  mutate(hold_ret = paste0(round(hold_ret * 100,2),"%")) %>% 
+  rename(Month = month, `Number of IPOS` = num_comps,
+         `Buy-and-hold abnormal returns` = hold_ret) %>% 
+  as_data_frame() %>% 
+  stargazer(header = FALSE, summary = FALSE, label = "bhar_table",
+            rownames = FALSE)
+
+
+
+```
+
 
 
 \textcolor{red}{calculate "forward" returns}
