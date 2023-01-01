@@ -65,11 +65,11 @@ ta_125 = read_csv(paste0(Sys.getenv("USERPROFILE"),
 tase_sector_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
                                  "\\OneDrive - Bank Of Israel\\Data",
                                  "\\TASE liquidity\\michael files",
-                                 "\\tase_sector_classification.csv"),
+                                 "\\tase_sector_and_sub_sector_classification.csv"),
                           show_col_types = FALSE) %>% 
-  select(-comp_name_hebrew) %>% 
+  select(-comp_name_heb) %>% 
   filter(!tase_sector == "#N/A") %>% 
-  mutate(date = as.yearmon(date, format = "%d/%m/%Y")) %>% 
+  mutate(date = as.yearmon(date, format = "%m/%d/%Y")) %>% 
   mutate(across(-date, as.character)) %>% 
   select(-tase_sub_sector)
 
@@ -80,7 +80,7 @@ tase_sector_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
 market_df_filepath = paste0(Sys.getenv("USERPROFILE"),
                                 "\\OneDrive - Bank Of Israel\\Data",
                                 "\\TASE liquidity\\Rdata files",
-                                "\\market_data_2022-12-12.rds")
+                                "\\market_data_2023-01-01.rds")
 
 market_df = import_boi_market_data(market_df_filepath) %>% 
   calculate_adjusted_price() %>% 
@@ -153,11 +153,14 @@ stocks_ipo = stocks_ipo %>%
 
 ```{r match_control_comps}
 
-
 ipo_control_match_df = match_control_group(market_df,
-                                           tase_sector_df,stocks_ipo)
+                                           tase_sector_df,stocks_ipo,
+                                           threshold = 0.2)
 
-rm(tase_sector_df)
+# annual_match_df = match_control_group_annual_mcap(market_df,
+#                                            tase_sector_df,stocks_ipo,
+#                                            threshold = 0.2)
+
 
 ```
 
@@ -203,7 +206,27 @@ rm(ipo_control_match_df,ta_125,ret_df, market_df)
 ```
 
 
+
+```{r text_params}
+
+num_ipo = nrow(stocks_ipo)
+
+num_ipo_waves =  stocks_ipo %>% 
+  count(year,name = "num_ipo") %>% 
+  filter(year %in% c(2000,2005:2007,2020:2022)) %>% 
+  summarise(total = sum(num_ipo)) %>% 
+  pull(total)
+
+ipo_waves_share = round((num_ipo_waves / num_ipo) * 100,2)
+
+data_period = paste(range(stocks_ipo$year), collapse = "-")
+
+```
+
+
 \section{Data}
+
+The sample consists of `r num_ipo` Initial Public Offerings issued to the public during `r data_period` period on TASE. The data includes the date of the issue (month and year), the issue size and the sector of the issuing company. Table \ref{ipo_num} presents the distribution of the IPO by year in terms of the number of offers and issue size (deflated by CPI). The data shows that the IPO's come in "waves" namely that the distribution of IPOs is clustered around certain years. In my sample 2000, 2005-2007 and 2020-2022 can be characterized as "buoyant" years with high IPO activity, these periods encompass `r num_ipo_waves` out of `r num_ipo` (`r paste0(ipo_waves_share,"%")`). Table \ref{ipo_by_sector} shows the distribution of the IPOs by sector. The dominant sectors are: commerce, industry, real estate and tech. Figure \ref{ipo_sector} shows that 2000 period consisits mainly of industry and commerce, 2005-2007 period is characterized by real estate and industry and 2020-2022 period is preoccupied with tech sector.
 
 ```{r ipo_by_year, results='asis'}
 
@@ -218,7 +241,8 @@ stocks_ipo %>%
          `Real proceeds` = real_total_issue) %>% 
   as_data_frame() %>% 
   stargazer(summary = FALSE,header = FALSE, rownames = FALSE,
-            title = "Distribution of IPO's by year")
+            title = "Distribution of IPO's by year",
+            label = "ipo_num")
 
 ```
 
@@ -236,12 +260,38 @@ stocks_ipo %>%
          `Real proceeds` = real_total_issue) %>% 
   as_data_frame() %>% 
   stargazer(summary = FALSE,header = FALSE, rownames = FALSE,
-            title = "Distribution of IPO's by sector")
+            title = "Distribution of IPO's by sector",
+            label = "ipo_by_sector")
 
 ```
 
 
-```{r plot_cum_ret}
+```{r plot_ipo_by_industry, fig.cap="IPOs by year and sector\\label{ipo_sector}"}
+
+stocks_ipo %>% 
+  count(year, tase_sector) %>% 
+  ggplot(aes(year,n ,fill = tase_sector)) + 
+  geom_col() + 
+  scale_fill_viridis_d() + 
+  xlab(NULL) + ylab(NULL) + ggtitle("IPO's by year and sector") + 
+  theme(legend.title = element_blank())
+
+```
+
+\section{Methodology}
+
+I use three measures in order to evaluate the long run performance of the IPOs:
+cumulative abnormal returns (CARs), buy-and-hold abnormal returns (BHARs) and calendar-time abnormal return (CTARs). I measure the after market period in two time points : 36 months and 60 months after the first trading day (so that return is measured from first closing price) where month is defined as 21 trading days period. The excessive returns are calculated as benchmark adjusted returns where the benchmarks are: (1) TASE TA 125 market index and (2) control firms matched by sector and size.
+
+
+\section{Results}
+
+Figure \ref{car_plot} presents the cumulative raw returns as well as cumulative abnormal returns (CARs) relative to two benchmarks: market index and control group (firms matched on industry and market capitalization). A summary of CARs for the
+horizon of 36,60 and 96 months is presented in Table ref{car_table}. The 
+cumulative abnormal returns (as well as raw cumulative returns) are negative across all horizons.
+
+
+```{r plot_cum_ret, fig.cap="Cumulative abnormal returns\\label{car_plot}"}
 
 cum_ret_df %>% 
   ggplot(aes(month, value, color = adjustment_type)) +
@@ -257,8 +307,25 @@ cum_ret_df %>%
 ```
 
 
+```{r car_table, results='asis'}
 
-\section{Results}
+cum_ret_df %>% 
+  filter(month %in% c(36, 60, 96)) %>% 
+  mutate(value = paste0(round(value * 100,2),"%")) %>% 
+  pivot_wider(names_from = adjustment_type) %>% 
+  rename(Month = month, `Number of IPOS` = comps_num,
+         `Index adjusted returns` = `Abnormal (index adjusted) returns`) %>% 
+  as_data_frame() %>% 
+  stargazer(header = FALSE, summary = FALSE, label = "car_table",
+            rownames = FALSE)
+
+
+```
+
+
+\textcolor{red}{calculate "forward" returns}
+
+\textcolor{red}{calculate returns matched by size only}
 
 
 <!-- check whether most of the firms dropped? -->
@@ -404,6 +471,8 @@ cum_ret_df_robust = cum_ret_df_robust  %>%
 
 \section{Appendix}
 
+\subsection{Returns calculation}
+
 The return measures used in the paper are:
 
 \begin{itemize}
@@ -455,3 +524,10 @@ Where:
 $r_{i,t}$ - the return of firm $i$ in month $t$
 
 $r_{m,t}$ - the return of corresponding benchmark in month $t$
+
+
+\subsection{Control firms matching procedure}
+In order to match a control firm for each of the `r num_ipo` IPOs in `r data_period` for each IPO comp I take the market value of the IPO on the end 
+of the first trading day and match it with the closest market cap company in the
+same sector on that day. I allow for maximum difference of 20% in the market cap.
+

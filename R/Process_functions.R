@@ -93,6 +93,65 @@ match_control_group = function(market_df, tase_sector_df,
 }
 
 
+#' This function matches delisted and control companies by
+#' sector and annualiesed market cap
+#' @param threshold allowed percentage difference between delisted
+#'  and control comps
+#'
+#'
+match_control_group_annual_mcap = function(market_df, tase_sector_df,
+                               stocks_ipo,threshold = 0.1){
+
+  tase_sector_df = tase_sector_df %>%
+    mutate(year = year(date)) %>%
+    select(year,tase_id, tase_sector) %>%
+    distinct()
+
+  ipo_control_match_df = market_df %>%
+    select(tase_id, sec_id, date, market_value) %>%
+    inner_join(stocks_ipo %>%
+                 select(tase_id), by = "tase_id") %>%
+    mutate(year = year(date)) %>%
+    group_by(tase_id, sec_id) %>%
+    filter(year == min(year)) %>%
+    group_by(tase_id, sec_id, year) %>%
+    summarise(market_value = mean(market_value, na.rm = TRUE),
+              .groups = "drop") %>%
+    filter(!is.na(market_value)) %>%
+    left_join(tase_sector_df, by = c("tase_id","year")) %>%
+    filter(!is.na(tase_sector)) %>%
+    unite(id, tase_id:sec_id)
+
+  target_market_df = market_df %>%
+    mutate(year = year(date)) %>%
+    group_by(tase_id, sec_id, year) %>%
+    summarise(market_value = mean(market_value, na.rm = TRUE),
+              .groups = "drop") %>%
+    filter(complete.cases(.)) %>%
+    left_join(tase_sector_df, by = c("tase_id","year")) %>%
+    unite(id, tase_id:sec_id)
+
+
+
+  matched_df = ipo_control_match_df %>%
+     left_join(target_market_df,
+              by = c("year", "tase_sector"),
+              suffix = c("_ipo","_control")) %>%
+    group_by(id_ipo) %>%
+    mutate(value_diff = abs(market_value_ipo / market_value_control - 1)) %>%
+    arrange(value_diff) %>%
+    slice(2) %>%
+    ungroup() %>%
+    filter(value_diff <= threshold)
+
+
+  return(matched_df)
+
+
+}
+
+
+
 #' This functions calculates adjusted price
 #'
 calculate_adjusted_price = function(df,
@@ -153,4 +212,5 @@ make_price_df = function(market_df,ipo_control_match_df,ta_125 ){
 
 
 }
+
 

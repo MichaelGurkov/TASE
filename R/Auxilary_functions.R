@@ -36,7 +36,8 @@ calculate_cum_return = function(ret_df){
 
   avg_adj_ret_df = ret_df %>%
     group_by(month, adjustment_type) %>%
-    summarise(value = mean(value, na.rm = TRUE), .groups = "drop")
+    summarise(value = mean(value, na.rm = TRUE),
+              comps_num = length(id), .groups = "drop")
 
 
   cum_ret_df = avg_adj_ret_df  %>%
