@@ -362,6 +362,40 @@ rm(q_vec)
 \subsection {Aftermarket performance by sector}
 
 
+```{r holding_returns_by_sector}
+
+sector_holding_returns = ret_df %>%
+   group_by(id, tase_sector) %>%
+   arrange(month) %>%
+   mutate(across(ends_with("ret"),~ cumprod(1 + .) - 1)) %>%
+   group_by(month, tase_sector) %>%
+   summarise(across(ends_with("ret"), ~mean(., na.rm = TRUE)),
+             num_comps = length(id),
+             .groups = "drop") %>%
+   mutate(hold_ret = close_ret - control_ret) %>%
+   select(month, hold_ret, num_comps, tase_sector)
+
+```
+
+```{r table_bhar_by_sector, results='asis'}
+
+sector_holding_returns %>% 
+  filter(month %in% c(36, 60, 96)) %>% 
+  select(hold_ret, tase_sector, month) %>% 
+  mutate(hold_ret = round(hold_ret * 100,2)) %>% 
+  pivot_wider(names_from = month, values_from = hold_ret) %>% 
+  rename_with(.cols = -tase_sector,.fn = ~paste(.,"months")) %>% 
+  mutate(tase_sector = str_to_title(tase_sector)) %>% 
+  mutate(tase_sector = str_replace(tase_sector,"_"," ")) %>% 
+  mutate(tase_sector = str_replace(tase_sector,"Fin","Fin.")) %>% 
+  mutate(tase_sector = str_replace(tase_sector,"Oil gas","Oil and gas")) %>% 
+  stargazer(header = FALSE, summary = FALSE, label = "sector_bhar_table",
+            rownames = FALSE)
+
+```
+
+
+
 ```{r plot_returns_by_sector, eval=FALSE}
 
 hold_ret %>%
