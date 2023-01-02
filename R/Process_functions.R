@@ -178,7 +178,8 @@ calculate_adjusted_price = function(df,
 #' This function makes price df by joining price data for securities and
 #' benchmarks
 #'
-make_price_df = function(market_df,ipo_control_match_df,ta_125 ){
+make_price_df = function(market_df,ipo_control_match_df,ta_125,
+                         tase_sector_df){
 
   benchmark_df =  market_df %>%
     select(tase_id, sec_id,date, control = close_adjusted) %>%
@@ -190,11 +191,21 @@ make_price_df = function(market_df,ipo_control_match_df,ta_125 ){
 
 
   price_df = market_df %>%
-    select(tase_id, sec_id,date, close = close_adjusted) %>%
     inner_join(stocks_ipo %>%
-                 select(tase_id),by = "tase_id") %>%
+                 select(tase_id),by = "tase_id")
+
+  price_df = price_df %>%
+    select(tase_id, sec_id,date, close = close_adjusted) %>%
+    mutate(date_yearmon = as.yearmon(date)) %>%
+    left_join(tase_sector_df,
+              by = c("date_yearmon" = "date", "tase_id")) %>%
+    select(-date_yearmon)
+
+  price_df = price_df %>%
     left_join(ta_125 %>%
-                rename(index = ta_125), by = "date") %>%
+                rename(index = ta_125), by = "date")
+
+  price_df = price_df %>%
     mutate(id = paste(tase_id, sec_id, sep = "_")) %>%
     left_join(benchmark_df,by = c("date", "id")) %>%
     select(-c(tase_id,sec_id,id_control))
@@ -205,6 +216,7 @@ make_price_df = function(market_df,ipo_control_match_df,ta_125 ){
     mutate(month = as.numeric(date - date[date == min(date)]) %/% 22) %>%
     group_by(id, month) %>%
     summarise(across(c("close","index","control"), ~mean(., na.rm = TRUE)),
+              tase_sector = unique(tase_sector),
               .groups = "drop")
 
   return(price_df)

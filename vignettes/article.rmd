@@ -120,6 +120,7 @@ stocks_ipo = stocks_ipo %>%
   mutate(real_domestic_issue = domestic_issue / cpi) %>% 
   select(-cpi)
 
+rm(cpi_df)
 
 # ipo_trade_dur_df = market_df %>% 
 #   group_by(tase_id, sec_id) %>% 
@@ -166,7 +167,8 @@ ipo_control_match_df = match_control_group(market_df,
 
 ```{r price_df}
 
-price_df = make_price_df(market_df,ipo_control_match_df,ta_125)
+price_df = make_price_df(market_df,ipo_control_match_df,ta_125,
+                         tase_sector_df)
 
 
 ```
