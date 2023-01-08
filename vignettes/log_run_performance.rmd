@@ -140,6 +140,23 @@ rm(cpi_df)
 ```
 
 
+# Desc Stats
+
+```{r plot_ipo}
+
+stocks_ipo %>% 
+  count(year) %>% 
+  pull(n) %>% 
+  mean()
+  ggplot(aes(year, n)) + 
+  geom_col()
+
+
+
+```
+
+
+
 <!-- Matching by sector -->
 
 
