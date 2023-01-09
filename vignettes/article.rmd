@@ -335,6 +335,8 @@ hold_ret %>%
 
 \textcolor{red}{calculate returns matched by size only}
 
+\textcolor{red}{calculate liquidity by size and index}
+
 
 <!-- check whether most of the firms dropped? -->
 
