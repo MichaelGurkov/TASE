@@ -362,46 +362,40 @@ rm(q_vec)
 
 ```{r plot_returns_by_sector, eval=FALSE}
 
-hold_ret %>%
-  filter(complete.cases(.)) %>% 
-  group_by(tase_sector, adjustment_type) %>% 
-  summarise(avg_ret = mean(hold_ret), .groups = "drop") %>% 
-  ggplot(aes(x = avg_ret,
-             y = tidytext::reorder_within(tase_sector,avg_ret,
-                                          adjustment_type))) + 
-  geom_col(aes(fill = (avg_ret >= 0)),position = "dodge", width = 0.5,
-           show.legend = FALSE) + 
-  geom_vline(xintercept = 0, linetype = "dashed") + 
-  tidytext::scale_y_reordered() + 
-  scale_x_continuous(labels = scales::percent_format()) + 
-  facet_wrap(~adjustment_type, scales = "free") + 
-  xlab(NULL) + ylab(NULL)
-
-
-hold_ret %>% 
-  filter(tase_sector == "fin_services") %>% 
+comps_id = ret_df %>% 
+  filter(month == 36) %>% 
   select(id) %>% 
   distinct()
 
+bhar_sector_ret = ret_df %>% 
+  inner_join(comps_id, by = "id") %>% 
+  filter(month <= 36) %>% 
+  group_by(id) %>% 
+  arrange(month) %>% 
+  mutate(across(ends_with("ret"),~ cumprod(1 + .) - 1)) %>%
+  ungroup() %>% 
+  filter(month == 36) %>% 
+  mutate(bhar = close_ret - index_ret) %>% 
+  select(id, month, bhar, close_ret) %>% 
+  separate(id,into = c("tase_id","sec_id"), sep = "_") %>% 
+  left_join(tase_sector_df %>% 
+              select(tase_id, tase_sector) %>% 
+              distinct(), by = "tase_id") %>% 
+  group_by(tase_sector) %>% 
+  summarise(avg_bhar = mean(bhar), avg_close = mean(close_ret), .groups = "drop")
+
+rm(comps_id)
 
 
 ```
+
+
 
 
 \subsection {Aftermarket performance by year of Issuance}
 
 ```{r plot_returns_by_year, eval=FALSE}
 
-
-hold_ret %>%
-  filter(complete.cases(.)) %>% 
-  group_by(year, adjustment_type) %>% 
-  summarise(avg_ret = mean(hold_ret), .groups = "drop") %>% 
-  ggplot(aes(x = year, y = avg_ret, fill = adjustment_type)) + 
-  geom_col(position = "dodge", width = 0.5) + 
-  scale_fill_viridis_d() + 
-  scale_y_continuous(labels = scales::percent_format()) + 
-  xlab(NULL) + ylab(NULL) + ggtitle("Holding returns by year")
 
 
 
