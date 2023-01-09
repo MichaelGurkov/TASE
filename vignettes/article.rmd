@@ -333,6 +333,8 @@ hold_ret %>%
 
 \textcolor{red}{calculate returns matched by size only}
 
+\textcolor{red}{calculate liquidity by size and index}
+
 
 <!-- check whether most of the firms dropped? -->
 
@@ -391,10 +393,41 @@ rm(comps_id)
 
 
 
-
 \subsection {Aftermarket performance by year of Issuance}
 
-```{r plot_returns_by_year, eval=FALSE}
+```{r plot_returns_by_periods, eval=FALSE}
+
+adj_ret_df = ret_df %>%
+    pivot_longer(c("index_ret","control_ret"),
+                 names_to = "benchmark",
+                 values_to = "benchmark_ret") %>%
+    filter(complete.cases(.)) %>%
+    mutate(adjusted_ret = close_ret - benchmark_ret) %>%
+    select(-benchmark_ret) %>%
+    pivot_wider(names_from = "benchmark",
+                values_from = "adjusted_ret") %>%
+    pivot_longer(-c(id,month),names_to = "adjustment_type")
+ 
+
+periods_ret = adj_ret_df %>% 
+  separate(id, into = c("tase_id","sec_id"), sep = "_") %>% 
+  left_join(stocks_ipo %>% 
+              select(tase_id, year), by = "tase_id") %>% 
+  mutate(wave_ind = if_else(year %in% c(2000,2004:2007,2020:2022),
+                            "wave","normal")) %>% 
+  group_by(month, adjustment_type, wave_ind) %>% 
+  summarise(value = mean(value, na.rm = TRUE), .groups = "drop") %>% 
+  group_by(adjustment_type, wave_ind) %>% 
+  arrange(month) %>% 
+  mutate(value = cumsum(value)) %>% 
+  ungroup()
+
+
+periods_ret %>% 
+  filter(month <= 120) %>% 
+  ggplot(aes(month, value, color = adjustment_type)) + 
+  geom_line() + 
+  facet_wrap(~wave_ind)
 
 
 
