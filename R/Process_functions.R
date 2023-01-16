@@ -202,7 +202,7 @@ make_price_df = function(market_df,ipo_control_match_df,ta_125 ){
 
   price_df = price_df %>%
     group_by(id) %>%
-    mutate(month = as.numeric(date - date[date == min(date)]) %/% 22) %>%
+    mutate(month = as.numeric(date - min(date)) %/% 22 + 1) %>%
     group_by(id, month) %>%
     summarise(across(c("close","index","control"), ~mean(., na.rm = TRUE)),
               .groups = "drop")

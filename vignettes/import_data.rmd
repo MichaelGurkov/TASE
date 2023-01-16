@@ -1,0 +1,149 @@
+<!-- import_data -->
+
+
+```{r load_libraries}
+
+library(tidyverse)
+
+library(xts)
+
+library(lubridate)
+
+library(stargazer)
+
+devtools::load_all()
+
+# library(MiscImport)
+
+```
+
+
+```{r import_ta_125}
+
+ta_125 = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                         "\\OneDrive - Bank Of Israel\\Data",
+                         "\\TASE liquidity\\michael files",
+                         "\\TA125.csv"),
+                  show_col_types = FALSE) %>% 
+  mutate(date = dmy(date))
+
+```
+
+```{r import_tase_sector}
+
+tase_sector_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                                 "\\OneDrive - Bank Of Israel\\Data",
+                                 "\\TASE liquidity\\michael files",
+                                 "\\tase_sector_and_sub_sector_classification.csv"),
+                          show_col_types = FALSE) %>% 
+  select(-comp_name_heb) %>% 
+  filter(!tase_sector == "#N/A") %>% 
+  mutate(date = as.yearmon(date, format = "%m/%d/%Y")) %>% 
+  mutate(across(-date, as.character)) %>% 
+  select(-tase_sub_sector)
+
+```
+
+```{r import_market_df, cache=TRUE}
+
+market_df_filepath = paste0(Sys.getenv("USERPROFILE"),
+                                "\\OneDrive - Bank Of Israel\\Data",
+                                "\\TASE liquidity\\Rdata files",
+                                "\\market_data_2023-01-01.rds")
+
+market_df = import_boi_market_data(market_df_filepath) %>% 
+  calculate_adjusted_price() %>% 
+  filter(date <= max(ta_125$date))
+
+rm(market_df_filepath)
+
+```
+
+```{r import_ipo_list}
+
+stocks_ipo = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                             "\\OneDrive - Bank Of Israel",
+                             "\\Data\\TASE liquidity",
+                             "\\michael files\\stocks_ipo.csv"),
+                      show_col_types = FALSE) %>% 
+  mutate(tase_id = as.character(tase_id))
+
+stocks_ipo = stocks_ipo %>% 
+  mutate(tase_id = recode(tase_id,
+                          `456` = "259"))
+
+cpi_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                         "\\OneDrive - Bank Of Israel\\Data",
+                         "\\BoI\\monetary_data\\cpi.csv"),
+                  show_col_types = FALSE,
+                  skip = 15,col_names = c("date","cpi")) %>% 
+  mutate(date = dmy(date)) %>% 
+  group_by(year = year(date)) %>% 
+  summarise(cpi = mean(cpi), .groups = "drop") %>% 
+  filter(year >= 2000) %>% 
+  mutate(cpi = cpi / cpi[year == 2000])
+
+
+stocks_ipo = stocks_ipo %>% 
+  left_join(cpi_df, by = "year") %>% 
+  mutate(real_domestic_issue = domestic_issue / cpi) %>% 
+  select(-cpi)
+
+
+# ipo_trade_dur_df = market_df %>% 
+#   group_by(tase_id, sec_id) %>% 
+#   summarise(tibble(first_trade_year = year(min(date)),
+#                    trade_years = (max(date) - min(date)) %/% dyears(1)),
+#             .groups = "drop")
+# 
+# stocks_ipo = stocks_ipo %>% 
+#   left_join(ipo_trade_dur_df, by = "tase_id") %>% 
+#   arrange(tase_id) %>% 
+#   filter(!is.na(trade_years))
+# 
+# 
+# 
+# num_ipo = stocks_ipo %>% 
+#   count(tase_id, sort = TRUE)
+# 
+# 
+# stocks_ipo = stocks_ipo %>% 
+#   inner_join(num_ipo %>% 
+#                filter(n == 1) %>% 
+#                select(tase_id), by = "tase_id")
+# 
+# rm(ipo_trade_dur_df)
+
+```
+
+
+<!-- Matching by sector -->
+
+
+```{r match_control_comps}
+
+ipo_control_match_df = match_control_group(market_df,
+                                           tase_sector_df,stocks_ipo,
+                                           threshold = 0.2)
+
+# annual_match_df = match_control_group_annual_mcap(market_df,
+#                                            tase_sector_df,stocks_ipo,
+#                                            threshold = 0.2)
+
+
+```
+
+```{r price_and_ret_df}
+
+price_df = make_price_df(market_df,ipo_control_match_df,ta_125)
+
+ret_df = calculate_return_df(price_df)
+
+
+```
+
+```{r clean_up, eval=FALSE}
+
+rm(ipo_control_match_df,ta_125,cpi_df, market_df)
+
+```

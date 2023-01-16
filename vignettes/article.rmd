@@ -29,151 +29,13 @@ file.copy(paste0(Sys.getenv("USERPROFILE"),
 
 ```
 
-<!-- import_data -->
 
-
-```{r load_libraries}
-
-library(tidyverse)
-
-library(xts)
-
-library(lubridate)
-
-library(stargazer)
-
-devtools::load_all()
-
-# library(MiscImport)
+```{r , child="import_data.Rmd"}
 
 ```
 
-
-```{r import_ta_125}
-
-ta_125 = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                         "\\OneDrive - Bank Of Israel\\Data",
-                         "\\TASE liquidity\\michael files",
-                         "\\TA125.csv"),
-                  show_col_types = FALSE) %>% 
-  mutate(date = dmy(date))
-
-```
-
-```{r import_tase_sector}
-
-tase_sector_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                                 "\\OneDrive - Bank Of Israel\\Data",
-                                 "\\TASE liquidity\\michael files",
-                                 "\\tase_sector_and_sub_sector_classification.csv"),
-                          show_col_types = FALSE) %>% 
-  select(-comp_name_heb) %>% 
-  filter(!tase_sector == "#N/A") %>% 
-  mutate(date = as.yearmon(date, format = "%m/%d/%Y")) %>% 
-  mutate(across(-date, as.character)) %>% 
-  select(-tase_sub_sector)
-
-```
-
-```{r import_market_df, cache=TRUE}
-
-market_df_filepath = paste0(Sys.getenv("USERPROFILE"),
-                                "\\OneDrive - Bank Of Israel\\Data",
-                                "\\TASE liquidity\\Rdata files",
-                                "\\market_data_2023-01-01.rds")
-
-market_df = import_boi_market_data(market_df_filepath) %>% 
-  calculate_adjusted_price() %>% 
-  filter(date <= max(ta_125$date))
-
-rm(market_df_filepath)
-
-```
-
-```{r import_ipo_list}
-
-stocks_ipo = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                             "\\OneDrive - Bank Of Israel",
-                             "\\Data\\TASE liquidity",
-                             "\\michael files\\stocks_ipo.csv"),
-                      show_col_types = FALSE) %>% 
-  mutate(tase_id = as.character(tase_id))
-
-stocks_ipo = stocks_ipo %>% 
-  mutate(tase_id = recode(tase_id,
-                          `456` = "259"))
-
-cpi_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                         "\\OneDrive - Bank Of Israel\\Data",
-                         "\\BoI\\monetary_data\\cpi.csv"),
-                  show_col_types = FALSE,
-                  skip = 15,col_names = c("date","cpi")) %>% 
-  mutate(date = dmy(date)) %>% 
-  group_by(year = year(date)) %>% 
-  summarise(cpi = mean(cpi), .groups = "drop") %>% 
-  filter(year >= 2000) %>% 
-  mutate(cpi = cpi / cpi[year == 2000])
-
-
-stocks_ipo = stocks_ipo %>% 
-  left_join(cpi_df, by = "year") %>% 
-  mutate(real_domestic_issue = domestic_issue / cpi) %>% 
-  select(-cpi)
-
-
-# ipo_trade_dur_df = market_df %>% 
-#   group_by(tase_id, sec_id) %>% 
-#   summarise(tibble(first_trade_year = year(min(date)),
-#                    trade_years = (max(date) - min(date)) %/% dyears(1)),
-#             .groups = "drop")
-# 
-# stocks_ipo = stocks_ipo %>% 
-#   left_join(ipo_trade_dur_df, by = "tase_id") %>% 
-#   arrange(tase_id) %>% 
-#   filter(!is.na(trade_years))
-# 
-# 
-# 
-# num_ipo = stocks_ipo %>% 
-#   count(tase_id, sort = TRUE)
-# 
-# 
-# stocks_ipo = stocks_ipo %>% 
-#   inner_join(num_ipo %>% 
-#                filter(n == 1) %>% 
-#                select(tase_id), by = "tase_id")
-# 
-# rm(ipo_trade_dur_df)
-
-```
-
-
-<!-- Matching by sector -->
-
-
-```{r match_control_comps}
-
-ipo_control_match_df = match_control_group(market_df,
-                                           tase_sector_df,stocks_ipo,
-                                           threshold = 0.2)
-
-# annual_match_df = match_control_group_annual_mcap(market_df,
-#                                            tase_sector_df,stocks_ipo,
-#                                            threshold = 0.2)
-
-
-```
-
-```{r price_df}
-
-price_df = make_price_df(market_df,ipo_control_match_df,ta_125)
-
-
-```
 
 ```{r cumulative_returns}
-
-ret_df = calculate_return_df(price_df)
 
 cum_ret_df = ret_df %>% 
   calculate_cum_return()
@@ -183,13 +45,6 @@ cum_ret_df = ret_df %>%
 ```{r holding_returns}
 
 hold_ret = calculate_holding_return(ret_df)
-
-```
-
-
-```{r clean_up, eval=FALSE}
-
-rm(ipo_control_match_df,ta_125,ret_df, market_df)
 
 ```
 
@@ -301,8 +156,7 @@ cum_ret_df %>%
   filter(month %in% c(36, 60, 96)) %>% 
   mutate(value = paste0(round(value * 100,2),"%")) %>% 
   pivot_wider(names_from = adjustment_type) %>% 
-  rename(Month = month, `Number of IPOS` = num_comps,
-         `Index adjusted returns` = `Abnormal (index adjusted) returns`) %>% 
+  rename(Month = month, `Number of IPOS` = num_comps) %>% 
   as_data_frame() %>% 
   stargazer(header = FALSE, summary = FALSE, label = "car_table",
             rownames = FALSE)
@@ -316,6 +170,8 @@ cum_ret_df %>%
 
 hold_ret %>% 
   filter(month %in% c(36, 60, 96)) %>% 
+  filter(adjustment_type == "Index adjusted returns") %>% 
+  select(-adjustment_type, hold_ret = value) %>% 
   mutate(hold_ret = paste0(round(hold_ret * 100,2),"%")) %>% 
   rename(Month = month, `Number of IPOS` = num_comps,
          `Buy-and-hold abnormal returns` = hold_ret) %>% 
@@ -394,6 +250,28 @@ rm(comps_id)
 
 
 \subsection {Aftermarket performance by year of Issuance}
+
+
+```{r plot_returns_by_year}
+
+bhar_year_ret = stocks_ipo %>% 
+  select(tase_id, indicator = year) %>% 
+  calculate_holding_return_by_indicator(ret_df = ret_df,
+                                                      ind_df = .) %>% 
+  rename(year = indicator)
+
+bhar_year_ret %>% 
+  filter(!adjustment_type == "Control adjusted returns") %>% 
+  ggplot(aes(year, value, fill = adjustment_type)) + 
+  geom_col(position = "dodge") + 
+  scale_fill_viridis_d() + 
+  scale_y_continuous(labels = scales::percent_format()) + 
+  xlab(NULL) + ylab(NULL) + ggtitle("Buy and hold 36 trading months returns") + 
+  theme(legend.title = element_blank())
+
+
+```
+
 
 ```{r plot_returns_by_periods, eval=FALSE}
 
@@ -522,8 +400,14 @@ The return measures used in the paper are:
 
 The cumulative return is calculated on a monthly basis where months are defined as successive 21-trading-day periods relative to the IPO date. Thus, month 1 consists of event days 1-21, month 2 consists of event days 22-43, etc.
 
-Benchmark adjusted returns are calculated as a difference between monthly raw
-return and the monthly return of benchmark index.
+Monthly raw return is calculated as:
+
+\begin{equation*}
+  r_{i,t} = \frac{P_{i,t}}{P_{i,t-1}} - 1
+\end{equation*}
+
+
+Benchmark adjusted returns are calculated as a difference between monthly raw return and the monthly return of benchmark index.
 Thus, the benchmark return is defined as:
 
 \begin{equation*}
