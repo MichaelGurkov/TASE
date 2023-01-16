@@ -142,7 +142,7 @@ ret_df = calculate_return_df(price_df)
 
 ```
 
-```{r clean_up, eval=FALSE}
+```{r clean_up}
 
 rm(ipo_control_match_df,ta_125,cpi_df, market_df)
 

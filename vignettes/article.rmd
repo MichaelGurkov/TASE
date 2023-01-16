@@ -256,6 +256,8 @@ rm(comps_id)
 
 bhar_year_ret = stocks_ipo %>% 
   select(tase_id, indicator = year) %>% 
+  group_by(tase_id) %>% 
+  summarise(indicator = min(indicator), .groups = "drop") %>% 
   calculate_holding_return_by_indicator(ret_df = ret_df,
                                                       ind_df = .) %>% 
   rename(year = indicator)
