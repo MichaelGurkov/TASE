@@ -1,14 +1,14 @@
 ---
-title: "temp"
-subtitle: 'Preliminary draft'
-author: "Michael Gurkov"
-date: "`r format(Sys.time(), '%B %d, %Y')`"
-fontsize: 11pt
+# title: "temp"
+# subtitle: 'Preliminary draft'
+# author: "Michael Gurkov"
+# date: "`r format(Sys.time(), '%B %d, %Y')`"
+# fontsize: 11pt
 output:
   rmarkdown::pdf_document:
     latex_engine: xelatex
     number_sections: true
-abstract: "Text for abstract"
+# abstract: "Text for abstract"
 bibliography: ipo_long_run.bib
 ---
 
@@ -26,17 +26,21 @@ knitr::opts_chunk$set(
 file.copy(paste0(Sys.getenv("USERPROFILE"),
                  "\\OneDrive - Bank Of Israel",
                  "\\References\\ipo_long_run.bib"),
-          "ipo_long_run.bib")
+          "ipo_long_run.bib", overwrite = TRUE)
 
 ```
 
 
 
-A seminal paper that analyses the long run performance of IPO is @RITTER1991
+A seminal paper that analyses the long run performance of IPO is @Ritter1991
 The author studies a sample of US IPO's that went public during 1975-1984 period.
 The findings confirm that in the 3 years after going public the IPO's
 are underpriced relative to comparable traded firms (matched by size and industry)
 
+@Coakley2008a look at IPO in the UK market. The authors find no evidence of IPOs underperformance for the entire sample but splitting the sample to hot and normal market period reveals significant underperformace for the hot market sample. This is true both with respect to normal period IPOs as well as to general market
+
+
+@Ljungqvist2018 develop a model of strategic behavior by the issuer in the presence of sentiment investors. Sentiment investores defined as investors that place a higher (relative to fundamental) value on the shares due to difference of opinion with rational investors. The empirical predictions of the models are that in the presence of hot market the IPO is going to underperform in the long run
 
 \section{References}
 
