@@ -40,6 +40,8 @@ are underpriced relative to comparable traded firms (matched by size and industr
 @Coakley2008a look at IPO in the UK market. The authors find no evidence of IPOs underperformance for the entire sample but splitting the sample to hot and normal market period reveals significant underperformace for the hot market sample. This is true both with respect to normal period IPOs as well as to general market
 
 
+@Ljungqvist2018 develop a model of strategic behavior by the issuer in the presence of sentiment investors. Sentiment investores defined as investors that place a higher (relative to fundamental) value on the shares due to difference of opinion with rational investors. The empirical predictions of the models are that in the presence of hot market the IPO is going to underperform in the long run
+
 \section{References}
 
 <div id="refs"></div>
