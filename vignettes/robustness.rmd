@@ -1,0 +1,179 @@
+
+```{r load_libraries}
+
+library(tidyverse)
+
+library(xts)
+
+library(lubridate)
+
+library(stargazer)
+
+devtools::load_all()
+
+# library(MiscImport)
+
+```
+
+
+
+```{r import_market_df}
+
+market_df_filepath = paste0(Sys.getenv("USERPROFILE"),
+                                "\\OneDrive - Bank Of Israel\\Data",
+                                "\\TASE liquidity\\Rdata files",
+                                "\\market_data_2023-01-01.rds")
+
+market_df = import_boi_market_data(market_df_filepath) %>% 
+  calculate_adjusted_price()
+
+rm(market_df_filepath)
+
+```
+
+```{r import_ipo_list}
+
+stocks_ipo = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                             "\\OneDrive - Bank Of Israel",
+                             "\\Data\\TASE liquidity",
+                             "\\michael files\\stocks_ipo.csv"),
+                      show_col_types = FALSE) %>% 
+  mutate(tase_id = as.character(tase_id))
+
+stocks_ipo = stocks_ipo %>% 
+  mutate(tase_id = recode(tase_id,
+                          `456` = "259"))
+
+cpi_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                         "\\OneDrive - Bank Of Israel\\Data",
+                         "\\BoI\\monetary_data\\cpi.csv"),
+                  show_col_types = FALSE,
+                  skip = 15,col_names = c("date","cpi")) %>% 
+  mutate(date = dmy(date)) %>% 
+  group_by(year = year(date)) %>% 
+  summarise(cpi = mean(cpi), .groups = "drop") %>% 
+  filter(year >= 2000) %>% 
+  mutate(cpi = cpi / cpi[year == 2000])
+
+
+stocks_ipo = stocks_ipo %>% 
+  left_join(cpi_df, by = "year") %>% 
+  mutate(real_domestic_issue = domestic_issue / cpi) %>% 
+  select(-cpi)
+
+rm(cpi_df)
+
+# ipo_trade_dur_df = market_df %>% 
+#   group_by(tase_id, sec_id) %>% 
+#   summarise(tibble(first_trade_year = year(min(date)),
+#                    trade_years = (max(date) - min(date)) %/% dyears(1)),
+#             .groups = "drop")
+# 
+# stocks_ipo = stocks_ipo %>% 
+#   left_join(ipo_trade_dur_df, by = "tase_id") %>% 
+#   arrange(tase_id) %>% 
+#   filter(!is.na(trade_years))
+# 
+# 
+# 
+# num_ipo = stocks_ipo %>% 
+#   count(tase_id, sort = TRUE)
+# 
+# 
+# stocks_ipo = stocks_ipo %>% 
+#   inner_join(num_ipo %>% 
+#                filter(n == 1) %>% 
+#                select(tase_id), by = "tase_id")
+# 
+# rm(ipo_trade_dur_df)
+
+```
+
+
+```{r calculate_bhar_df}
+
+returns_df = market_df %>% 
+  unite(id,c("tase_id","sec_id")) %>% 
+  select(id, date, close_adjusted) %>% 
+  group_by(id) %>% 
+  mutate(duration = as.numeric(date - min(date))) %>% 
+  arrange(duration) %>% 
+  mutate(bhar = close_adjusted / close_adjusted[1] - 1) %>% 
+  ungroup()
+
+
+
+```
+
+
+\subsection{Buy-and-Hold returns using a single matched firm}
+
+<!-- daily calculation -->
+
+```{r match_single_control_firm_by_size}
+
+ipo_sample = market_df %>% 
+  filter(!is.na(market_value)) %>% 
+  inner_join(stocks_ipo %>% 
+               select(tase_id) %>% 
+               distinct(), by = "tase_id") %>% 
+  unite(id,c("tase_id","sec_id")) %>% 
+  group_by(id) %>% 
+  summarise(market_value = market_value[date == min(date)],
+            date = min(date),
+            .groups = "drop")
+
+target_sample = market_df %>% 
+  filter(!is.na(market_value)) %>% 
+  anti_join(stocks_ipo %>% 
+               select(tase_id) %>% 
+               distinct(), by = "tase_id") %>% 
+  unite(id, c("tase_id","sec_id")) %>% 
+  select(date, id, market_value)
+
+matched_sample = ipo_sample %>% 
+  left_join(target_sample, by = c("date"),
+            suffix = c("_ipo","_control")) %>% 
+  filter(complete.cases(.)) %>% 
+  mutate(matching_diff = abs(market_value_ipo/market_value_control - 1)) %>% 
+  group_by(id_ipo) %>% 
+  slice_min(order_by = matching_diff) %>% 
+  ungroup() %>% 
+  filter(matching_diff < 0.1) %>% 
+  select(id_ipo, id_control)
+
+rm(ipo_sample, target_sample)
+
+```
+
+```{r calculate_benchmark_performance}
+
+
+bhar_benchmark = map_dfr(c(3,5), function(temp_horizon){
+  
+  temp_df = calculate_benchmark_performance(returns_df,
+                                            matched_sample,
+                                            target_duration = 251 * temp_horizon)
+  temp_df = temp_df %>% 
+  mutate(horizon = temp_horizon)
+  
+  return(temp_df)
+  
+  
+})
+
+
+```
+
+```{r output_table_bhar}
+
+bhar_benchmark %>% 
+  group_by(horizon) %>% 
+  summarise(across(where(is.numeric), mean))
+
+
+```
+
+
+\subsection{Buy-and-Hold returns using a portfolio of matched firms}
+\subsection{Calendar-time portfolio abnormal returns}

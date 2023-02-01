@@ -157,6 +157,11 @@ match_control_group_annual_mcap = function(market_df, tase_sector_df,
 calculate_adjusted_price = function(df,
                                     base_rate_threshold = 1){
 
+  if("close_rate_adj" %in% names(df)){
+
+    df = df %>% select(-"close_rate_adj")
+  }
+
   adjusted_df = df %>%
     filter(!is.na(base_rate)) %>%
     group_by(tase_id, sec_id) %>%
@@ -164,7 +169,8 @@ calculate_adjusted_price = function(df,
     arrange(date) %>%
     mutate(daily_gross_ret = close_rate / base_rate) %>%
     mutate(close_adjusted = close_rate[1] * c(1,cumprod(daily_gross_ret)[-1])) %>%
-    ungroup()
+    ungroup() %>%
+    select(-daily_gross_ret)
 
   return(adjusted_df)
 
@@ -213,7 +219,7 @@ make_price_df = function(market_df,ipo_control_match_df,ta_125,
 
   price_df = price_df %>%
     group_by(id) %>%
-    mutate(month = as.numeric(date - date[date == min(date)]) %/% 22) %>%
+    mutate(month = as.numeric(date -  min(date)) %/% 22) %>%
     group_by(id, month) %>%
     summarise(across(c("close","index","control"), ~mean(., na.rm = TRUE)),
               tase_sector = unique(tase_sector),

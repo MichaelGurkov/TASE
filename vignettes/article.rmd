@@ -515,63 +515,7 @@ cum_ret_df_robust = cum_ret_df_robust  %>%
 
 \section{Appendix}
 
-\subsection{Returns calculation}
+```{r child="appendix.rmd"}
 
-The return measures used in the paper are:
-
-\begin{itemize}
-  \item
-  Cumulative average adjusted returns (CAR)
-  \item
-  Buy and hold abnormal returns (BHAR)
-  \item
-  Calendar time abnormal returns (CTAR)
-\end{itemize}
-
-
-\subsubsection{CAR}
-
-The cumulative return is calculated on a monthly basis where months are defined as successive 21-trading-day periods relative to the IPO date. Thus, month 1 consists of event days 1-21, month 2 consists of event days 22-43, etc.
-
-Benchmark adjusted returns are calculated as a difference between monthly raw
-return and the monthly return of benchmark index.
-Thus, the benchmark return is defined as:
-
-\begin{equation*}
-  ar_{i,t} = r_{i,t} - r_{benchmark,t}
-\end{equation*}
-
-and the adjusted return for the portfolio of N stocks is the simple average
-of the adjusted returns of the individual stocks.
-
-\begin{equation*}
-  AR_{t} = \frac{1}{N} \sum_{i = 1}^{N}ar_{i,t}
-\end{equation*}
-
-
-The cumulative benchmark-adjusted aftermarket performance from event
-month q to event month s is the summation of the average benchmark-adjusted returns:
-
-\begin{equation*}
-  CAR_{q,s} = \sum_{t = q}^{s}AR_{t}
-\end{equation*}
-
-\subsubsection{BHAR}
-
-The buy-and-hold abnormal return (BHAR) is defined as follows:
-
-\begin{equation*}
-  BHAR_{i,T} = \left[\prod_{t = 1}^{T}(1 + r_{i,t}) - 1\right] - \left[\prod_{t = 1}^{T}(1 + r_{m,t}) - 1\right]
-\end{equation*}
-
-Where:
-$r_{i,t}$ - the return of firm $i$ in month $t$
-
-$r_{m,t}$ - the return of corresponding benchmark in month $t$
-
-
-\subsection{Control firms matching procedure}
-In order to match a control firm for each of the `r num_ipo` IPOs in `r data_period` for each IPO comp I take the market value of the IPO on the end 
-of the first trading day and match it with the closest market cap company in the
-same sector on that day. I allow for maximum difference of 20% in the market cap.
+```
 
