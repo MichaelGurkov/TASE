@@ -1,0 +1,32 @@
+
+```{r data_entrance}
+
+market_df %>% 
+  unite(id, c("tase_id","sec_id")) %>% 
+  group_by(id) %>% 
+  summarise(date = min(date), .groups = "drop") %>% 
+  mutate(year = year(date)) %>% 
+  count(year) %>% 
+  ggplot(aes(as.character(year), n)) + 
+  geom_col() + 
+  xlab(NULL) + ylab(NULL) + ggtitle("Data first entrance")
+
+
+```
+
+
+
+
+```{r market_value_completness}
+
+market_df %>% 
+  group_by(year = year(date)) %>% 
+  summarise(market_val_data = 1- sum(is.na(market_value)) / length(market_value),
+            .groups = "drop") %>% 
+  ggplot(aes(as.character(year), market_val_data)) + 
+  geom_col() + 
+  scale_y_continuous(labels = scales::percent_format()) + 
+  xlab(NULL) + ylab(NULL) + ggtitle("Market value availability")
+
+```
+

@@ -157,6 +157,11 @@ match_control_group_annual_mcap = function(market_df, tase_sector_df,
 calculate_adjusted_price = function(df,
                                     base_rate_threshold = 1){
 
+  if("close_rate_adj" %in% names(df)){
+
+    df = df %>% select(-"close_rate_adj")
+  }
+
   adjusted_df = df %>%
     filter(!is.na(base_rate)) %>%
     group_by(tase_id, sec_id) %>%
@@ -164,7 +169,8 @@ calculate_adjusted_price = function(df,
     arrange(date) %>%
     mutate(daily_gross_ret = close_rate / base_rate) %>%
     mutate(close_adjusted = close_rate[1] * c(1,cumprod(daily_gross_ret)[-1])) %>%
-    ungroup()
+    ungroup() %>%
+    select(-daily_gross_ret)
 
   return(adjusted_df)
 
@@ -178,36 +184,21 @@ calculate_adjusted_price = function(df,
 #' This function makes price df by joining price data for securities and
 #' benchmarks
 #'
-make_price_df = function(market_df,ipo_control_match_df,ta_125 ){
-
-  benchmark_df =  market_df %>%
-    select(tase_id, sec_id,date, control = close_adjusted) %>%
-    unite(id_control,tase_id:sec_id) %>%
-    inner_join(ipo_control_match_df %>%
-                 select(contains("id")),
-               by = "id_control") %>%
-    rename(id = id_ipo)
-
+make_price_df = function(market_df,matched_sample){
 
   price_df = market_df %>%
-    select(tase_id, sec_id,date, close = close_adjusted) %>%
-    inner_join(stocks_ipo %>%
-                 select(tase_id),by = "tase_id") %>%
-    left_join(ta_125 %>%
-                rename(index = ta_125), by = "date") %>%
-    mutate(id = paste(tase_id, sec_id, sep = "_")) %>%
-    left_join(benchmark_df,by = c("date", "id")) %>%
-    select(-c(tase_id,sec_id,id_control))
+    select(tase_id, sec_id, date, price = close_adjusted) %>%
+    unite(id, c("tase_id","sec_id"))
 
+  price_df_ipo = price_df %>%
+    inner_join(matched_sample, by = c("id" = "id_ipo"))
 
-  price_df = price_df %>%
-    group_by(id) %>%
-    mutate(month = as.numeric(date - min(date)) %/% 22 + 1) %>%
-    group_by(id, month) %>%
-    summarise(across(c("close","index","control"), ~mean(., na.rm = TRUE)),
-              .groups = "drop")
+  price_df_ipo_control = price_df_ipo %>%
+    left_join(price_df, by = c("id_control" = "id", "date"),
+              suffix = c("_ipo","_control")) %>%
+    filter(complete.cases(.))
 
-  return(price_df)
+  return(price_df_ipo_control)
 
 
 

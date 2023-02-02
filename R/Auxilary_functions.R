@@ -23,6 +23,8 @@ calculate_return_df = function(price_df){
 adjust_returns_to_benchmark = function(ret_df){
 
   adj_ret_df = ret_df %>%
+    select(-any_of("tase_sector")) %>%
+    distinct() %>%
     pivot_longer(c("index_ret","control_ret"),
                  names_to = "benchmark",
                  values_to = "benchmark_ret") %>%

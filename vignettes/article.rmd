@@ -34,6 +34,129 @@ file.copy(paste0(Sys.getenv("USERPROFILE"),
 
 ```
 
+```{r import_ta_125}
+
+ta_125 = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                         "\\OneDrive - Bank Of Israel\\Data",
+                         "\\TASE liquidity\\michael files",
+                         "\\TA125.csv"),
+                  show_col_types = FALSE) %>% 
+  mutate(date = dmy(date))
+
+```
+
+```{r import_tase_sector}
+
+tase_sector_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                                 "\\OneDrive - Bank Of Israel\\Data",
+                                 "\\TASE liquidity\\michael files",
+                                 "\\tase_sector_and_sub_sector_classification.csv"),
+                          show_col_types = FALSE) %>% 
+  select(-comp_name_heb) %>% 
+  filter(!tase_sector == "#N/A") %>% 
+  mutate(date = as.yearmon(date, format = "%m/%d/%Y")) %>% 
+  mutate(across(-date, as.character)) %>% 
+  select(-tase_sub_sector)
+
+```
+
+```{r import_market_df, cache=TRUE}
+
+market_df_filepath = paste0(Sys.getenv("USERPROFILE"),
+                                "\\OneDrive - Bank Of Israel\\Data",
+                                "\\TASE liquidity\\Rdata files",
+                                "\\market_data_2023-01-01.rds")
+
+market_df = import_boi_market_data(market_df_filepath) %>% 
+  calculate_adjusted_price() %>% 
+  filter(date <= max(ta_125$date))
+
+rm(market_df_filepath)
+
+```
+
+```{r import_ipo_list}
+
+stocks_ipo = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                             "\\OneDrive - Bank Of Israel",
+                             "\\Data\\TASE liquidity",
+                             "\\michael files\\stocks_ipo.csv"),
+                      show_col_types = FALSE) %>% 
+  mutate(tase_id = as.character(tase_id))
+
+stocks_ipo = stocks_ipo %>% 
+  mutate(tase_id = recode(tase_id,
+                          `456` = "259"))
+
+cpi_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                         "\\OneDrive - Bank Of Israel\\Data",
+                         "\\BoI\\monetary_data\\cpi.csv"),
+                  show_col_types = FALSE,
+                  skip = 15,col_names = c("date","cpi")) %>% 
+  mutate(date = dmy(date)) %>% 
+  group_by(year = year(date)) %>% 
+  summarise(cpi = mean(cpi), .groups = "drop") %>% 
+  filter(year >= 2000) %>% 
+  mutate(cpi = cpi / cpi[year == 2000])
+
+
+stocks_ipo = stocks_ipo %>% 
+  left_join(cpi_df, by = "year") %>% 
+  mutate(real_domestic_issue = domestic_issue / cpi) %>% 
+  select(-cpi)
+
+rm(cpi_df)
+
+# ipo_trade_dur_df = market_df %>% 
+#   group_by(tase_id, sec_id) %>% 
+#   summarise(tibble(first_trade_year = year(min(date)),
+#                    trade_years = (max(date) - min(date)) %/% dyears(1)),
+#             .groups = "drop")
+# 
+# stocks_ipo = stocks_ipo %>% 
+#   left_join(ipo_trade_dur_df, by = "tase_id") %>% 
+#   arrange(tase_id) %>% 
+#   filter(!is.na(trade_years))
+# 
+# 
+# 
+# num_ipo = stocks_ipo %>% 
+#   count(tase_id, sort = TRUE)
+# 
+# 
+# stocks_ipo = stocks_ipo %>% 
+#   inner_join(num_ipo %>% 
+#                filter(n == 1) %>% 
+#                select(tase_id), by = "tase_id")
+# 
+# rm(ipo_trade_dur_df)
+
+```
+
+
+<!-- Matching by sector -->
+
+
+```{r match_control_comps}
+
+ipo_control_match_df = match_control_group(market_df,
+                                           tase_sector_df,stocks_ipo,
+                                           threshold = 0.2)
+
+# annual_match_df = match_control_group_annual_mcap(market_df,
+#                                            tase_sector_df,stocks_ipo,
+#                                            threshold = 0.2)
+
+
+```
+
+```{r price_df}
+
+price_df = make_price_df(market_df,ipo_control_match_df,ta_125,
+                         tase_sector_df)
+
+
+```
 
 ```{r cumulative_returns}
 
@@ -218,6 +341,40 @@ rm(q_vec)
 \subsection {Aftermarket performance by sector}
 
 
+```{r holding_returns_by_sector}
+
+sector_holding_returns = ret_df %>%
+   group_by(id, tase_sector) %>%
+   arrange(month) %>%
+   mutate(across(ends_with("ret"),~ cumprod(1 + .) - 1)) %>%
+   group_by(month, tase_sector) %>%
+   summarise(across(ends_with("ret"), ~mean(., na.rm = TRUE)),
+             num_comps = length(id),
+             .groups = "drop") %>%
+   mutate(hold_ret = close_ret - control_ret) %>%
+   select(month, hold_ret, num_comps, tase_sector)
+
+```
+
+```{r table_bhar_by_sector, results='asis'}
+
+sector_holding_returns %>% 
+  filter(month %in% c(36, 60, 96)) %>% 
+  select(hold_ret, tase_sector, month) %>% 
+  mutate(hold_ret = round(hold_ret * 100,2)) %>% 
+  pivot_wider(names_from = month, values_from = hold_ret) %>% 
+  rename_with(.cols = -tase_sector,.fn = ~paste(.,"months")) %>% 
+  mutate(tase_sector = str_to_title(tase_sector)) %>% 
+  mutate(tase_sector = str_replace(tase_sector,"_"," ")) %>% 
+  mutate(tase_sector = str_replace(tase_sector,"Fin","Fin.")) %>% 
+  mutate(tase_sector = str_replace(tase_sector,"Oil gas","Oil and gas")) %>% 
+  stargazer(header = FALSE, summary = FALSE, label = "sector_bhar_table",
+            rownames = FALSE)
+
+```
+
+
+
 ```{r plot_returns_by_sector, eval=FALSE}
 
 comps_id = ret_df %>% 
@@ -384,7 +541,10 @@ cum_ret_df_robust = cum_ret_df_robust  %>%
 
 \section{Appendix}
 
-\subsection{Returns calculation}
+```{r child="appendix.rmd"}
+
+```
+
 
 The return measures used in the paper are:
 
