@@ -14,19 +14,105 @@ market_df %>%
 
 ```
 
+```{r tase_issuance}
+
+cpi_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                         "\\OneDrive - Bank Of Israel\\Data",
+                         "\\BoI\\monetary_data\\cpi.csv"),
+                  show_col_types = FALSE,
+                  skip = 15,col_names = c("date","cpi")) %>% 
+  mutate(date = dmy(date)) %>% 
+  group_by(date = as.yearqtr(date)) %>% 
+  summarise(cpi = mean(cpi), .groups = "drop") %>% 
+  filter(date >= as.yearqtr("2000 Q1")) %>% 
+  mutate(cpi = cpi / cpi[date == as.yearqtr("2000 Q1")])
+  
+ipo_for_desc_stat = stocks_ipo %>% 
+  filter(residensce == "israel") %>% 
+  select(tase_id, year, month) %>% 
+  unite(date, c(year,month), sep = "-") %>% 
+  mutate(date = as.yearqtr(date, format = "%Y-%m"))
+
+ipo_for_desc_stat = ipo_for_desc_stat %>% 
+  left_join(finrep_df %>%
+              select(tase_id, date = date_yearqtr,
+                     book_value, market_value),
+            by = c("tase_id","date")) %>% 
+  filter(complete.cases(.)) %>% 
+  mutate(book_to_market = book_value / market_value) %>% 
+  select(tase_id,date, market_value, book_to_market) %>% 
+  mutate(market_value = market_value * 10 ^ -6)
+
+ipo_for_desc_stat = ipo_for_desc_stat %>% 
+  left_join(cpi_df) %>% 
+  mutate(market_value_real = market_value / cpi) %>% 
+  select(-cpi)
+  
+rm(cpi_df)
+
+```
+
+```{r plot_market_share}
+
+mcap_by_years = market_df %>% 
+  filter(!is.na(market_value)) %>% 
+  mutate(market_value = market_value * 10 ^ -6) %>% 
+  group_by(date = year(date), sec_id) %>% 
+  summarise(market_value = mean(market_value, na.rm = TRUE),
+            .groups = "drop_last") %>% 
+  summarise(market_value = sum(market_value), .groups = "drop") %>% 
+  filter(complete.cases(.))
+
+ipo_for_desc_stat %>% 
+  select(date, market_value) %>% 
+  group_by(date = year(date)) %>% 
+  summarise(market_value = sum(market_value), .groups = "drop") %>% 
+  left_join(mcap_by_years, by = "date",
+            suffix = c("_ipo","_market")) %>% 
+  mutate(share = market_value_ipo / market_value_market) %>% 
+  ggplot(aes(date, share)) + 
+  geom_line() + 
+  geom_point() + 
+  scale_y_continuous(labels = scales::percent_format()) + 
+  xlab(NULL) + ylab(NULL) + 
+  ggtitle("Ratio of IPO market capitalization to total market cap")
 
 
+```
 
-```{r market_value_completness}
+
+```{r market_value_completness_market_df}
 
 market_df %>% 
   group_by(year = year(date)) %>% 
-  summarise(market_val_data = 1- sum(is.na(market_value)) / length(market_value),
+  summarise(market_val_data = 1- sum(is.na(market_value)) /
+              length(market_value),
             .groups = "drop") %>% 
   ggplot(aes(as.character(year), market_val_data)) + 
   geom_col() + 
   scale_y_continuous(labels = scales::percent_format()) + 
-  xlab(NULL) + ylab(NULL) + ggtitle("Market value availability")
+  xlab(NULL) + ylab(NULL) + ggtitle("Market value availability in market df")
+
+
+
+
+```
+
+
+```{r market_value_completness_finrep_df}
+
+finrep_df %>% 
+  group_by(year = year(date_yearqtr)) %>% 
+  summarise(market_val_data = 1- sum(is.na(market_value)) /
+              length(market_value),
+            .groups = "drop") %>% 
+  ggplot(aes(as.character(year), market_val_data)) + 
+  geom_col() + 
+  scale_y_continuous(labels = scales::percent_format()) + 
+  xlab(NULL) + ylab(NULL) + ggtitle("Market value availability in finrep df")
+
+
+
 
 ```
 

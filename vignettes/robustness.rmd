@@ -11,7 +11,7 @@ library(stargazer)
 
 devtools::load_all()
 
-# library(MiscImport)
+library(MiscImport)
 
 ```
 
@@ -22,11 +22,28 @@ market_df_filepath = paste0(Sys.getenv("USERPROFILE"),
                                 "\\TASE liquidity\\Rdata files",
                                 "\\market_data_2023-01-01.rds")
 
-market_df = import_boi_market_data(market_df_filepath) %>% 
+market_df = TASE::import_boi_market_data(market_df_filepath) %>% 
   select(-c("turnover","volume","public_holding_percent")) %>% 
   calculate_adjusted_price()
 
 rm(market_df_filepath)
+
+```
+
+```{r import_finrep_df}
+
+finrep_df_raw = import_boi_oracle_finrep_data(paste0("C:\\Users\\internet",
+                                     "\\OneDrive - Bank Of Israel\\Data",
+                                     "\\BoI\\Finrep\\finrep_full_data.rds"),
+                              data_frequency = "quarterly")
+
+finrep_df = finrep_df_raw %>% 
+  select(tase_id, date_yearqtr, market_value,
+         total_assets,total_liabilities) %>% 
+  mutate(book_value = total_assets - total_liabilities) %>% 
+  filter(!is.na(book_value))
+  
+rm(finrep_df_raw)
 
 ```
 

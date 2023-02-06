@@ -41,6 +41,10 @@ are underpriced relative to comparable traded firms (matched by size and industr
 
 @Brav1997 also confirm the results of @Ritter1991 and take one step forward in analysing the underperformance of IPOs and it's sources. The authors compare the IPOs of venture backed firms vs non venture backed firms and find that the venture backed firms underperform much less namely that venture investors are better than the general public at identifying good companies. The authors also find that underperformance is concentrated among small growth (low book to market) companies and is not an IPO feature.
 
+@Gompers2003 test the hypothesis of IPOs underperformance using a sample that spans almost 40 years (1932-1972). Additional advantage of this sample is that
+it refers to different period relative to other studies thus being able to avoid
+common shocks that occurred during later post-NASDAQ period.
+
 
 @Coakley2008a look at IPO in the UK market. The authors find no evidence of IPOs underperformance for the entire sample but splitting the sample to hot and normal market period reveals significant underperformace for the hot market sample. This is true both with respect to normal period IPOs as well as to general market
 
