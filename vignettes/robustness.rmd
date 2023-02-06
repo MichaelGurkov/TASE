@@ -298,3 +298,6 @@ bhar_monthly_multi %>%
 
 
 \subsection{Calendar-time portfolio abnormal returns}
+
+
+\subsection{Group by size and book to market}
