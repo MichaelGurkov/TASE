@@ -33,17 +33,19 @@ file.copy(paste0(Sys.getenv("USERPROFILE"),
 
 
 A seminal paper that analyses the long run performance of IPO is @Ritter1991
-The author studies a sample of US IPO's that went public during 1975-1984 period.
-The findings confirm that in the 3 years after going public the IPO's
+The author studies a sample of US IPOs that went public during 1975-1984 period.
+The findings confirm that in the 3 years after going public the IPOs
 are underpriced relative to comparable traded firms (matched by size and industry)
 
 @Loughran1995 reaffirm the findings of @Ritter1991 using a much larger sample spanning for 20 years. They show that firms issuing shares during 1970 to 1990 underperform relative to matched firms for five years after the issue. The underperformance occurs for initial public offerings (IPO) as well as seasoned equity offerings (SEO).
+
+@Brav1997 also confirm the results of @Ritter1991 and take one step forward in analysing the underperformance of IPOs and it's sources. The authors compare the IPOs of venture backed firms vs non venture backed firms and find that the venture backed firms underperform much less namely that venture investors are better than the general public at identifying good companies. The authors also find that underperformance is concentrated among small growth (low book to market) companies and is not an IPO feature.
 
 
 @Coakley2008a look at IPO in the UK market. The authors find no evidence of IPOs underperformance for the entire sample but splitting the sample to hot and normal market period reveals significant underperformace for the hot market sample. This is true both with respect to normal period IPOs as well as to general market
 
 
-@Ljungqvist2018 develop a model of strategic behavior by the issuer in the presence of sentiment investors. Sentiment investores defined as investors that place a higher (relative to fundamental) value on the shares due to difference of opinion with rational investors. The empirical predictions of the models are that in the presence of hot market the IPO is going to underperform in the long run
+@Ljungqvist2018 develop a model of strategic behavior by the issuer in the presence of sentiment investors. Sentiment investors defined as investors that place a higher (relative to fundamental) value on the shares due to difference of opinion with rational investors. The empirical predictions of the models are that in the presence of hot market the IPO is going to underperform in the long run
 
 \section{References}
 
