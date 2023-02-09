@@ -80,6 +80,31 @@ ipo_for_desc_stat %>%
 
 ```
 
+```{r plot_market_share_of_ipo_by_year}
+
+temp = market_df %>% 
+  filter(!is.na(market_value)) %>% 
+  select(date, tase_id, sec_id,market_value) %>% 
+  group_by(date) %>% 
+  mutate(market_share = market_value / sum(market_value)) %>% 
+  left_join(stocks_ipo %>% 
+              select(tase_id, year) %>% 
+              distinct(), by = "tase_id") %>% 
+  group_by(date, year) %>% 
+  summarise(market_share = sum(market_share), .groups = "drop")
+
+temp %>% 
+  filter(!is.na(year)) %>% 
+  filter(year %in% c(2000:2004, 2010, 2015)) %>% 
+  ggplot(aes(date, market_share, color = as.character(year))) + 
+  geom_line(linewidth = 0.7)
+
+
+
+```
+
+
+
 
 ```{r market_value_completness_market_df}
 
