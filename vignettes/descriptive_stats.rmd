@@ -1,0 +1,83 @@
+
+```{r load_libraries}
+
+library(tidyverse)
+
+library(xts)
+
+library(lubridate)
+
+library(stargazer)
+
+devtools::load_all()
+
+# library(MiscImport)
+
+```
+
+
+```{r import_ta_125}
+
+ta_125 = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                         "\\OneDrive - Bank Of Israel\\Data",
+                         "\\TASE liquidity\\michael files",
+                         "\\TA125.csv"),
+                  show_col_types = FALSE) %>% 
+  mutate(date = dmy(date))
+
+```
+
+```{r import_tase_sector}
+
+tase_sector_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                                 "\\OneDrive - Bank Of Israel\\Data",
+                                 "\\TASE liquidity\\michael files",
+                                 "\\tase_sector_and_sub_sector_classification.csv"),
+                          show_col_types = FALSE) %>% 
+  select(-comp_name_heb) %>% 
+  filter(!tase_sector == "#N/A") %>% 
+  mutate(date = as.yearmon(date, format = "%m/%d/%Y")) %>% 
+  mutate(across(-date, as.character)) %>% 
+  select(-tase_sub_sector)
+
+```
+
+```{r import_market_df, cache=TRUE}
+
+market_df_filepath = paste0(Sys.getenv("USERPROFILE"),
+                                "\\OneDrive - Bank Of Israel\\Data",
+                                "\\TASE liquidity\\Rdata files",
+                                "\\market_data_2023-01-01.rds")
+
+market_df = import_boi_market_data(market_df_filepath) %>% 
+  calculate_adjusted_price() %>% 
+  filter(date <= max(ta_125$date))
+
+rm(market_df_filepath)
+
+```
+
+```{r plot_market_share_of_ipo_by_year}
+
+temp = market_df %>% 
+  filter(!is.na(market_value)) %>% 
+  select(date, tase_id, sec_id,market_value) %>% 
+  group_by(date) %>% 
+  mutate(market_share = market_value / sum(market_value)) %>% 
+  left_join(stocks_ipo %>% 
+              select(tase_id, year) %>% 
+              distinct(), by = "tase_id") %>% 
+  group_by(date, year) %>% 
+  summarise(market_share = sum(market_share), .groups = "drop")
+
+temp %>% 
+  filter(!is.na(year)) %>% 
+  filter(year %in% c(2000:2004, 2010, 2015)) %>% 
+  ggplot(aes(date, market_share, color = as.character(year))) + 
+  geom_line(linewidth = 0.7)
+
+
+
+```
+
+
