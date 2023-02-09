@@ -52,7 +52,7 @@ rm(cpi_df)
 
 ```
 
-```{r plot_market_share}
+```{r plot_ipo_market_share}
 
 mcap_by_years = market_df %>% 
   filter(!is.na(market_value)) %>% 
@@ -80,7 +80,7 @@ ipo_for_desc_stat %>%
 
 ```
 
-```{r plot_market_share_of_ipo_by_year}
+```{r plot_market_share_of_ipo_by_vintage}
 
 temp = market_df %>% 
   filter(!is.na(market_value)) %>% 
@@ -102,8 +102,6 @@ temp %>%
 
 
 ```
-
-
 
 
 ```{r market_value_completness_market_df}
