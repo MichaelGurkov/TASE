@@ -30,583 +30,104 @@ file.copy(paste0(Sys.getenv("USERPROFILE"),
 ```
 
 
-```{r , child="import_data.Rmd"}
-
-```
-
-```{r import_ta_125}
-
-ta_125 = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                         "\\OneDrive - Bank Of Israel\\Data",
-                         "\\TASE liquidity\\michael files",
-                         "\\TA125.csv"),
-                  show_col_types = FALSE) %>% 
-  mutate(date = dmy(date))
-
-```
-
-```{r import_tase_sector}
-
-tase_sector_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                                 "\\OneDrive - Bank Of Israel\\Data",
-                                 "\\TASE liquidity\\michael files",
-                                 "\\tase_sector_and_sub_sector_classification.csv"),
-                          show_col_types = FALSE) %>% 
-  select(-comp_name_heb) %>% 
-  filter(!tase_sector == "#N/A") %>% 
-  mutate(date = as.yearmon(date, format = "%m/%d/%Y")) %>% 
-  mutate(across(-date, as.character)) %>% 
-  select(-tase_sub_sector)
-
-```
-
-```{r import_market_df, cache=TRUE}
-
-market_df_filepath = paste0(Sys.getenv("USERPROFILE"),
-                                "\\OneDrive - Bank Of Israel\\Data",
-                                "\\TASE liquidity\\Rdata files",
-                                "\\market_data_2023-01-01.rds")
-
-market_df = import_boi_market_data(market_df_filepath) %>% 
-  calculate_adjusted_price() %>% 
-  filter(date <= max(ta_125$date))
-
-rm(market_df_filepath)
-
-```
-
-```{r import_ipo_list}
-
-stocks_ipo = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                             "\\OneDrive - Bank Of Israel",
-                             "\\Data\\TASE liquidity",
-                             "\\michael files\\stocks_ipo.csv"),
-                      show_col_types = FALSE) %>% 
-  mutate(tase_id = as.character(tase_id))
-
-stocks_ipo = stocks_ipo %>% 
-  mutate(tase_id = recode(tase_id,
-                          `456` = "259"))
-
-cpi_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                         "\\OneDrive - Bank Of Israel\\Data",
-                         "\\BoI\\monetary_data\\cpi.csv"),
-                  show_col_types = FALSE,
-                  skip = 15,col_names = c("date","cpi")) %>% 
-  mutate(date = dmy(date)) %>% 
-  group_by(year = year(date)) %>% 
-  summarise(cpi = mean(cpi), .groups = "drop") %>% 
-  filter(year >= 2000) %>% 
-  mutate(cpi = cpi / cpi[year == 2000])
-
-
-stocks_ipo = stocks_ipo %>% 
-  left_join(cpi_df, by = "year") %>% 
-  mutate(real_domestic_issue = domestic_issue / cpi) %>% 
-  select(-cpi)
-
-rm(cpi_df)
-
-# ipo_trade_dur_df = market_df %>% 
-#   group_by(tase_id, sec_id) %>% 
-#   summarise(tibble(first_trade_year = year(min(date)),
-#                    trade_years = (max(date) - min(date)) %/% dyears(1)),
-#             .groups = "drop")
-# 
-# stocks_ipo = stocks_ipo %>% 
-#   left_join(ipo_trade_dur_df, by = "tase_id") %>% 
-#   arrange(tase_id) %>% 
-#   filter(!is.na(trade_years))
-# 
-# 
-# 
-# num_ipo = stocks_ipo %>% 
-#   count(tase_id, sort = TRUE)
-# 
-# 
-# stocks_ipo = stocks_ipo %>% 
-#   inner_join(num_ipo %>% 
-#                filter(n == 1) %>% 
-#                select(tase_id), by = "tase_id")
-# 
-# rm(ipo_trade_dur_df)
+```{r ,child="import_data.Rmd"}
 
 ```
 
 
-<!-- Matching by sector -->
+\section{Descriptive stats}
 
-
-```{r match_control_comps}
-
-ipo_control_match_df = match_control_group(market_df,
-                                           tase_sector_df,stocks_ipo,
-                                           threshold = 0.2)
-
-# annual_match_df = match_control_group_annual_mcap(market_df,
-#                                            tase_sector_df,stocks_ipo,
-#                                            threshold = 0.2)
-
-
-```
-
-```{r price_df}
-
-price_df = make_price_df(market_df,ipo_control_match_df,ta_125,
-                         tase_sector_df)
-
-
-```
-
-```{r cumulative_returns}
-
-cum_ret_df = ret_df %>% 
-  calculate_cum_return()
-
-```
-
-```{r holding_returns}
-
-hold_ret = calculate_holding_return(ret_df)
+```{r child="descriptive_stats.rmd"}
 
 ```
 
 
+<!-- \section{Methodology} -->
 
-```{r text_params}
+<!-- I use three measures in order to evaluate the long run performance of the IPOs: -->
+<!-- cumulative abnormal returns (CARs), buy-and-hold abnormal returns (BHARs) and calendar-time abnormal return (CTARs). I measure the after market period in two time points : 36 months and 60 months after the first trading day (so that return is measured from first closing price) where month is defined as 21 trading days period. The excessive returns are calculated as benchmark adjusted returns where the benchmarks are: (1) TASE TA 125 market index and (2) control firms matched by sector and size. -->
 
-num_ipo = nrow(stocks_ipo)
 
-num_ipo_waves =  stocks_ipo %>% 
-  count(year,name = "num_ipo") %>% 
-  filter(year %in% c(2000,2005:2007,2020:2022)) %>% 
-  summarise(total = sum(num_ipo)) %>% 
-  pull(total)
+<!-- \section{Results} -->
 
-ipo_waves_share = round((num_ipo_waves / num_ipo) * 100,2)
 
-data_period = paste(range(stocks_ipo$year), collapse = "-")
 
-```
 
 
-\section{Data}
+<!-- \newpage -->
 
-The sample consists of `r num_ipo` Initial Public Offerings issued to the public during `r data_period` period on TASE. The data includes the date of the issue (month and year), the issue size and the sector of the issuing company. Table \ref{ipo_num} presents the distribution of the IPO by year in terms of the number of offers and issue size (deflated by CPI). The data shows that the IPO's come in "waves" namely that the distribution of IPOs is clustered around certain years. In my sample 2000, 2005-2007 and 2020-2022 can be characterized as "buoyant" years with high IPO activity, these periods encompass `r num_ipo_waves` out of `r num_ipo` (`r paste0(ipo_waves_share,"%")`). Table \ref{ipo_by_sector} shows the distribution of the IPOs by sector. The dominant sectors are: commerce, industry, real estate and tech. Figure \ref{ipo_sector} shows that 2000 period consisits mainly of industry and commerce, 2005-2007 period is characterized by real estate and industry and 2020-2022 period is preoccupied with tech sector.
+<!-- \section{References} -->
 
-```{r ipo_by_year, results='asis'}
+<!-- <div id="refs"></div> -->
 
-stocks_ipo %>% 
-  select(year, real_domestic_issue) %>% 
-  group_by(year) %>% 
-  summarise(num_ipo = length(real_domestic_issue),
-            real_total_issue = sum(real_domestic_issue),
-            .groups = "drop") %>% 
-  mutate(real_total_issue = round(real_total_issue,2)) %>% 
-  rename(Year = year, `Number of IPO's` = num_ipo,
-         `Real proceeds` = real_total_issue) %>% 
-  as_data_frame() %>% 
-  stargazer(summary = FALSE,header = FALSE, rownames = FALSE,
-            title = "Distribution of IPO's by year",
-            label = "ipo_num")
+<!-- \section{Appendix} -->
 
-```
+<!-- ```{r child="appendix.rmd"} -->
 
+<!-- ``` -->
 
-```{r ipo_by_sector, results='asis'}
 
-stocks_ipo %>% 
-  select(tase_sector, real_domestic_issue) %>% 
-  group_by(tase_sector) %>% 
-  summarise(num_ipo = length(real_domestic_issue),
-            real_total_issue = sum(real_domestic_issue),
-            .groups = "drop") %>% 
-  mutate(real_total_issue = round(real_total_issue,2)) %>% 
-  rename(Sector = tase_sector, `Number of IPO's` = num_ipo,
-         `Real proceeds` = real_total_issue) %>% 
-  as_data_frame() %>% 
-  stargazer(summary = FALSE,header = FALSE, rownames = FALSE,
-            title = "Distribution of IPO's by sector",
-            label = "ipo_by_sector")
+<!-- The return measures used in the paper are: -->
 
-```
+<!-- \begin{itemize} -->
+<!--   \item -->
+<!--   Cumulative average adjusted returns (CAR) -->
+<!--   \item -->
+<!--   Buy and hold abnormal returns (BHAR) -->
+<!--   \item -->
+<!--   Calendar time abnormal returns (CTAR) -->
+<!-- \end{itemize} -->
 
 
-```{r plot_ipo_by_industry, fig.cap="IPOs by year and sector\\label{ipo_sector}"}
+<!-- \subsubsection{CAR} -->
 
-stocks_ipo %>% 
-  count(year, tase_sector) %>% 
-  ggplot(aes(year,n ,fill = tase_sector)) + 
-  geom_col() + 
-  scale_fill_viridis_d() + 
-  xlab(NULL) + ylab(NULL) + ggtitle("IPO's by year and sector") + 
-  theme(legend.title = element_blank())
+<!-- The cumulative return is calculated on a monthly basis where months are defined as successive 21-trading-day periods relative to the IPO date. Thus, month 1 consists of event days 1-21, month 2 consists of event days 22-43, etc. -->
 
-```
+<!-- Monthly raw return is calculated as: -->
 
-\section{Methodology}
+<!-- \begin{equation*} -->
+<!--   r_{i,t} = \frac{P_{i,t}}{P_{i,t-1}} - 1 -->
+<!-- \end{equation*} -->
 
-I use three measures in order to evaluate the long run performance of the IPOs:
-cumulative abnormal returns (CARs), buy-and-hold abnormal returns (BHARs) and calendar-time abnormal return (CTARs). I measure the after market period in two time points : 36 months and 60 months after the first trading day (so that return is measured from first closing price) where month is defined as 21 trading days period. The excessive returns are calculated as benchmark adjusted returns where the benchmarks are: (1) TASE TA 125 market index and (2) control firms matched by sector and size.
 
+<!-- Benchmark adjusted returns are calculated as a difference between monthly raw return and the monthly return of benchmark index. -->
+<!-- Thus, the benchmark return is defined as: -->
 
-\section{Results}
+<!-- \begin{equation*} -->
+<!--   ar_{i,t} = r_{i,t} - r_{benchmark,t} -->
+<!-- \end{equation*} -->
 
-Figure \ref{car_plot} presents the cumulative raw returns as well as cumulative abnormal returns (CARs) relative to two benchmarks: market index and control group (firms matched on industry and market capitalization). A summary of CARs for the
-horizon of 36,60 and 96 months is presented in Table ref{car_table}. The 
-cumulative abnormal returns (as well as raw cumulative returns) are negative across all horizons.
+<!-- and the adjusted return for the portfolio of N stocks is the simple average -->
+<!-- of the adjusted returns of the individual stocks. -->
 
+<!-- \begin{equation*} -->
+<!--   AR_{t} = \frac{1}{N} \sum_{i = 1}^{N}ar_{i,t} -->
+<!-- \end{equation*} -->
 
-```{r plot_cum_ret, fig.cap="Cumulative abnormal returns\\label{car_plot}"}
 
-cum_ret_df %>% 
-  ggplot(aes(month, value, color = adjustment_type)) +
-  geom_line() +
-  geom_hline(yintercept = 0, linetype = "dashed") +
-  scale_y_continuous(labels = scales::percent_format()) +
-  xlab("Months since IPO") + ylab(NULL) +
-  ggtitle("Cumulative returns since IPO") +
-  theme(legend.title = element_blank())
+<!-- The cumulative benchmark-adjusted aftermarket performance from event -->
+<!-- month q to event month s is the summation of the average benchmark-adjusted returns: -->
 
+<!-- \begin{equation*} -->
+<!--   CAR_{q,s} = \sum_{t = q}^{s}AR_{t} -->
+<!-- \end{equation*} -->
 
+<!-- \subsubsection{BHAR} -->
 
-```
+<!-- The buy-and-hold abnormal return (BHAR) is defined as follows: -->
 
+<!-- \begin{equation*} -->
+<!--   BHAR_{i,T} = \left[\prod_{t = 1}^{T}(1 + r_{i,t}) - 1\right] - \left[\prod_{t = 1}^{T}(1 + r_{m,t}) - 1\right] -->
+<!-- \end{equation*} -->
 
-```{r car_table, results='asis'}
+<!-- Where: -->
+<!-- $r_{i,t}$ - the return of firm $i$ in month $t$ -->
 
-cum_ret_df %>% 
-  filter(month %in% c(36, 60, 96)) %>% 
-  mutate(value = paste0(round(value * 100,2),"%")) %>% 
-  pivot_wider(names_from = adjustment_type) %>% 
-  rename(Month = month, `Number of IPOS` = num_comps) %>% 
-  as_data_frame() %>% 
-  stargazer(header = FALSE, summary = FALSE, label = "car_table",
-            rownames = FALSE)
+<!-- $r_{m,t}$ - the return of corresponding benchmark in month $t$ -->
 
 
-```
-
-
-
-```{r bhar_table, results='asis'}
-
-hold_ret %>% 
-  filter(month %in% c(36, 60, 96)) %>% 
-  filter(adjustment_type == "Index adjusted returns") %>% 
-  select(-adjustment_type, hold_ret = value) %>% 
-  mutate(hold_ret = paste0(round(hold_ret * 100,2),"%")) %>% 
-  rename(Month = month, `Number of IPOS` = num_comps,
-         `Buy-and-hold abnormal returns` = hold_ret) %>% 
-  as_data_frame() %>% 
-  stargazer(header = FALSE, summary = FALSE, label = "bhar_table",
-            rownames = FALSE)
-
-
-
-```
-
-
-
-\textcolor{red}{calculate "forward" returns}
-
-\textcolor{red}{calculate returns matched by size only}
-
-\textcolor{red}{calculate liquidity by size and index}
-
-
-<!-- check whether most of the firms dropped? -->
-
-<!-- plot attrition by years -->
-
-
-```{r plot_hold_ret, eval=FALSE}
-
-q_vec = seq(0.05,0.95, 0.05)
-
-hold_ret %>% 
-  group_by(adjustment_type) %>% 
-  summarise(tibble(returns = quantile(hold_ret,q_vec,na.rm = TRUE),
-                   quantiles = q_vec), .groups = "drop") %>% 
-  ggplot(aes(as.character(quantiles), returns, fill = adjustment_type)) + 
-  geom_col(position = "dodge") + 
-  scale_y_continuous(labels = scales::percent_format()) + 
-  xlab("Quantile") + ylab(NULL) + ggtitle("3 year holding returns")
-
-rm(q_vec)
-
-```
-
-
-\subsection {Aftermarket performance by sector}
-
-
-```{r holding_returns_by_sector}
-
-sector_holding_returns = ret_df %>%
-   group_by(id, tase_sector) %>%
-   arrange(month) %>%
-   mutate(across(ends_with("ret"),~ cumprod(1 + .) - 1)) %>%
-   group_by(month, tase_sector) %>%
-   summarise(across(ends_with("ret"), ~mean(., na.rm = TRUE)),
-             num_comps = length(id),
-             .groups = "drop") %>%
-   mutate(hold_ret = close_ret - control_ret) %>%
-   select(month, hold_ret, num_comps, tase_sector)
-
-```
-
-```{r table_bhar_by_sector, results='asis'}
-
-sector_holding_returns %>% 
-  filter(month %in% c(36, 60, 96)) %>% 
-  select(hold_ret, tase_sector, month) %>% 
-  mutate(hold_ret = round(hold_ret * 100,2)) %>% 
-  pivot_wider(names_from = month, values_from = hold_ret) %>% 
-  rename_with(.cols = -tase_sector,.fn = ~paste(.,"months")) %>% 
-  mutate(tase_sector = str_to_title(tase_sector)) %>% 
-  mutate(tase_sector = str_replace(tase_sector,"_"," ")) %>% 
-  mutate(tase_sector = str_replace(tase_sector,"Fin","Fin.")) %>% 
-  mutate(tase_sector = str_replace(tase_sector,"Oil gas","Oil and gas")) %>% 
-  stargazer(header = FALSE, summary = FALSE, label = "sector_bhar_table",
-            rownames = FALSE)
-
-```
-
-
-
-```{r plot_returns_by_sector, eval=FALSE}
-
-comps_id = ret_df %>% 
-  filter(month == 36) %>% 
-  select(id) %>% 
-  distinct()
-
-bhar_sector_ret = ret_df %>% 
-  inner_join(comps_id, by = "id") %>% 
-  filter(month <= 36) %>% 
-  group_by(id) %>% 
-  arrange(month) %>% 
-  mutate(across(ends_with("ret"),~ cumprod(1 + .) - 1)) %>%
-  ungroup() %>% 
-  filter(month == 36) %>% 
-  mutate(bhar = close_ret - index_ret) %>% 
-  select(id, month, bhar, close_ret) %>% 
-  separate(id,into = c("tase_id","sec_id"), sep = "_") %>% 
-  left_join(tase_sector_df %>% 
-              select(tase_id, tase_sector) %>% 
-              distinct(), by = "tase_id") %>% 
-  group_by(tase_sector) %>% 
-  summarise(avg_bhar = mean(bhar), avg_close = mean(close_ret), .groups = "drop")
-
-rm(comps_id)
-
-
-```
-
-
-
-\subsection {Aftermarket performance by year of Issuance}
-
-
-```{r plot_returns_by_year}
-
-bhar_year_ret = stocks_ipo %>% 
-  select(tase_id, indicator = year) %>% 
-  group_by(tase_id) %>% 
-  summarise(indicator = min(indicator), .groups = "drop") %>% 
-  calculate_holding_return_by_indicator(ret_df = ret_df,
-                                                      ind_df = .) %>% 
-  rename(year = indicator)
-
-bhar_year_ret %>% 
-  filter(!adjustment_type == "Control adjusted returns") %>% 
-  ggplot(aes(year, value, fill = adjustment_type)) + 
-  geom_col(position = "dodge") + 
-  scale_fill_viridis_d() + 
-  scale_y_continuous(labels = scales::percent_format()) + 
-  xlab(NULL) + ylab(NULL) + ggtitle("Buy and hold 36 trading months returns") + 
-  theme(legend.title = element_blank())
-
-
-```
-
-
-```{r plot_returns_by_periods, eval=FALSE}
-
-adj_ret_df = ret_df %>%
-    pivot_longer(c("index_ret","control_ret"),
-                 names_to = "benchmark",
-                 values_to = "benchmark_ret") %>%
-    filter(complete.cases(.)) %>%
-    mutate(adjusted_ret = close_ret - benchmark_ret) %>%
-    select(-benchmark_ret) %>%
-    pivot_wider(names_from = "benchmark",
-                values_from = "adjusted_ret") %>%
-    pivot_longer(-c(id,month),names_to = "adjustment_type")
- 
-
-periods_ret = adj_ret_df %>% 
-  separate(id, into = c("tase_id","sec_id"), sep = "_") %>% 
-  left_join(stocks_ipo %>% 
-              select(tase_id, year), by = "tase_id") %>% 
-  mutate(wave_ind = if_else(year %in% c(2000,2004:2007,2020:2022),
-                            "wave","normal")) %>% 
-  group_by(month, adjustment_type, wave_ind) %>% 
-  summarise(value = mean(value, na.rm = TRUE), .groups = "drop") %>% 
-  group_by(adjustment_type, wave_ind) %>% 
-  arrange(month) %>% 
-  mutate(value = cumsum(value)) %>% 
-  ungroup()
-
-
-periods_ret %>% 
-  filter(month <= 120) %>% 
-  ggplot(aes(month, value, color = adjustment_type)) + 
-  geom_line() + 
-  facet_wrap(~wave_ind)
-
-
-
-
-```
-
-
-\subsection{Regression results}
-
-```{r, eval=FALSE}
-
-
-
-reg_df = hold_ret %>% 
-  filter(!adjustment_type == "control_ret") %>% 
-  pivot_wider(names_from = adjustment_type, values_from = "hold_ret") %>% 
-  mutate(index_ret = close_ret - index_ret) %>% 
-  left_join(stocks_ipo %>% 
-              count(year,name = "vol"), by = "year") %>% 
-  select(-c(id,year))
-
-summary(lm("close_ret ~ index_ret + vol + tase_sector", data = reg_df))
-
-```
-
-
-\section{Robustness}
-
-
-```{r cumulative_returns_from_trading_start, eval=FALSE}
-
-cum_ret_df_robust = market_df %>% 
-  select(tase_id, sec_id,date, close = close_adjusted) %>% 
-  inner_join(stocks_ipo %>% 
-               select(tase_id),by = "tase_id") %>% 
-  left_join(ta_125 %>% 
-              rename(index = ta_125), by = "date") %>% 
-  group_by(tase_id, sec_id) %>% 
-  arrange(date) %>% 
-  mutate(month = as.numeric(date - date[1]) %/% 22) %>% 
-  group_by(tase_id, sec_id, month) %>% 
-  summarise(across(c("close","index"),~mean(., na.rm = TRUE)),
-            .groups = "drop") 
-
-cum_ret_df_robust = cum_ret_df_robust %>% 
-  group_by(tase_id, sec_id) %>% 
-  mutate(across(c("close","index"),
-                .fns = list(log_ret = ~log(.) - log(.[1]),
-                            simple_ret = ~ . /.[1] - 1))) %>% 
-  ungroup() %>% 
-  select(-c("close","index"))
-
-cum_ret_df_robust = cum_ret_df_robust  %>% 
-  pivot_longer(contains("ret"),names_to = "category") %>% 
-   extract(category, into = c("source","ret_type"),
-          regex = "^([^_]*)_(.*)") %>% 
-  pivot_wider(names_from = source) %>% 
-  mutate(index_adj = close - index) %>% 
-  select(-index) %>% 
-  pivot_longer(c("close","index_adj"),
-               names_to = "adjustment_type")
-
-
-```
-
- * \textcolor{red}{calculate abnormal return using CAPM residuals}
-
-
-\newpage
-
-\section{References}
-
-<div id="refs"></div>
-
-\section{Appendix}
-
-```{r child="appendix.rmd"}
-
-```
-
-
-The return measures used in the paper are:
-
-\begin{itemize}
-  \item
-  Cumulative average adjusted returns (CAR)
-  \item
-  Buy and hold abnormal returns (BHAR)
-  \item
-  Calendar time abnormal returns (CTAR)
-\end{itemize}
-
-
-\subsubsection{CAR}
-
-The cumulative return is calculated on a monthly basis where months are defined as successive 21-trading-day periods relative to the IPO date. Thus, month 1 consists of event days 1-21, month 2 consists of event days 22-43, etc.
-
-Monthly raw return is calculated as:
-
-\begin{equation*}
-  r_{i,t} = \frac{P_{i,t}}{P_{i,t-1}} - 1
-\end{equation*}
-
-
-Benchmark adjusted returns are calculated as a difference between monthly raw return and the monthly return of benchmark index.
-Thus, the benchmark return is defined as:
-
-\begin{equation*}
-  ar_{i,t} = r_{i,t} - r_{benchmark,t}
-\end{equation*}
-
-and the adjusted return for the portfolio of N stocks is the simple average
-of the adjusted returns of the individual stocks.
-
-\begin{equation*}
-  AR_{t} = \frac{1}{N} \sum_{i = 1}^{N}ar_{i,t}
-\end{equation*}
-
-
-The cumulative benchmark-adjusted aftermarket performance from event
-month q to event month s is the summation of the average benchmark-adjusted returns:
-
-\begin{equation*}
-  CAR_{q,s} = \sum_{t = q}^{s}AR_{t}
-\end{equation*}
-
-\subsubsection{BHAR}
-
-The buy-and-hold abnormal return (BHAR) is defined as follows:
-
-\begin{equation*}
-  BHAR_{i,T} = \left[\prod_{t = 1}^{T}(1 + r_{i,t}) - 1\right] - \left[\prod_{t = 1}^{T}(1 + r_{m,t}) - 1\right]
-\end{equation*}
-
-Where:
-$r_{i,t}$ - the return of firm $i$ in month $t$
-
-$r_{m,t}$ - the return of corresponding benchmark in month $t$
-
-
-\subsection{Control firms matching procedure}
-In order to match a control firm for each of the `r num_ipo` IPOs in `r data_period` for each IPO comp I take the market value of the IPO on the end 
-of the first trading day and match it with the closest market cap company in the
-same sector on that day. I allow for maximum difference of 20% in the market cap.
+<!-- \subsection{Control firms matching procedure} -->
+<!-- In order to match a control firm for each of the `r num_ipo` IPOs in `r data_period` for each IPO comp I take the market value of the IPO on the end  -->
+<!-- of the first trading day and match it with the closest market cap company in the -->
+<!-- same sector on that day. I allow for maximum difference of 20% in the market cap. -->
 

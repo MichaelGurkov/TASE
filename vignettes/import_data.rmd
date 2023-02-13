@@ -13,10 +13,134 @@ library(stargazer)
 
 devtools::load_all()
 
-# library(MiscImport)
+library(MiscImport)
 
 ```
 
+
+```{r import_cpi}
+
+cpi_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                         "\\OneDrive - Bank Of Israel\\Data",
+                         "\\BoI\\monetary_data\\cpi.csv"),
+                  show_col_types = FALSE,
+                  skip = 15,col_names = c("date","cpi")) %>%
+  mutate(date = dmy(date)) %>%
+  group_by(date = as.yearqtr(date)) %>%
+  summarise(cpi = mean(cpi), .groups = "drop") %>%
+  filter(date >= as.yearqtr("2000 Q1")) %>%
+  mutate(cpi = cpi / cpi[date == as.yearqtr("2000 Q1")])
+
+
+```
+
+
+```{r import_mcap_from_vladimir}
+
+vladimir_mcap = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                                "\\OneDrive - Bank Of Israel\\Data\\BoI\\Finrep",
+                                "\\market_cap_from_vladimir.csv"),
+                         show_col_types = FALSE) %>% 
+  select(date_yearqtr = date, sec_id = msp_brs,
+         tase_id = MSP_HVR, market_value = AvgMV) %>% 
+  mutate(tase_id = as.character(tase_id)) %>% 
+  mutate(date_yearqtr = dmy(date_yearqtr)) %>% 
+  mutate(date_yearqtr = as.yearqtr(date_yearqtr))
+
+```
+
+```{r import_finrep_df}
+
+
+complete_finrep_with_vladimir_data = function(finrep_df, vladimir_mcap){
+  
+  finrep_df = finrep_df  %>% 
+  left_join(vladimir_mcap %>% 
+              group_by(tase_id,date_yearqtr) %>% 
+              summarise(mcap_vladimir = mean(market_value, na.rm = TRUE),
+                        .groups = "drop"),
+            by = c("tase_id","date_yearqtr")) %>% 
+  mutate(market_value = coalesce(market_value, mcap_vladimir)) %>% 
+  select(-mcap_vladimir) %>% 
+  filter(!is.na(market_value))
+  
+  return(finrep_df)
+ 
+}
+
+
+
+finrep_df_raw = import_boi_oracle_finrep_data(paste0(Sys.getenv("USERPROFILE"),
+                                     "\\OneDrive - Bank Of Israel\\Data",
+                                     "\\BoI\\Finrep\\finrep_full_data.rds"),
+                              data_frequency = "quarterly")
+
+
+finrep_df = finrep_df_raw %>% 
+  select(tase_id, date_yearqtr, market_value,
+         total_assets,total_liabilities) %>% 
+  mutate(book_value = total_assets - total_liabilities) %>% 
+  select(-contains("total")) %>% 
+  filter(!is.na(book_value)) %>% 
+  filter(book_value >= 0)%>% 
+  mutate(across(c("market_value"),~ .* 10 ^ -3))
+
+finrep_df = finrep_df %>% 
+  complete_finrep_with_vladimir_data(vladimir_mcap)
+
+finrep_df = finrep_df %>% 
+  mutate(book_to_market = book_value / market_value) %>% 
+  select(tase_id, date_yearqtr,market_value, book_to_market)
+
+
+
+rm(finrep_df_raw,vladimir_mcap, complete_finrep_with_vladimir_data)
+
+```
+
+```{r import_ipo_list}
+
+delisting_dates = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                                  "\\OneDrive - Bank Of Israel\\Data",
+                                  "\\TASE\\TASE Comps list_revised.csv"),
+                           show_col_types = FALSE) %>% 
+  rename_with(tolower) %>% 
+  filter(delisted == 1) %>% 
+  mutate(tase_id = as.character(tase_id)) %>% 
+  select(tase_id, delisting_date, delisting_reason)
+
+stocks_ipo = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                             "\\OneDrive - Bank Of Israel",
+                             "\\Data\\TASE liquidity",
+                             "\\michael files\\stocks_ipo.csv"),
+                      show_col_types = FALSE) %>% 
+  mutate(tase_id = as.character(tase_id)) %>% 
+  select(-comp_name_heb, -prospectus_date)
+
+stocks_ipo = stocks_ipo %>% 
+  left_join(delisting_dates, by = "tase_id")
+
+stocks_ipo = stocks_ipo %>% 
+  mutate(tase_id = recode(tase_id,
+                          `456` = "259")) %>% 
+  unite(c("year", "month"),col = "date", sep = "-",remove = FALSE) %>% 
+  mutate(date = as.yearqtr(date, format = c("%Y-%m"))) %>% 
+  select(-month)
+
+stocks_ipo = stocks_ipo %>% 
+  left_join(finrep_df,
+            by = c("tase_id","date" = "date_yearqtr")) %>% 
+  mutate(market_value = market_value * 10 ^ -3)
+
+stocks_ipo = stocks_ipo %>% 
+  left_join(cpi_df, by = "date") %>% 
+  mutate(across(c("domestic_issue", "market_value"), ~ . / cpi,
+         .names = "{.col}_real")) %>% 
+  select(-cpi)
+
+rm(delisting_dates)
+
+```
 
 ```{r import_ta_125}
 
@@ -59,91 +183,3 @@ rm(market_df_filepath)
 
 ```
 
-```{r import_ipo_list}
-
-stocks_ipo = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                             "\\OneDrive - Bank Of Israel",
-                             "\\Data\\TASE liquidity",
-                             "\\michael files\\stocks_ipo.csv"),
-                      show_col_types = FALSE) %>% 
-  mutate(tase_id = as.character(tase_id))
-
-stocks_ipo = stocks_ipo %>% 
-  mutate(tase_id = recode(tase_id,
-                          `456` = "259"))
-
-cpi_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                         "\\OneDrive - Bank Of Israel\\Data",
-                         "\\BoI\\monetary_data\\cpi.csv"),
-                  show_col_types = FALSE,
-                  skip = 15,col_names = c("date","cpi")) %>% 
-  mutate(date = dmy(date)) %>% 
-  group_by(year = year(date)) %>% 
-  summarise(cpi = mean(cpi), .groups = "drop") %>% 
-  filter(year >= 2000) %>% 
-  mutate(cpi = cpi / cpi[year == 2000])
-
-
-stocks_ipo = stocks_ipo %>% 
-  left_join(cpi_df, by = "year") %>% 
-  mutate(real_domestic_issue = domestic_issue / cpi) %>% 
-  select(-cpi)
-
-
-# ipo_trade_dur_df = market_df %>% 
-#   group_by(tase_id, sec_id) %>% 
-#   summarise(tibble(first_trade_year = year(min(date)),
-#                    trade_years = (max(date) - min(date)) %/% dyears(1)),
-#             .groups = "drop")
-# 
-# stocks_ipo = stocks_ipo %>% 
-#   left_join(ipo_trade_dur_df, by = "tase_id") %>% 
-#   arrange(tase_id) %>% 
-#   filter(!is.na(trade_years))
-# 
-# 
-# 
-# num_ipo = stocks_ipo %>% 
-#   count(tase_id, sort = TRUE)
-# 
-# 
-# stocks_ipo = stocks_ipo %>% 
-#   inner_join(num_ipo %>% 
-#                filter(n == 1) %>% 
-#                select(tase_id), by = "tase_id")
-# 
-# rm(ipo_trade_dur_df)
-
-```
-
-
-<!-- Matching by sector -->
-
-
-```{r match_control_comps}
-
-ipo_control_match_df = match_control_group(market_df,
-                                           tase_sector_df,stocks_ipo,
-                                           threshold = 0.2)
-
-# annual_match_df = match_control_group_annual_mcap(market_df,
-#                                            tase_sector_df,stocks_ipo,
-#                                            threshold = 0.2)
-
-
-```
-
-```{r price_and_ret_df}
-
-price_df = make_price_df(market_df,ipo_control_match_df,ta_125)
-
-ret_df = calculate_return_df(price_df)
-
-
-```
-
-```{r clean_up}
-
-rm(ipo_control_match_df,ta_125,cpi_df, market_df)
-
-```

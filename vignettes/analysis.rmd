@@ -1,0 +1,32 @@
+
+```{r attrition}
+
+duration_table = market_df %>% 
+  inner_join(stocks_ipo %>% 
+               select(tase_id) %>% 
+               distinct(), by = "tase_id") %>% 
+  unite(c("tase_id", "sec_id"), col = "id") %>% 
+  select(date, id, close_adjusted) %>% 
+  filter(complete.cases(.)) %>% 
+  group_by(id) %>% 
+  arrange(date) %>% 
+  mutate(duration = (as.numeric(date - min(date)) %/% (21 * 12)) + 1) %>% 
+  ungroup() %>% 
+  select(id, duration) %>% 
+  filter(duration <= 5) %>% 
+  distinct()
+
+attrition_table = duration_table %>% 
+  group_by(id) %>% 
+  summarise(delisted_period = 5 - max(duration), .groups = "drop") %>% 
+  filter(delisted_period > 0)
+
+duration_table %>% 
+  count(duration, sort = TRUE, name = "comps_num") %>% 
+  mutate(comps_share = comps_num / comps_num[duration == 1])
+
+
+
+
+```
+
