@@ -84,7 +84,6 @@ stocks_ipo %>%
 ```
 
 
-
 ```{r plot_ipo_market_share}
 
 mcap_by_years = market_df %>%
@@ -114,64 +113,95 @@ stocks_ipo %>%
 
 ```
 
+```{r plot_size_quantiles}
+
+market_quantiles = finrep_df %>% 
+  inner_join(stocks_ipo %>% 
+               select(date_yearqtr = date) %>% 
+               distinct(), by = "date_yearqtr") %>% 
+  left_join(stocks_ipo %>% 
+              select(date_yearqtr = date, tase_id) %>% 
+              distinct() %>% 
+              mutate(ipo = 1), by = c("tase_id","date_yearqtr"))
+
+market_quantiles = market_quantiles %>% 
+  group_by(date_yearqtr) %>% 
+  mutate(market_value = ecdf(market_value)(market_value[ipo == 1]),
+         book_to_market = ecdf(book_to_market)(book_to_market[ipo == 1])) %>% 
+  ungroup() %>% 
+  select(tase_id, market_value, book_to_market) %>% 
+  filter(complete.cases(.))
+
+market_quantiles %>% 
+  pivot_longer(-tase_id) %>% 
+  ggplot(aes(value)) + 
+  geom_histogram() + 
+  facet_wrap(~name, scales = "free") + 
+  xlab("quantile") + ylab(NULL)
+
+rm(market_quantiles)  
+
+```
 
 
-<!-- ```{r plot_market_share_of_ipo_by_vintage} -->
+<!-- Data checks -->
 
-<!-- temp = market_df %>%  -->
-<!--   filter(!is.na(market_value)) %>%  -->
-<!--   select(date, tase_id, sec_id,market_value) %>%  -->
-<!--   group_by(date) %>%  -->
-<!--   mutate(market_share = market_value / sum(market_value)) %>%  -->
-<!--   left_join(stocks_ipo %>%  -->
-<!--               select(tase_id, year) %>%  -->
-<!--               distinct(), by = "tase_id") %>%  -->
-<!--   group_by(date, year) %>%  -->
-<!--   summarise(market_share = sum(market_share), .groups = "drop") -->
+```{r plot_market_share_of_ipo_by_vintage, eval=FALSE}
 
-<!-- temp %>%  -->
-<!--   filter(!is.na(year)) %>%  -->
-<!--   filter(year %in% c(2000:2004, 2010, 2015)) %>%  -->
-<!--   ggplot(aes(date, market_share, color = as.character(year))) +  -->
-<!--   geom_line(linewidth = 0.7) -->
+temp = market_df %>%
+  filter(!is.na(market_value)) %>%
+  select(date, tase_id, sec_id,market_value) %>%
+  group_by(date) %>%
+  mutate(market_share = market_value / sum(market_value)) %>%
+  left_join(stocks_ipo %>%
+              select(tase_id, year) %>%
+              distinct(), by = "tase_id") %>%
+  group_by(date, year) %>%
+  summarise(market_share = sum(market_share), .groups = "drop")
 
-
-
-<!-- ``` -->
-
-
-<!-- ```{r market_value_completness_market_df} -->
-
-<!-- market_df %>%  -->
-<!--   group_by(year = year(date)) %>%  -->
-<!--   summarise(market_val_data = 1- sum(is.na(market_value)) / -->
-<!--               length(market_value), -->
-<!--             .groups = "drop") %>%  -->
-<!--   ggplot(aes(as.character(year), market_val_data)) +  -->
-<!--   geom_col() +  -->
-<!--   scale_y_continuous(labels = scales::percent_format()) +  -->
-<!--   xlab(NULL) + ylab(NULL) + ggtitle("Market value availability in market df") -->
-
-
-
-
-<!-- ``` -->
-
-
-<!-- ```{r market_value_completness_finrep_df} -->
-
-<!-- finrep_df %>%  -->
-<!--   group_by(year = year(date_yearqtr)) %>%  -->
-<!--   summarise(market_val_data = 1- sum(is.na(market_value)) / -->
-<!--               length(market_value), -->
-<!--             .groups = "drop") %>%  -->
-<!--   ggplot(aes(as.character(year), market_val_data)) +  -->
-<!--   geom_col() +  -->
-<!--   scale_y_continuous(labels = scales::percent_format()) +  -->
-<!--   xlab(NULL) + ylab(NULL) + ggtitle("Market value availability in finrep df") -->
+temp %>%
+  filter(!is.na(year)) %>%
+  filter(year %in% c(2000:2004, 2010, 2015)) %>%
+  ggplot(aes(date, market_share, color = as.character(year))) +
+  geom_line(linewidth = 0.7)
 
 
 
+```
 
-<!-- ``` -->
+
+```{r market_value_completness_market_df, eval=FALSE}
+
+market_df %>%
+  group_by(year = year(date)) %>%
+  summarise(market_val_data = 1- sum(is.na(market_value)) /
+              length(market_value),
+            .groups = "drop") %>%
+  ggplot(aes(as.character(year), market_val_data)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::percent_format()) +
+  xlab(NULL) + ylab(NULL) + ggtitle("Market value availability in market df")
+
+
+
+
+```
+
+
+```{r market_value_completness_finrep_df, eval=FALSE}
+
+finrep_df %>%
+  group_by(year = year(date_yearqtr)) %>%
+  summarise(market_val_data = 1- sum(is.na(market_value)) /
+              length(market_value),
+            .groups = "drop") %>%
+  ggplot(aes(as.character(year), market_val_data)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::percent_format()) +
+  xlab(NULL) + ylab(NULL) + ggtitle("Market value availability in finrep df")
+
+
+
+
+```
 
