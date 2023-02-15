@@ -1,5 +1,5 @@
 
-```{r attrition}
+```{r attrition, eval=FALSE}
 
 duration_table = market_df %>% 
   inner_join(stocks_ipo %>% 
@@ -30,3 +30,82 @@ duration_table %>%
 
 ```
 
+\subsection{Buy-and-Hold returns using a portfolio of matched firms}
+
+
+<!-- daily calculation -->
+
+
+```{r match_multiple_control_firm_by_size_multiple}
+
+matched_sample_multiple = match_comps_by_market_value(stocks_ipo %>%
+                                                        select(tase_id) %>%
+                                                        distinct(),
+                                                      market_df,
+                                                      single_match = FALSE)
+
+price_df_multiple = make_price_df(market_df, matched_sample_multiple)
+
+bhar_daily_multiple = map_dfr(c(3,5), function(temp_horizon){
+  
+  temp_df = price_df_multiple %>% 
+    calculate_bhar_from_price_df(target_duration = 252 * temp_horizon) %>% 
+    mutate(horizon = temp_horizon)
+  
+  
+  
+  
+})
+
+
+
+```
+
+```{r compare_ipo_and_control, results='asis'}
+
+ipo_ids = market_df %>% 
+  unite(col = "id", c("tase_id", "sec_id")) %>% 
+  inner_join(matched_sample_multiple %>% 
+               select(id_ipo) %>% 
+               distinct(), by = c("id" = "id_ipo")) %>% 
+  group_by(id) %>% 
+  summarise(market_value = market_value[date == min(date)],
+            date = min(date),
+            .groups = "drop")
+
+
+control_ids = matched_sample_multiple %>% 
+  left_join(ipo_ids %>% 
+              select(id, date), by = c("id_ipo" = "id")) %>% 
+  left_join(market_df %>% 
+              unite(col = "id_control",c("tase_id","sec_id")) %>% 
+              select(id_control, date, market_value),
+            by = c("id_control","date"))
+
+
+tibble(IPOs = c(ipo_ids$market_value,
+                   rep(NA,nrow(control_ids) - nrow(ipo_ids))),
+           Control = control_ids$market_value) %>% 
+  mutate(across(everything(),~.*10^-6)) %>% 
+  as.data.frame() %>% 
+  stargazer(header = FALSE, digits = 1,
+            title = "Comparison of market value in IPOs and control firms")
+
+```
+
+
+```{r output_table_bhar_daily_multiple, results='asis'}
+
+bhar_daily_multiple %>% 
+  group_by(horizon) %>% 
+  summarise(across(c(contains("bhar")), ~median(.) * 100)) %>% 
+  rename(Horizon = horizon,
+         `IPOs raw return` = bhar_ipo,
+         `Control firms raw return` = bhar_control,
+         `Abnormal return` = bhar_abnormal) %>% 
+  as.data.frame() %>% 
+  stargazer(summary = FALSE, header = FALSE, digits = 2,
+            title = "Buy-and-Hold abnormal returns")
+
+
+```

@@ -42,6 +42,13 @@ file.copy(paste0(Sys.getenv("USERPROFILE"),
 ```
 
 
+\section{Analysis}
+
+```{r child="analysis.rmd"}
+
+```
+
+
 <!-- \section{Methodology} -->
 
 <!-- I use three measures in order to evaluate the long run performance of the IPOs: -->
