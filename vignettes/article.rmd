@@ -46,13 +46,12 @@ bhar_year_ret = stocks_ipo %>%
   rename(year = indicator)
 
 bhar_year_ret %>% 
-  filter(!adjustment_type == "Control adjusted returns") %>% 
-  pivot_wider(names_from = adjustment_type) %>% 
-  write_csv(paste0("C:\\Users\\internet",
-                  "\\OneDrive - Bank Of Israel\\current_work",
-                  "\\annual_report\\2022\\data\\plots",
-                  "\\updated_box_plots\\bhar_ret_plot.csv"))
-
+  filter(adjustment_type == "Index adjusted returns") %>% 
+  
+  ggplot(aes(num_comps, value)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE)
+ 
 
 ```
 
