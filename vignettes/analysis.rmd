@@ -1,5 +1,13 @@
 
-```{r attrition, eval=FALSE}
+
+```{r labels}
+
+raw_ipo_dist_lab = "Raw IPO returns distribution \\label{raw_ipo_dist_fig}"
+
+```
+
+
+```{r attrition, results='asis'}
 
 duration_table = market_df %>% 
   inner_join(stocks_ipo %>% 
@@ -23,7 +31,11 @@ attrition_table = duration_table %>%
 
 duration_table %>% 
   count(duration, sort = TRUE, name = "comps_num") %>% 
-  mutate(comps_share = comps_num / comps_num[duration == 1])
+  mutate(comps_share = (comps_num / comps_num[duration == 1]) * 100) %>% 
+  rename(Year = duration, `Number of firms` = comps_num,
+         `Fraction of firms remaining` = comps_share) %>% 
+  stargazer(header = FALSE,summary = FALSE,digits = 2,
+            title = "Firms attrition")
 
 
 
@@ -31,6 +43,9 @@ duration_table %>%
 ```
 
 \subsection{Buy-and-Hold returns using a portfolio of matched firms}
+
+In this section I compute the three and five years buy-and-hold abnormal returns relative to size matched benchmark. The raw IPO returns are negative in both horizons, the distribution of the raw returns is highly right skewed meaning that there are few highly performing firms where is the majority of the firms is characterized with negative returns (Figure \ref{raw_ipo_dist_fig})
+
 
 
 <!-- daily calculation -->
@@ -45,19 +60,6 @@ matched_sample_multiple = match_comps_by_market_value(stocks_ipo %>%
                                                       single_match = FALSE)
 
 price_df_multiple = make_price_df(market_df, matched_sample_multiple)
-
-bhar_daily_multiple = map_dfr(c(3,5), function(temp_horizon){
-  
-  temp_df = price_df_multiple %>% 
-    calculate_bhar_from_price_df(target_duration = 252 * temp_horizon) %>% 
-    mutate(horizon = temp_horizon)
-  
-  
-  
-  
-})
-
-
 
 ```
 
@@ -93,12 +95,63 @@ tibble(IPOs = c(ipo_ids$market_value,
 
 ```
 
+```{r calculate_returns}
+
+
+bhar_daily_multiple = map_dfr(c(3,5), function(temp_horizon){
+  
+  temp_df = price_df_multiple %>% 
+    calculate_bhar_from_price_df(target_duration = 252 * temp_horizon) %>% 
+    mutate(horizon = temp_horizon)
+  
+  
+  
+  
+})
+
+bhar_daily_multiple = bhar_daily_multiple %>% 
+  group_by(id, horizon) %>% 
+  summarise(across(contains("bhar"), mean),.groups = "drop")
+
+period_ret_multiple = calculate_period_ret_from_price_df(price_df_multiple,
+                                                         period_freq = 252,
+                                                         period_thresh = 5)
+
+
+```
+
+```{r plot_ipo_raw_returns_dist, fig.cap=raw_ipo_dist_lab}
+
+bhar_daily_multiple %>% 
+  ggplot(aes(x = bhar_ipo)) + 
+  geom_histogram() + 
+  geom_vline(xintercept = 0, color = "blue", linetype = "dashed") + 
+  facet_wrap(~horizon, scales = "free") + 
+  scale_x_continuous(labels = scales::percent_format()) + 
+  xlab("Raw IPO returns") + ylab(NULL) + 
+  ggtitle("Raw IPO returns distribution")
+
+```
+
+
+```{r plot_period_returns, eval=FALSE}
+
+period_ret_multiple %>% 
+  group_by(period) %>% 
+  summarise(ret_abnormal = mean(ret_abnormal), .groups = "drop") %>% 
+  ggplot(aes(period, ret_abnormal)) + 
+  geom_col(width = 0.5) + 
+  scale_y_continuous(labels = scales::percent_format()) + 
+  xlab("Years since IPO") + ylab(NULL) + 
+  ggtitle("Average annual abnormal return")
+
+```
 
 ```{r output_table_bhar_daily_multiple, results='asis'}
 
 bhar_daily_multiple %>% 
   group_by(horizon) %>% 
-  summarise(across(c(contains("bhar")), ~median(.) * 100)) %>% 
+  summarise(across(c(contains("bhar")), ~mean(.) * 100)) %>% 
   rename(Horizon = horizon,
          `IPOs raw return` = bhar_ipo,
          `Control firms raw return` = bhar_control,

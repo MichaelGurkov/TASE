@@ -16,6 +16,13 @@ data_period = paste(range(stocks_ipo$year), collapse = "-")
 ```
 
 
+```{r label_params}
+
+ipo_by_sector_lab = "IPOs by year and sector\\label{ipo_sector}"
+
+```
+
+
 The sample consists of `r num_ipo` Initial Public Offerings issued to the public during `r data_period` period on TASE. The data includes the date of the issue (month and year), the issue size and the sector of the issuing company. Table \ref{ipo_num} presents the distribution of the IPO by year in terms of the number of offers and issue size (deflated by CPI). The data shows that the IPO's come in "waves" namely that the distribution of IPOs is clustered around certain years. In my sample 2000, 2005-2007 and 2020-2022 can be characterized as "buoyant" years with high IPO activity, these periods encompass `r num_ipo_waves` out of `r num_ipo` (`r paste0(ipo_waves_share,"%")`). Table \ref{ipo_by_sector} shows the distribution of the IPOs by sector. The dominant sectors are: commerce, industry, real estate and tech. Figure \ref{ipo_sector} shows that 2000 period consisits mainly of industry and commerce, 2005-2007 period is characterized by real estate and industry and 2020-2022 period is preoccupied with tech sector.
 
 
@@ -59,7 +66,7 @@ stocks_ipo %>%
 ```
 
 
-```{r plot_ipo_by_industry, fig.cap="IPOs by year and sector\\label{ipo_sector}"}
+```{r plot_ipo_by_sector, fig.cap=ipo_by_sector_lab}
 
 stocks_ipo %>%
   count(year, tase_sector) %>%
@@ -137,11 +144,16 @@ market_quantiles %>%
   ggplot(aes(value)) + 
   geom_histogram() + 
   facet_wrap(~name, scales = "free") + 
-  xlab("quantile") + ylab(NULL)
+  scale_x_continuous(labels = scales::percent_format()) + 
+  xlab("Quantile") + ylab(NULL) + ggtitle("IPOs distribution")
 
 rm(market_quantiles)  
 
 ```
+
+<!-- Attrition -->
+
+
 
 
 <!-- Data checks -->
