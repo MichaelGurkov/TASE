@@ -93,19 +93,28 @@ stocks_ipo %>%
 
 ```{r plot_ipo_market_share}
 
-mcap_by_years = market_df %>%
-  filter(!is.na(market_value)) %>%
-  mutate(market_value = market_value * 10 ^ -6) %>%
-  group_by(date = year(date), sec_id) %>%
-  summarise(market_value = mean(market_value, na.rm = TRUE),
-            .groups = "drop_last") %>%
-  summarise(market_value = sum(market_value), .groups = "drop") %>%
-  filter(complete.cases(.))
+mcap_by_years = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                                "\\OneDrive - Bank Of Israel\\Data",
+                                "\\TASE liquidity\\michael files",
+                                "\\mcap_by_years.csv"),
+                         show_col_types = FALSE) %>% 
+  left_join(cpi_df %>% 
+              group_by(year = year(date)) %>% 
+              summarise(cpi = mean(cpi), .groups = "drop"), by = "year") %>% 
+  mutate(cpi_2019 = cpi / cpi[year == 2019]) %>% 
+  mutate(cpi_2022 = cpi / cpi[year == 2022]) %>% 
+  mutate(mcap_2019_prices = mcap_2019_prices / cpi_2019) %>% 
+  mutate(mcap_2022_prices = mcap_2022_prices / cpi_2019) %>% 
+  select(-contains("cpi")) %>% 
+  pivot_longer(-year, values_to = "market_value") %>% 
+  group_by(date = year) %>% 
+  summarise(market_value = mean(market_value, na.rm = TRUE), .groups = "drop")
 
 stocks_ipo %>%
   select(year, market_value) %>%
   group_by(date = year) %>%
   summarise(market_value = sum(market_value, na.rm = TRUE), .groups = "drop") %>%
+  mutate(market_value = market_value * 10 ^ - 3) %>% 
   left_join(mcap_by_years, by = "date",
             suffix = c("_ipo","_market")) %>%
   mutate(share = market_value_ipo / market_value_market) %>%

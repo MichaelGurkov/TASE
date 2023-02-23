@@ -44,12 +44,7 @@ duration_table %>%
 
 \subsection{Buy-and-Hold returns using a portfolio of matched firms}
 
-In this section I compute the three and five years buy-and-hold abnormal returns relative to size matched benchmark. The raw IPO returns are negative in both horizons, the distribution of the raw returns is highly right skewed meaning that there are few highly performing firms where is the majority of the firms is characterized with negative returns (Figure \ref{raw_ipo_dist_fig})
-
-
-
 <!-- daily calculation -->
-
 
 ```{r match_multiple_control_firm_by_size_multiple}
 
@@ -95,7 +90,7 @@ tibble(IPOs = c(ipo_ids$market_value,
 
 ```
 
-```{r calculate_returns}
+```{r calculate_returns_size_control}
 
 
 bhar_daily_multiple = map_dfr(c(3,5), function(temp_horizon){
@@ -119,6 +114,17 @@ period_ret_multiple = calculate_period_ret_from_price_df(price_df_multiple,
 
 
 ```
+
+```{r size_matched_params, eval=FALSE}
+
+size_matched_ipo
+
+
+```
+
+In this section I compute the three and five years buy-and-hold abnormal returns using control firms matched by size as benchmark. The matching procedure results in `r length(unique(matched_sample_multiple$id_ipo))` IPOs each compared with a portfolio of similar size firms. The raw IPO returns are negative in both horizons, the distribution of the raw returns is highly right skewed meaning that there are few highly performing firms where is the majority of the firms is characterized with negative returns (Figure \ref{raw_ipo_dist_fig})
+
+
 
 ```{r plot_ipo_raw_returns_dist, fig.cap=raw_ipo_dist_lab}
 
@@ -150,6 +156,71 @@ period_ret_multiple %>%
 ```{r output_table_bhar_daily_multiple, results='asis'}
 
 bhar_daily_multiple %>% 
+  group_by(horizon) %>% 
+  summarise(across(c(contains("bhar")), ~mean(.) * 100)) %>% 
+  rename(Horizon = horizon,
+         `IPOs raw return` = bhar_ipo,
+         `Control firms raw return` = bhar_control,
+         `Abnormal return` = bhar_abnormal) %>% 
+  as.data.frame() %>% 
+  stargazer(summary = FALSE, header = FALSE, digits = 2,
+            title = "Buy-and-Hold abnormal returns")
+
+
+```
+
+\subsection{Buy-and-Hold returns using a market index}
+
+```{r match_market_index}
+
+price_df_market = market_df %>% 
+  select(tase_id, sec_id, date, price_ipo = close_adjusted) %>% 
+  inner_join(stocks_ipo %>% 
+               select(tase_id) %>% 
+               distinct(), by = "tase_id") %>% 
+  unite(c("tase_id","sec_id"),col = "id") %>% 
+  left_join(ta_125 %>% 
+              rename(price_control = ta_125) %>% 
+              mutate(id_control = "ta_125"), by = "date") %>% 
+  filter(complete.cases(.))
+
+
+
+
+
+```
+
+```{r calculate_returns_market_control}
+
+
+bhar_daily_multiple_market = map_dfr(c(3,5), function(temp_horizon){
+  
+  temp_df = price_df_market %>% 
+    calculate_bhar_from_price_df(target_duration = 252 * temp_horizon) %>% 
+    mutate(horizon = temp_horizon)
+  
+  
+  
+  
+})
+
+bhar_daily_multiple_market = bhar_daily_multiple_market %>% 
+  group_by(id, horizon) %>% 
+  summarise(across(contains("bhar"), mean),.groups = "drop")
+
+period_ret_multiple_market = calculate_period_ret_from_price_df(price_df_market,
+                                                         period_freq = 252,
+                                                         period_thresh = 5)
+
+
+```
+
+This sections uses a market index as a benchmark for computing abnormal buy-and-hold returns. There are 370 IPOs
+
+
+```{r output_table_bhar_daily_multiple_market, results='asis'}
+
+bhar_daily_multiple_market %>% 
   group_by(horizon) %>% 
   summarise(across(c(contains("bhar")), ~mean(.) * 100)) %>% 
   rename(Horizon = horizon,
