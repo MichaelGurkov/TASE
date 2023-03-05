@@ -10,8 +10,7 @@ calculate_return_df = function(price_df){
                   ~ . /lag(.) - 1,
                   .names = "{.col}_ret")) %>%
     ungroup() %>%
-    select(-c("close","index","control")) %>%
-    filter(complete.cases(.))
+    select(-c("close","index","control"))
 
   return(ret_df)
 

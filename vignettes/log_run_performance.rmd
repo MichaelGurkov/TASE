@@ -140,332 +140,98 @@ rm(cpi_df)
 ```
 
 
-# Desc Stats
-
-```{r plot_ipo}
-
-stocks_ipo %>% 
-  count(year) %>% 
-  pull(n) %>% 
-  mean()
-  ggplot(aes(year, n)) + 
-  geom_col()
-
-
-
-```
-
-
-
-<!-- Matching by sector -->
-
-
-```{r match_control_comps}
-
-ipo_control_match_df = match_control_group(market_df,
-                                           tase_sector_df,stocks_ipo,
-                                           threshold = 0.2)
-
-# annual_match_df = match_control_group_annual_mcap(market_df,
-#                                            tase_sector_df,stocks_ipo,
-#                                            threshold = 0.2)
-
-
-```
-
 ```{r price_df}
 
-price_df = make_price_df(market_df,ipo_control_match_df,ta_125,
-                         tase_sector_df)
+price_df = market_df %>% 
+  select(date, sec_id, tase_id, price = close_adjusted) %>% 
+  inner_join(stocks_ipo %>% 
+               select(tase_id) %>% 
+               distinct())
+
+price_df = price_df %>% 
+  left_join(ta_125 %>% 
+              rename(index = ta_125), by = "date")
+
+price_df = price_df %>% 
+  unite(col = "id", c("tase_id", "sec_id")) %>% 
+  group_by(id) %>%
+  mutate(month = as.numeric(date - date[date == min(date)]) %/% 21) %>%
+  group_by(id, month) %>%
+  summarise(across(c("price","index"), ~mean(., na.rm = TRUE)),
+            .groups = "drop")
 
 
 ```
+
+```{r returns}
+
+ret_df = price_df %>%
+    group_by(id) %>%
+    arrange(month) %>%
+    mutate(across(c("price","index"),
+                  ~ . /lag(.) - 1,
+                  .names = "{.col}_ret")) %>%
+    ungroup() %>%
+    select(-c("price","index")) %>% 
+  filter(complete.cases(.))
+
+```
+
 
 ```{r cumulative_returns}
 
-ret_df = calculate_return_df(price_df)
-
-cum_ret_df = ret_df %>% 
-  calculate_cum_return()
-
-```
-
-```{r holding_returns}
-
-hold_ret = calculate_holding_return(ret_df)
-
-```
-
-
-```{r clean_up, eval=FALSE}
-
-rm(ipo_control_match_df,ta_125,ret_df, market_df)
-
-```
-
-
-```{r ipo_by_year, results='asis'}
-
-stocks_ipo %>% 
-  select(year, real_domestic_issue) %>% 
-  group_by(year) %>% 
-  summarise(num_ipo = length(real_domestic_issue),
-            real_total_issue = sum(real_domestic_issue),
-            .groups = "drop") %>% 
-  mutate(real_total_issue = round(real_total_issue,2)) %>% 
-  rename(Year = year, `Number of IPO's` = num_ipo,
-         `Real proceeds` = real_total_issue) %>% 
-  as_data_frame() %>% 
-  stargazer(summary = FALSE,header = FALSE, rownames = FALSE,
-            title = "Distribution of IPO's by year",
-            label = "ipo_num")
-
-```
-
-
-```{r ipo_by_sector, results='asis'}
-
-stocks_ipo %>% 
-  select(tase_sector, real_domestic_issue) %>% 
-  group_by(tase_sector) %>% 
-  summarise(num_ipo = length(real_domestic_issue),
-            real_total_issue = sum(real_domestic_issue),
-            .groups = "drop") %>% 
-  mutate(real_total_issue = round(real_total_issue,2)) %>% 
-  rename(Sector = tase_sector, `Number of IPO's` = num_ipo,
-         `Real proceeds` = real_total_issue) %>% 
-  as_data_frame() %>% 
-  stargazer(summary = FALSE,header = FALSE, rownames = FALSE,
-            title = "Distribution of IPO's by sector",
-            label = "ipo_by_sector")
-
-```
-
-
-```{r plot_ipo_by_industry, fig.cap="IPOs by year and sector\\label{ipo_sector}"}
-
-stocks_ipo %>% 
-  count(year, tase_sector) %>% 
-  ggplot(aes(year,n ,fill = tase_sector)) + 
-  geom_col() + 
-  scale_fill_viridis_d() + 
-  xlab(NULL) + ylab(NULL) + ggtitle("IPO's by year and sector") + 
-  theme(legend.title = element_blank())
-
-```
-
-
-
-```{r plot_cum_ret}
-
-cum_ret_df %>% 
-  ggplot(aes(month, value, color = adjustment_type)) +
-  geom_line() +
-  geom_hline(yintercept = 0, linetype = "dashed") +
-  scale_y_continuous(labels = scales::percent_format()) +
-  xlab("Months since IPO") + ylab(NULL) +
-  ggtitle("Cumulative returns since IPO") +
-  theme(legend.title = element_blank())
-
-
-
-```
-
-
-```{r car_table, results='asis'}
-
-cum_ret_df %>% 
-  filter(month %in% c(36, 60, 96)) %>% 
-  mutate(value = paste0(round(value * 100,2),"%")) %>% 
-  pivot_wider(names_from = adjustment_type) %>% 
-  rename(Month = month, `Number of IPOS` = num_comps,
-         `Index adjusted returns` = `Abnormal (index adjusted) returns`) %>% 
-  as_data_frame() %>% 
-  stargazer(header = FALSE, summary = FALSE, label = "car_table",
-            rownames = FALSE)
-
-
-```
-
-
-
-```{r bhar_table, results='asis'}
-
-hold_ret %>% 
-  filter(month %in% c(36, 60, 96)) %>% 
-  mutate(hold_ret = paste0(round(hold_ret * 100,2),"%")) %>% 
-  rename(Month = month, `Number of IPOS` = num_comps,
-         `Buy-and-hold abnormal returns` = hold_ret) %>% 
-  as_data_frame() %>% 
-  stargazer(header = FALSE, summary = FALSE, label = "bhar_table",
-            rownames = FALSE)
-
-
-
-```
-
-
-
-```{r plot_hold_ret, eval=FALSE}
-
-q_vec = seq(0.05,0.95, 0.05)
-
-hold_ret %>% 
-  group_by(adjustment_type) %>% 
-  summarise(tibble(returns = quantile(hold_ret,q_vec,na.rm = TRUE),
-                   quantiles = q_vec), .groups = "drop") %>% 
-  ggplot(aes(as.character(quantiles), returns, fill = adjustment_type)) + 
-  geom_col(position = "dodge") + 
-  scale_y_continuous(labels = scales::percent_format()) + 
-  xlab("Quantile") + ylab(NULL) + ggtitle("3 year holding returns")
-
-rm(q_vec)
-
-```
-
-
-\subsection {Aftermarket performance by sector}
-
-
-```{r holding_returns_by_sector}
-
-sector_holding_returns = ret_df %>%
-   group_by(id, tase_sector) %>%
-   arrange(month) %>%
-   mutate(across(ends_with("ret"),~ cumprod(1 + .) - 1)) %>%
-   group_by(month, tase_sector) %>%
-   summarise(across(ends_with("ret"), ~mean(., na.rm = TRUE)),
-             num_comps = length(id),
-             .groups = "drop") %>%
-   mutate(hold_ret = close_ret - control_ret) %>%
-   select(month, hold_ret, num_comps, tase_sector)
-
-```
-
-```{r table_bhar_by_sector, results='asis'}
-
-sector_holding_returns %>% 
-  filter(month %in% c(36, 60, 96)) %>% 
-  select(hold_ret, tase_sector, month) %>% 
-  mutate(hold_ret = round(hold_ret * 100,2)) %>% 
-  pivot_wider(names_from = month, values_from = hold_ret) %>% 
-  rename_with(.cols = -tase_sector,.fn = ~paste(.,"months")) %>% 
-  mutate(tase_sector = str_to_title(tase_sector)) %>% 
-  mutate(tase_sector = str_replace(tase_sector,"_"," ")) %>% 
-  mutate(tase_sector = str_replace(tase_sector,"Fin","Fin.")) %>% 
-  mutate(tase_sector = str_replace(tase_sector,"Oil gas","Oil and gas")) %>% 
-  stargazer(header = FALSE, summary = FALSE, label = "sector_bhar_table",
-            rownames = FALSE)
-
-```
-
-
-
-```{r plot_returns_by_sector, eval=FALSE}
-
-hold_ret %>%
-  filter(complete.cases(.)) %>% 
-  group_by(tase_sector, adjustment_type) %>% 
-  summarise(avg_ret = mean(hold_ret), .groups = "drop") %>% 
-  ggplot(aes(x = avg_ret,
-             y = tidytext::reorder_within(tase_sector,avg_ret,
-                                          adjustment_type))) + 
-  geom_col(aes(fill = (avg_ret >= 0)),position = "dodge", width = 0.5,
-           show.legend = FALSE) + 
-  geom_vline(xintercept = 0, linetype = "dashed") + 
-  tidytext::scale_y_reordered() + 
-  scale_x_continuous(labels = scales::percent_format()) + 
-  facet_wrap(~adjustment_type, scales = "free") + 
-  xlab(NULL) + ylab(NULL)
-
-
-hold_ret %>% 
-  filter(tase_sector == "fin_services") %>% 
+weights = ret_df %>% 
   select(id) %>% 
-  distinct()
+  distinct() %>% 
+  mutate(tase_id = str_extract(id, "[0-9]{4}")) %>% 
+  left_join(stocks_ipo %>%
+              select(tase_id, real_domestic_issue) %>% 
+              distinct(), by = "tase_id") %>% 
+  group_by(id) %>%
+  summarise(issue = mean(real_domestic_issue, na.rm = TRUE),
+            .groups = "drop") %>% 
+  filter(complete.cases(.))
 
 
-
-```
-
-
-\subsection {Aftermarket performance by year of Issuance}
-
-```{r plot_returns_by_year, eval=FALSE}
-
-
-hold_ret %>%
+cum_ret = ret_df %>% 
+  select(id, month, close_ret, index_ret) %>% 
   filter(complete.cases(.)) %>% 
-  group_by(year, adjustment_type) %>% 
-  summarise(avg_ret = mean(hold_ret), .groups = "drop") %>% 
-  ggplot(aes(x = year, y = avg_ret, fill = adjustment_type)) + 
-  geom_col(position = "dodge", width = 0.5) + 
-  scale_fill_viridis_d() + 
-  scale_y_continuous(labels = scales::percent_format()) + 
-  xlab(NULL) + ylab(NULL) + ggtitle("Holding returns by year")
+  mutate(abnormal_ret = close_ret - index_ret) %>% 
+  select(id, month, abnormal_ret) %>% 
+  left_join(weights)
 
 
+cum_ret %>% 
+  filter(month<=60) %>% 
+  filter(complete.cases(.)) %>% 
+  group_by(month) %>% 
+  summarise(median = median(abnormal_ret),
+            mean = mean(abnormal_ret),
+            weighted_mean = weighted.mean(x = abnormal_ret, w = issue),
+            .groups = "drop") %>% 
+  arrange(month) %>% 
+  mutate(across(-month, cumsum)) %>% 
+  mutate(month = month + 1) %>% 
+  pivot_longer(-month) %>% 
+  ggplot(aes(month, value, color = name)) + 
+  geom_line()
 
-```
-
-
-\subsection{Regression results}
-
-```{r, eval=FALSE}
-
-
-
-reg_df = hold_ret %>% 
-  filter(!adjustment_type == "control_ret") %>% 
-  pivot_wider(names_from = adjustment_type, values_from = "hold_ret") %>% 
-  mutate(index_ret = close_ret - index_ret) %>% 
-  left_join(stocks_ipo %>% 
-              count(year,name = "vol"), by = "year") %>% 
-  select(-c(id,year))
-
-summary(lm("close_ret ~ index_ret + vol + tase_sector", data = reg_df))
-
-```
-
-
-\section{Robustness}
-
-
-```{r cumulative_returns_from_trading_start, eval=FALSE}
-
-cum_ret_df_robust = market_df %>% 
-  select(tase_id, sec_id,date, close = close_adjusted) %>% 
-  inner_join(stocks_ipo %>% 
-               select(tase_id),by = "tase_id") %>% 
-  left_join(ta_125 %>% 
-              rename(index = ta_125), by = "date") %>% 
-  group_by(tase_id, sec_id) %>% 
-  arrange(date) %>% 
-  mutate(month = as.numeric(date - date[1]) %/% 22) %>% 
-  group_by(tase_id, sec_id, month) %>% 
-  summarise(across(c("close","index"),~mean(., na.rm = TRUE)),
-            .groups = "drop") 
-
-cum_ret_df_robust = cum_ret_df_robust %>% 
-  group_by(tase_id, sec_id) %>% 
-  mutate(across(c("close","index"),
-                .fns = list(log_ret = ~log(.) - log(.[1]),
-                            simple_ret = ~ . /.[1] - 1))) %>% 
-  ungroup() %>% 
-  select(-c("close","index"))
-
-cum_ret_df_robust = cum_ret_df_robust  %>% 
-  pivot_longer(contains("ret"),names_to = "category") %>% 
-   extract(category, into = c("source","ret_type"),
-          regex = "^([^_]*)_(.*)") %>% 
-  pivot_wider(names_from = source) %>% 
-  mutate(index_adj = close - index) %>% 
-  select(-index) %>% 
-  pivot_longer(c("close","index_adj"),
-               names_to = "adjustment_type")
+cum_ret %>% 
+  filter(month<=60) %>% 
+  filter(complete.cases(.)) %>% 
+  group_by(month) %>% 
+  summarise(median = median(abnormal_ret),
+            mean = mean(abnormal_ret),
+            weighted_mean = weighted.mean(x = abnormal_ret, w = issue),
+            .groups = "drop") %>% 
+  arrange(month) %>% 
+  mutate(across(-month, cumsum)) %>% 
+  mutate(month = month + 1) %>%
+  write_csv(paste0("C:\\Users\\Home",
+                   "\\OneDrive - Bank Of Israel\\current_work",
+                   "\\annual_report\\2022\\data\\plots\\",
+                   "cum_ret_plot.csv"))
 
 
 ```
-
- * \textcolor{red}{calculate abnormal return using CAPM residuals}
 
