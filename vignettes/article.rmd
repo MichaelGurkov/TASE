@@ -19,6 +19,13 @@ knitr::opts_chunk$set(
 )
 ```
 
+```{r params, include=FALSE}
+
+eval_mode = FALSE
+
+```
+
+
 
 ```{r get_bib_filepath, include = FALSE}
 
@@ -30,111 +37,45 @@ file.copy(paste0(Sys.getenv("USERPROFILE"),
 ```
 
 
-```{r ,child="import_data.Rmd"}
+```{r child="import_data.rmd", eval=eval_mode}
+
+```
+
+
+\section{Literature review}
+
+```{r child="lit_review.rmd"}
 
 ```
 
 
 \section{Descriptive stats}
 
-```{r child="descriptive_stats.rmd"}
+```{r child="descriptive_stats.rmd", eval=eval_mode}
 
 ```
 
 
 \section{Analysis}
 
-```{r child="analysis.rmd"}
+```{r child="analysis.rmd", eval=eval_mode}
 
 ```
 
 
-<!-- \section{Methodology} -->
 
-<!-- I use three measures in order to evaluate the long run performance of the IPOs: -->
-<!-- cumulative abnormal returns (CARs), buy-and-hold abnormal returns (BHARs) and calendar-time abnormal return (CTARs). I measure the after market period in two time points : 36 months and 60 months after the first trading day (so that return is measured from first closing price) where month is defined as 21 trading days period. The excessive returns are calculated as benchmark adjusted returns where the benchmarks are: (1) TASE TA 125 market index and (2) control firms matched by sector and size. -->
+\section{Methodology}
 
-
-<!-- \section{Results} -->
+I use three measures in order to evaluate the long run performance of the IPOs:
+cumulative abnormal returns (CARs), buy-and-hold abnormal returns (BHARs) and calendar-time abnormal return (CTARs). I measure the after market period in two time points : 36 months and 60 months after the first trading day (so that return is measured from first closing price) where month is defined as 21 trading days period. The excessive returns are calculated as benchmark adjusted returns where the benchmarks are: (1) TASE TA 125 market index and (2) control firms matched by sector and size.
 
 
+\section{Results}
 
 
+\section{References}
 
-<!-- \newpage -->
+<div id="refs"></div>
 
-<!-- \section{References} -->
-
-<!-- <div id="refs"></div> -->
-
-<!-- \section{Appendix} -->
-
-<!-- ```{r child="appendix.rmd"} -->
-
-<!-- ``` -->
-
-
-<!-- The return measures used in the paper are: -->
-
-<!-- \begin{itemize} -->
-<!--   \item -->
-<!--   Cumulative average adjusted returns (CAR) -->
-<!--   \item -->
-<!--   Buy and hold abnormal returns (BHAR) -->
-<!--   \item -->
-<!--   Calendar time abnormal returns (CTAR) -->
-<!-- \end{itemize} -->
-
-
-<!-- \subsubsection{CAR} -->
-
-<!-- The cumulative return is calculated on a monthly basis where months are defined as successive 21-trading-day periods relative to the IPO date. Thus, month 1 consists of event days 1-21, month 2 consists of event days 22-43, etc. -->
-
-<!-- Monthly raw return is calculated as: -->
-
-<!-- \begin{equation*} -->
-<!--   r_{i,t} = \frac{P_{i,t}}{P_{i,t-1}} - 1 -->
-<!-- \end{equation*} -->
-
-
-<!-- Benchmark adjusted returns are calculated as a difference between monthly raw return and the monthly return of benchmark index. -->
-<!-- Thus, the benchmark return is defined as: -->
-
-<!-- \begin{equation*} -->
-<!--   ar_{i,t} = r_{i,t} - r_{benchmark,t} -->
-<!-- \end{equation*} -->
-
-<!-- and the adjusted return for the portfolio of N stocks is the simple average -->
-<!-- of the adjusted returns of the individual stocks. -->
-
-<!-- \begin{equation*} -->
-<!--   AR_{t} = \frac{1}{N} \sum_{i = 1}^{N}ar_{i,t} -->
-<!-- \end{equation*} -->
-
-
-<!-- The cumulative benchmark-adjusted aftermarket performance from event -->
-<!-- month q to event month s is the summation of the average benchmark-adjusted returns: -->
-
-<!-- \begin{equation*} -->
-<!--   CAR_{q,s} = \sum_{t = q}^{s}AR_{t} -->
-<!-- \end{equation*} -->
-
-<!-- \subsubsection{BHAR} -->
-
-<!-- The buy-and-hold abnormal return (BHAR) is defined as follows: -->
-
-<!-- \begin{equation*} -->
-<!--   BHAR_{i,T} = \left[\prod_{t = 1}^{T}(1 + r_{i,t}) - 1\right] - \left[\prod_{t = 1}^{T}(1 + r_{m,t}) - 1\right] -->
-<!-- \end{equation*} -->
-
-<!-- Where: -->
-<!-- $r_{i,t}$ - the return of firm $i$ in month $t$ -->
-
-<!-- $r_{m,t}$ - the return of corresponding benchmark in month $t$ -->
-
-
-<!-- \subsection{Control firms matching procedure} -->
-<!-- In order to match a control firm for each of the `r num_ipo` IPOs in `r data_period` for each IPO comp I take the market value of the IPO on the end  -->
-<!-- of the first trading day and match it with the closest market cap company in the -->
-<!-- same sector on that day. I allow for maximum difference of 20% in the market cap. -->
+\section{Appendix}
 
