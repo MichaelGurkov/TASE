@@ -29,10 +29,10 @@ eval_mode = FALSE
 
 ```{r get_bib_filepath, include = FALSE}
 
-file.copy(paste0(Sys.getenv("USERPROFILE"),
+invisible(file.copy(paste0(Sys.getenv("USERPROFILE"),
                  "\\OneDrive - Bank Of Israel",
                  "\\References\\ipo_long_run.bib"),
-          "ipo_long_run.bib")
+          "ipo_long_run.bib",overwrite = TRUE))
 
 ```
 
