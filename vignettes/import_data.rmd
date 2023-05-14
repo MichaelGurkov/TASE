@@ -38,7 +38,8 @@ cpi_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
 ```{r import_mcap_from_vladimir}
 
 vladimir_mcap = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                                "\\OneDrive - Bank Of Israel\\Data\\BoI\\Finrep",
+                                "\\OneDrive - Bank Of Israel",
+                                "\\Data\\BoI\\Finrep",
                                 "\\market_cap_from_vladimir.csv"),
                          show_col_types = FALSE) %>% 
   select(date_yearqtr = date, sec_id = msp_brs,
@@ -72,7 +73,8 @@ complete_finrep_with_vladimir_data = function(finrep_df, vladimir_mcap){
 
 finrep_df_raw = import_boi_oracle_finrep_data(paste0(Sys.getenv("USERPROFILE"),
                                      "\\OneDrive - Bank Of Israel\\Data",
-                                     "\\BoI\\Finrep\\finrep_full_data.rds"),
+                                     "\\BoI\\Finrep",
+                                     "\\finrep_full_data_2023-05-11.rds"),
                               data_frequency = "quarterly")
 
 

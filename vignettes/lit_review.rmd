@@ -16,13 +16,21 @@ it refers to different period relative to other studies thus being able to avoid
 common shocks that occurred during later post-NASDAQ period.
 
 
-@Coakley2008a look at IPO in the UK market. The authors find no evidence of IPOs underperformance for the entire sample but splitting the sample to hot and normal market period reveals significant underperformace for the hot market sample. This is true both with respect to normal period IPOs as well as to general market
+@Coakley2008a look at IPO in the UK market. The authors find no evidence of IPOs underperformance for the entire sample but splitting the sample to hot and normal market period reveals significant underperformace for the hot market sample. This is true both with respect to normal period IPOs as well as to general market.
+
+@Loughran2000 address the issue of measuring abnormal returns. The authors argue that the different weighting schemes implied by different return definitions can influence the power of the statistical test that is used to identify abnormal returns. The authors suggest that if small firms stocks are more susceptible to market inefficiencies than an equal firm weighting should be preferred.
+
 
 \subsection{Market inefficiencies}
 
-An possible explanation of the underperformance of the IPO stock lays in the strand of the literature that deals with market inefficiencies:
+A possible explanation of the underperformance of the IPO stock lays in the strand of the literature that deals with market inefficiencies:
 
 @Ljungqvist2018 develop a model of strategic behavior by the issuer in the presence of sentiment investors. Sentiment investors defined as investors that place a higher (relative to fundamental) value on the shares due to difference of opinion with rational investors. The empirical predictions of the models are that in the presence of hot market the IPO is going to underperform in the long run
 
 @Baker2000 find evidence of managers timing equity issuance to market conditions.
 The paper analyzes long sample of 70 years and identifies period of "hot markets" characterized by high returns that are followed by periods of low returns. The authors show that the share of equity in firm financing is a strong predictor of market returns, firms issue more equity before periods of low market returns and reduce equity share before periods of high returns. Since an efficient market explanations of this results lack empirical support the authors conclude that this result suggests inefficiency and that firms time the market component of their returns when issuing securities. This result also suggest that measuring firm performance using abnormal returns (relative to some benchmark) may be flawed since the benchmark itself may suffer from low returns as result of timing the measurement period.
+
+@Ritter2002b discuss several theories of why companies go public and come to the conclusion that firms go public in response to favorable market conditions, but only if they are beyond a certain stage in their life cycle.
+
+@Brau2006 condcut a survey of CFO's in order to learn abount the determinants of the IPO process. They state that timing the IPO is an important part of the decision and that the overall market conditions (namely high market prices) are the single most important factor in the timing decision.
+
