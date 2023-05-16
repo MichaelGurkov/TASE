@@ -32,5 +32,11 @@ The paper analyzes long sample of 70 years and identifies period of "hot markets
 
 @Ritter2002b discuss several theories of why companies go public and come to the conclusion that firms go public in response to favorable market conditions, but only if they are beyond a certain stage in their life cycle.
 
-@Brau2006 condcut a survey of CFO's in order to learn abount the determinants of the IPO process. They state that timing the IPO is an important part of the decision and that the overall market conditions (namely high market prices) are the single most important factor in the timing decision.
+@Brau2006 conduct a survey of CFO's in order to learn about the determinants of the IPO process. They state that timing the IPO is an important part of the decision and that the overall market conditions (namely high market prices) are the single most important factor in the timing decision.
 
+\subsection {Returns estimation}
+
+@Schultz2003 uses a theoretical model in order to demonstrate that even efficient market can produce ex post negative returns. The author shows that if firms issue more stock as stock prices rise this will lead to inferior abnormal returns in hindsight even if the managers are unable to predict the return before hand. The paper suggest that in order to eliminate the problem calendar return (that equal weight the time periods) and not event time returns (that equal weight the IPO firms) should be used.
+
+\subsection{International evidence}
+@Kooli2004 look at a sample of 445 Canadian IPOs. The authors find some evidence of underperformance in the long run however the results seem to depend on the methodology used and on the return weighting schemes. They also find that the underperformance varies across industries.

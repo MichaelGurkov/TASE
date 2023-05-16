@@ -44,6 +44,10 @@ duration_table %>%
 
 \subsection{Buy-and-Hold returns using a portfolio of matched firms}
 
+\subsubsection{Match by market cap}
+
+\subsubsection{Match by market cap and book to market}
+
 <!-- daily calculation -->
 
 ```{r match_multiple_control_firm_by_size_multiple}
