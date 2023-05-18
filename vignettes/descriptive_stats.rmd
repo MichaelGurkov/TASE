@@ -129,7 +129,7 @@ stocks_ipo %>%
 
 ```
 
-```{r plot_size_quantiles}
+```{r plot_size_quantiles, eval=FALSE}
 
 market_quantiles = finrep_df %>% 
   inner_join(stocks_ipo %>% 

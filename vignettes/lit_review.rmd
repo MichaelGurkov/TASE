@@ -1,6 +1,5 @@
 
 
-
 The empirical literature is inconclusive with regard to the question whether IPO
 firms underperform in the long run.
 
@@ -40,3 +39,5 @@ The paper analyzes long sample of 70 years and identifies period of "hot markets
 
 \subsection{International evidence}
 @Kooli2004 look at a sample of 445 Canadian IPOs. The authors find some evidence of underperformance in the long run however the results seem to depend on the methodology used and on the return weighting schemes. They also find that the underperformance varies across industries.
+
+@Drobetz2005 analyze the performance of Swiss IPOs. The authors find little evidence of underperformance. The underperformance becomes discernible only in the very long run and even then the article suggest that the underperformance is due to the issuing firms being perdominantly small firms

@@ -21,7 +21,9 @@ knitr::opts_chunk$set(
 
 ```{r params, include=FALSE}
 
-eval_mode = FALSE
+include_results = FALSE
+
+include_lit_review = FALSE
 
 ```
 
@@ -37,28 +39,28 @@ invisible(file.copy(paste0(Sys.getenv("USERPROFILE"),
 ```
 
 
-```{r child="import_data.rmd", eval=eval_mode}
+```{r child="import_data.rmd", eval=include_results}
+
+```
+
+\section{Introduction}
+
+
+```{r child="intro.rmd"}
 
 ```
 
 
 \section{Literature review}
 
-```{r child="lit_review.rmd"}
+```{r child="lit_review.rmd", eval=include_lit_review}
 
 ```
 
 
 \section{Descriptive stats}
 
-```{r child="descriptive_stats.rmd", eval=eval_mode}
-
-```
-
-
-\section{Analysis}
-
-```{r child="analysis.rmd", eval=eval_mode}
+```{r child="descriptive_stats.rmd", eval=include_results}
 
 ```
 
@@ -71,6 +73,12 @@ cumulative abnormal returns (CARs), buy-and-hold abnormal returns (BHARs) and ca
 
 
 \section{Results}
+
+```{r child="analysis.rmd", eval=include_results}
+
+```
+
+
 
 
 \section{References}

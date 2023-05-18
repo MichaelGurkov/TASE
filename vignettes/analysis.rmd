@@ -42,7 +42,19 @@ duration_table %>%
 
 ```
 
-\subsection{Buy-and-Hold returns using a portfolio of matched firms}
+\subsection{Cumulative abnormal returns}
+
+\subsubsection{Match by market cap}
+
+\subsubsection{Match by market cap and book to market}
+
+\subsection{Buy-and-Hold returns}
+
+\subsubsection{Match by market cap}
+
+\subsubsection{Match by market cap and book to market}
+
+\subsection{Calendar time returns}
 
 \subsubsection{Match by market cap}
 
@@ -130,7 +142,7 @@ In this section I compute the three and five years buy-and-hold abnormal returns
 
 
 
-```{r plot_ipo_raw_returns_dist, fig.cap=raw_ipo_dist_lab}
+```{r plot_ipo_raw_returns_dist, fig.cap=raw_ipo_dist_lab, eval=FALSE}
 
 bhar_daily_multiple %>% 
   ggplot(aes(x = bhar_ipo)) + 
