@@ -23,7 +23,7 @@ knitr::opts_chunk$set(
 
 include_results = FALSE
 
-include_lit_review = FALSE
+include_lit_review = TRUE
 
 ```
 

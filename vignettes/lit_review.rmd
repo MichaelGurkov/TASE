@@ -3,8 +3,8 @@
 The empirical literature is inconclusive with regard to the question whether IPO
 firms underperform in the long run.
 
-A seminal paper that analyses the long run performance of IPO is @Ritter1991
-The author studies a sample of US IPOs that went public during 1975-1984 period and finds strong evidence of underperformance. In the 3 years after going public the IPOs show inferior returns (underperformance) relative to comparable traded firms (matched by size and industry). @Spiess1995 documents the underperformance phenomena for seasoned equity as well
+A seminal paper that analyses the long run performance of IPO is @Ritter1991.
+The author studies a sample of US IPOs that went public during 1975-1984 period and finds strong evidence of underperformance. In the 3 years after going public the IPOs show inferior returns (underperformance) relative to comparable traded firms (matched by size and industry). @Spiess1995 documents the underperformance phenomena for seasoned equity as well.
 
 @Loughran1995 reaffirm the findings of @Ritter1991 using a much larger sample spanning for 20 years. They show that firms issuing shares during 1970 to 1990 underperform relative to matched firms for five years after the issue. The underperformance occurs for initial public offerings (IPO) as well as seasoned equity offerings (SEO).
 
@@ -16,8 +16,6 @@ common shocks that occurred during later post-NASDAQ period.
 
 
 @Coakley2008a look at IPO in the UK market. The authors find no evidence of IPOs underperformance for the entire sample but splitting the sample to hot and normal market period reveals significant underperformace for the hot market sample. This is true both with respect to normal period IPOs as well as to general market.
-
-@Loughran2000 address the issue of measuring abnormal returns. The authors argue that the different weighting schemes implied by different return definitions can influence the power of the statistical test that is used to identify abnormal returns. The authors suggest that if small firms stocks are more susceptible to market inefficiencies than an equal firm weighting should be preferred.
 
 
 \subsection{Market inefficiencies}
@@ -37,7 +35,12 @@ The paper analyzes long sample of 70 years and identifies period of "hot markets
 
 @Schultz2003 uses a theoretical model in order to demonstrate that even efficient market can produce ex post negative returns. The author shows that if firms issue more stock as stock prices rise this will lead to inferior abnormal returns in hindsight even if the managers are unable to predict the return before hand. The paper suggest that in order to eliminate the problem calendar return (that equal weight the time periods) and not event time returns (that equal weight the IPO firms) should be used.
 
+@Loughran2000 address the issue of measuring abnormal returns. The authors argue that the different weighting schemes implied by different return definitions can influence the power of the statistical test that is used to identify abnormal returns. The authors suggest that if small firms stocks are more susceptible to market inefficiencies than an equal firm weighting should be preferred.
+
+
 \subsection{International evidence}
 @Kooli2004 look at a sample of 445 Canadian IPOs. The authors find some evidence of underperformance in the long run however the results seem to depend on the methodology used and on the return weighting schemes. They also find that the underperformance varies across industries.
 
-@Drobetz2005 analyze the performance of Swiss IPOs. The authors find little evidence of underperformance. The underperformance becomes discernible only in the very long run and even then the article suggest that the underperformance is due to the issuing firms being perdominantly small firms
+@Drobetz2005a analyze the performance of Swiss IPOs. The authors find little evidence of underperformance. The underperformance becomes discernible only in the very long run and even then the article suggest that the underperformance is due to the issuing firms being predominantly small firms.
+
+@Thomadakis2012 find evidence of underperformance in Greek IPOs. They employ extensive robustness test using different definitions of abnormal returns and different time periods
