@@ -12,8 +12,7 @@ match_comps_by_market_value = function(ipo_comps, market_df,
 
 
   ipo_sample = market_df %>%
-    inner_join(ipo_comps, by = "tase_id") %>%
-    unite(id,c("tase_id","sec_id")) %>%
+    inner_join(ipo_comps, by = "id") %>%
     group_by(id) %>%
     summarise(market_value = market_value[date == min(date)],
               date = min(date),
@@ -22,7 +21,6 @@ match_comps_by_market_value = function(ipo_comps, market_df,
 
   target_sample = market_df %>%
     filter(!is.na(market_value)) %>%
-    unite(id, c("tase_id","sec_id")) %>%
     select(date, id, market_value) %>%
     group_by(id) %>%
     mutate(age = as.numeric(date - min(date)) / 252) %>%
@@ -32,7 +30,8 @@ match_comps_by_market_value = function(ipo_comps, market_df,
 
   matched_sample = ipo_sample %>%
     left_join(target_sample, by = c("date"),
-              suffix = c("_ipo","_control")) %>%
+              suffix = c("_ipo","_control"),
+              relationship = "many-to-many") %>%
     filter(complete.cases(.)) %>%
     mutate(matching_diff = abs(market_value_ipo/market_value_control - 1)) %>%
     filter(matching_diff < market_threshold)
@@ -68,7 +67,8 @@ match_comps_by_market_value = function(ipo_comps, market_df,
 #'
 
 calculate_bhar_from_price_df = function(price_df,
-                                           target_duration){
+                                        target_duration,
+                                        duration_tolerance = 0.05){
 
   bhar_df = price_df %>%
     group_by(id, id_control) %>%
@@ -80,6 +80,11 @@ calculate_bhar_from_price_df = function(price_df,
               bhar_control = (price_control[2] / price_control[1]) - 1,
               bhar_abnormal = bhar_ipo - bhar_control,
               duration = duration[2], .groups = "drop")
+
+  bhar_df = bhar_df %>%
+    mutate(dur_diff = target_duration / duration - 1) %>%
+    filter(dur_diff <= duration_tolerance) %>%
+    select(-duration, -dur_diff)
 
 
   return(bhar_df)

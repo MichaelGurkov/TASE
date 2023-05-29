@@ -74,43 +74,6 @@ import.boi.finrep.data = function(filepath = NULL){
 }
 
 
-#' @title Import BoI format market report data
-#'
-#' @description  This function imports market data from BOI format
-#'
-#' @param filepath the path to financial report data (in csv format)
-#'
-#' @import dplyr
-#'
-#' @import readr
-#'
-#' @import lubridate
-#'
-#' @export
-
-
-import_boi_market_data = function(filepath){
-
-
-  temp_df = read_rds(filepath)
-
-
-  df = temp_df %>%
-    rename_all(tolower) %>%
-    rename(tase_id = tase_issuer_id,
-           sec_id = security_ident_num_tase,
-           date = date_value) %>%
-    mutate(date = as_date(date)) %>%
-    mutate(sec_id = as.character(as.numeric(sec_id)))
-
-
-  df = df %>%
-    mutate(across(-c(sec_id,tase_id, date), as.numeric))
-
-
-  return(df)
-
-}
 
 #' @title Import trading status data
 #'

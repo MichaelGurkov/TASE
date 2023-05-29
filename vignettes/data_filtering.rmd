@@ -1,0 +1,28 @@
+
+```{r count_duplicated_comps_in_market_df}
+
+duplicated_comps = market_df %>% 
+  select(tase_id, sec_id) %>% 
+  distinct() %>% 
+  count(tase_id,name = "number_of_secs", sort = TRUE)
+
+duplicated_comps = duplicated_comps %>% 
+  left_join(select(stocks_ipo, tase_id) %>% 
+              distinct() %>% 
+              mutate(ipo_ind = 1),by = join_by(tase_id)) %>% 
+  mutate(ipo_ind = replace_na(ipo_ind,0))
+
+multiple_secs_comps = duplicated_comps %>% 
+  filter(number_of_secs > 1) %>% 
+  nrow()
+
+multiple_secs_comps_ipo = duplicated_comps %>% 
+  filter(number_of_secs > 1) %>% 
+  filter(ipo_ind == 1) %>% 
+  nrow()
+
+
+```
+
+Market df has `r multiple_secs_comps` companies with more than one
+security ( `r multiple_secs_comps_ipo` IPO companies), I remove them

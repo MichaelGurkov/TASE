@@ -1,3 +1,81 @@
+```{r}
+
+library(MiscImport)
+
+library(tidyverse)
+
+```
+
+
+
+# Outliers
+
+## Mirland (tase_id == 1108) 
+
+```{r plot_prices}
+
+clean_market_df %>% 
+  filter(tase_id == 1108) %>% 
+  filter(date == min(date))
+
+```
+
+## Canada Global (tase id == 106)
+
+```{r}
+
+canada_price_data = read_csv("C:\\Users\\internet\\Desktop\\temp_canada.csv",
+                             show_col_types = FALSE) %>% 
+  mutate(date = dmy(date)) %>% 
+  arrange(date)
+
+canada_price_data %>% 
+  pivot_longer(-date) %>% 
+  ggplot(aes(date, value, color = name)) + 
+  geom_line()
+
+
+clean_market_df %>% 
+  filter(tase_id == 106) %>% 
+  ggplot(aes(date, price)) + 
+  geom_line()
+  
+```
+
+
+# Bhar market_daily
+
+```{r}
+
+clean_market_df %>% 
+  filter(tase_id == 1108) %>% 
+  mutate(price = price / price[date == min(date)]) %>% 
+  ggplot(aes(date, price)) + 
+  geom_line() + 
+  xlab(NULL) + ylab(NULL)
+           
+
+ta125_match %>% 
+  filter(id == 1108) %>% 
+  select(date, contains("price")) %>% 
+  pivot_longer(-date) %>% 
+  group_by(name) %>% 
+  mutate(value = value / value[date == min(date)]) %>% 
+  ungroup() %>% 
+  ggplot(aes(date, value, color = name)) + 
+  geom_line() + 
+  xlab(NULL) + ylab(NULL)
+
+```
+
+
+
+
+
+
+
+
+
 
 # Matching by size
 
