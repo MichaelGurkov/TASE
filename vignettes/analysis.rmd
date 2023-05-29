@@ -1,26 +1,26 @@
 
 \subsection{Buy-and-Hold returns}
 
+\subsection{Buy-and-Hold returns using a market index}
 
 ```{r match_market_index}
 
-ta_125_match_table = stocks_ipo %>% 
+market_index_match_table = stocks_ipo %>% 
   select(id_ipo = tase_id) %>% 
   distinct() %>% 
   mutate(id_control = "ta_125")
 
 price_df = clean_market_df %>% 
-  select(-market_value) %>% 
-  rename(id = tase_id) %>% 
+  select(-target_value) %>% 
   bind_rows(ta_125 %>% 
               rename(price = ta_125) %>% 
               mutate(id = "ta_125"))
 
-ta125_match = merge_ipo_control_prices(price_df = price_df,
-                            matched_sample = ta_125_match_table)
+market_index_matched_df = merge_ipo_control_prices(price_df = price_df,
+                            matched_sample = market_index_match_table)
 
 
-rm(ta_125_match_table, price_df)
+rm(market_index_match_table, price_df)
 
 ```
 
@@ -45,7 +45,7 @@ ta125_match %>%
 
 bhar_market_daily = map_dfr(c(1,3,5), function(temp_horizon){
   
-  temp_df = ta125_match %>% 
+  temp_df = market_index_matched_df %>% 
     calculate_bhar_from_price_df(target_duration = 252 * temp_horizon,
                                  duration_tolerance = 0.02) %>% 
     mutate(horizon = temp_horizon)
@@ -60,7 +60,7 @@ bhar_market_daily = map_dfr(c(1,3,5), function(temp_horizon){
 
 ```{r sanity_check_bhar_calculation, eval=FALSE}
 
-ta125_match %>% 
+market_index_matched_df %>% 
   filter(id == 1240) %>% 
   mutate(date = date - min(date)) %>% 
   filter(date == 0 | date <= 252) %>% 
@@ -89,29 +89,32 @@ bhar_market_daily %>%
 ```
 
 
-\subsubsection{Match by market cap}
+\subsubsection{Buy-and-Hold returns using control matched by market cap}
 
 
 ```{r match_multiple_control_firm_by_size}
 
-matched_sample_multiple = match_comps_by_market_value(
-  stocks_ipo %>%
+ipo_comps = stocks_ipo %>%
     select(id = tase_id) %>%
-    distinct(),
-  market_df = clean_market_df %>% 
-    select(id = tase_id,date, market_value),
-  single_match = FALSE
-)
+    distinct()
+
+market_target_df = clean_market_df %>% 
+  select(-price) %>% 
+  filter(complete.cases(.))
+
+market_size_match_table = match_by_target_value(ipo_comps = ipo_comps,
+                                                target_df = market_target_df,
+                                                age_threshold = 1 * 252,
+                                                single_match = FALSE)
 
 multiple_firms_match = merge_ipo_control_prices(clean_market_df %>%
-                                                  select(date,
-                                                         id = tase_id, price),
-                                                matched_sample_multiple)
+                                                  select(-target_value),
+                                                market_size_match_table)
 
 ```
 
 
-```{r calculate_bhar_matched_comps_daily}
+```{r calculate_bhar_size_matched_comps_daily}
 
 bhar_multiple_firms_daily = map_dfr(c(1,3,5), function(temp_horizon){
   
@@ -133,20 +136,19 @@ bhar_multiple_firms_daily = map_dfr(c(1,3,5), function(temp_horizon){
 
 multiple_firms_match %>% 
   filter(id == 1819) %>% 
-  filter(id_control == 106) %>% 
+  filter(id_control == 345) %>% 
   mutate(date = date - min(date)) %>% 
   filter(date == 0 | date <= 3 * 252) %>% 
   slice(1, nrow(.)) %>% 
   summarise(across(contains("price"), ~.[2]/.[1]-1)) %>% 
   rename_with(~str_replace(.,"price","bhar")) %>% 
   all.equal(bhar_multiple_firms_daily %>% 
-              filter(id == 1062) %>% 
-              filter(id_control == 271) %>% 
-              filter(horizon == 1) %>% 
+              filter(id == 1819) %>% 
+              filter(id_control == 345) %>% 
+              filter(horizon == 3) %>% 
               select(bhar_ipo, bhar_control))
 
 ```
-
 
 
 ```{r plot_bhar_matched_comps_daily_dist}
@@ -167,64 +169,30 @@ bhar_multiple_firms_daily %>%
 ```
 
 
-\subsubsection{Match by market cap and book to market}
+\subsubsection{Match by book to market}
 
-<!-- daily calculation -->
+```{r match_multiple_control_firm_by_book_to_market}
 
-```{r match_multiple_control_firm_by_size_multiple}
+book_to_market_match_table = match_by_target_value(ipo_comps = ipo_comps,
+                                                target_df = finrep_df,
+                                                age_threshold = 1,
+                                                single_match = FALSE)
 
-matched_sample_multiple = match_comps_by_market_value(stocks_ipo %>%
-                                                        select(id = tase_id) %>%
-                                                        distinct(),
-                                                      clean_market_df %>% 
-                                                        rename(id = tase_id),
-                                                      single_match = FALSE)
 
-price_df_multiple = merge_ipo_control_prices(clean_market_df %>% 
-                                               select(date, id = tase_id, price),
-                                             matched_sample_multiple)
+book_to_market_matched_df = merge_ipo_control_prices(clean_market_df %>%
+                                                  select(-target_value),
+                                                book_to_market_match_table)
 
 ```
 
-```{r compare_ipo_and_control, results='asis'}
 
-ipo_ids = market_df %>% 
-  unite(col = "id", c("tase_id", "sec_id")) %>% 
-  inner_join(matched_sample_multiple %>% 
-               select(id_ipo) %>% 
-               distinct(), by = c("id" = "id_ipo")) %>% 
-  group_by(id) %>% 
-  summarise(market_value = market_value[date == min(date)],
-            date = min(date),
-            .groups = "drop")
+```{r calculate_bhar_book_to_market_matched_comps_daily}
 
-
-control_ids = matched_sample_multiple %>% 
-  left_join(ipo_ids %>% 
-              select(id, date), by = c("id_ipo" = "id")) %>% 
-  left_join(market_df %>% 
-              unite(col = "id_control",c("tase_id","sec_id")) %>% 
-              select(id_control, date, market_value),
-            by = c("id_control","date"))
-
-
-tibble(IPOs = c(ipo_ids$market_value,
-                   rep(NA,nrow(control_ids) - nrow(ipo_ids))),
-           Control = control_ids$market_value) %>% 
-  mutate(across(everything(),~.*10^-6)) %>% 
-  as.data.frame() %>% 
-  stargazer(header = FALSE, digits = 1,
-            title = "Comparison of market value in IPOs and control firms")
-
-```
-
-```{r calculate_returns_size_control}
-
-
-bhar_daily_multiple = map_dfr(c(3,5), function(temp_horizon){
+bhar_book_to_market = map_dfr(c(1,3,5), function(temp_horizon){
   
-  temp_df = price_df_multiple %>% 
-    calculate_bhar_from_price_df(target_duration = 252 * temp_horizon) %>% 
+  temp_df = book_to_market_matched_df %>% 
+    calculate_bhar_from_price_df(target_duration = 252 * temp_horizon,
+                                 duration_tolerance = 0.02) %>% 
     mutate(horizon = temp_horizon)
   
   
@@ -232,67 +200,39 @@ bhar_daily_multiple = map_dfr(c(3,5), function(temp_horizon){
   
 })
 
-bhar_daily_multiple = bhar_daily_multiple %>% 
+
+```
+
+
+```{r sanity_check_bhar_calculation, eval=FALSE}
+
+book_to_market_matched_df %>% 
+  filter(id == 1103) %>% 
+  filter(id_control == 669) %>% 
+  mutate(date = date - min(date)) %>% 
+  filter(date == 0 | date <= 1 * 252) %>% 
+  slice(1, nrow(.)) %>% 
+  summarise(across(contains("price"), ~.[2]/.[1]-1)) %>% 
+  rename_with(~str_replace(.,"price","bhar")) %>% 
+  all.equal(bhar_book_to_market %>% 
+              filter(id == 1103) %>% 
+              filter(id_control == 669) %>% 
+              filter(horizon == 1) %>% 
+              select(bhar_ipo, bhar_control))
+
+```
+
+
+```{r plot_bhar_book_to_market_dist}
+
+bhar_book_to_market %>% 
   group_by(id, horizon) %>% 
-  summarise(across(contains("bhar"), mean),.groups = "drop")
-
-period_ret_multiple = calculate_period_ret_from_price_df(price_df_multiple,
-                                                         period_freq = 252,
-                                                         period_thresh = 5)
-
-
-```
-
-```{r size_matched_params, eval=FALSE}
-
-size_matched_ipo
+  summarise(bhar_abnormal = mean(bhar_abnormal), .groups = "drop") %>% 
+  ggplot(aes(x = bhar_abnormal)) + 
+  geom_density() + 
+  facet_wrap(~horizon) + 
+  xlab(NULL) + ylab(NULL)
 
 
 ```
 
-
-
-```{r plot_ipo_raw_returns_dist, fig.cap=raw_ipo_dist_lab, eval=FALSE}
-
-bhar_daily_multiple %>% 
-  ggplot(aes(x = bhar_ipo)) + 
-  geom_histogram() + 
-  geom_vline(xintercept = 0, color = "blue", linetype = "dashed") + 
-  facet_wrap(~horizon, scales = "free") + 
-  scale_x_continuous(labels = scales::percent_format()) + 
-  xlab("Raw IPO returns") + ylab(NULL) + 
-  ggtitle("Raw IPO returns distribution")
-
-```
-
-
-```{r plot_period_returns, eval=FALSE}
-
-period_ret_multiple %>% 
-  group_by(period) %>% 
-  summarise(ret_abnormal = mean(ret_abnormal), .groups = "drop") %>% 
-  ggplot(aes(period, ret_abnormal)) + 
-  geom_col(width = 0.5) + 
-  scale_y_continuous(labels = scales::percent_format()) + 
-  xlab("Years since IPO") + ylab(NULL) + 
-  ggtitle("Average annual abnormal return")
-
-```
-
-```{r output_table_bhar_daily_multiple, results='asis'}
-
-bhar_daily_multiple %>% 
-  group_by(horizon) %>% 
-  summarise(across(c(contains("bhar")), ~mean(.) * 100)) %>% 
-  rename(Horizon = horizon,
-         `IPOs raw return` = bhar_ipo,
-         `Control firms raw return` = bhar_control,
-         `Abnormal return` = bhar_abnormal) %>% 
-  as.data.frame() %>% 
-  stargazer(summary = FALSE, header = FALSE, digits = 2,
-            title = "Buy-and-Hold abnormal returns")
-
-
-```
-
-\subsection{Buy-and-Hold returns using a market index}

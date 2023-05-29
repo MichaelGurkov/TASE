@@ -5,25 +5,23 @@
 #' @details The matching is performed on mature firms (\code{age_treshold}
 #' parameter)
 #'
-match_comps_by_market_value = function(ipo_comps, market_df,
-                                       age_threshold = 1,
-                                       market_threshold = 0.1,
+match_by_target_value = function(ipo_comps, target_df,
+                                       age_threshold,
+                                       target_threshold = 0.1,
                                        single_match = TRUE){
 
 
-  ipo_sample = market_df %>%
+  ipo_sample = target_df %>%
     inner_join(ipo_comps, by = "id") %>%
     group_by(id) %>%
-    summarise(market_value = market_value[date == min(date)],
+    summarise(target_value = target_value[date == min(date)],
               date = min(date),
               .groups = "drop") %>%
     filter(complete.cases(.))
 
-  target_sample = market_df %>%
-    filter(!is.na(market_value)) %>%
-    select(date, id, market_value) %>%
+  target_sample = target_df %>%
     group_by(id) %>%
-    mutate(age = as.numeric(date - min(date)) / 252) %>%
+    mutate(age = as.numeric(date - min(date))) %>%
     ungroup() %>%
     filter(age >= age_threshold)
 
@@ -33,8 +31,8 @@ match_comps_by_market_value = function(ipo_comps, market_df,
               suffix = c("_ipo","_control"),
               relationship = "many-to-many") %>%
     filter(complete.cases(.)) %>%
-    mutate(matching_diff = abs(market_value_ipo/market_value_control - 1)) %>%
-    filter(matching_diff < market_threshold)
+    mutate(matching_diff = abs(target_value_ipo/target_value_control - 1)) %>%
+    filter(matching_diff < target_threshold)
 
   if(single_match){
 
