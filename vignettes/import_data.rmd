@@ -92,7 +92,8 @@ finrep_df = finrep_df %>%
 
 finrep_df = finrep_df %>% 
   mutate(book_to_market = book_value / market_value) %>% 
-  select(id = tase_id, date = date_yearqtr, target_value = book_to_market)
+  select(id = tase_id, date = date_yearqtr,
+         target_value = book_to_market)
 
 
 rm(finrep_df_raw,vladimir_mcap, complete_finrep_with_vladimir_data)
@@ -100,15 +101,6 @@ rm(finrep_df_raw,vladimir_mcap, complete_finrep_with_vladimir_data)
 ```
 
 ```{r import_ipo_list}
-
-delisting_dates = read_csv(paste0(Sys.getenv("USERPROFILE"),
-                                  "\\OneDrive - Bank Of Israel\\Data",
-                                  "\\TASE\\TASE Comps list_revised.csv"),
-                           show_col_types = FALSE) %>% 
-  rename_with(tolower) %>% 
-  filter(delisted == 1) %>% 
-  mutate(tase_id = as.character(tase_id)) %>% 
-  select(tase_id, delisting_date, delisting_reason)
 
 stocks_ipo = read_csv(paste0(Sys.getenv("USERPROFILE"),
                              "\\OneDrive - Bank Of Israel",
@@ -119,9 +111,6 @@ stocks_ipo = read_csv(paste0(Sys.getenv("USERPROFILE"),
   select(-comp_name_heb, -prospectus_date)
 
 stocks_ipo = stocks_ipo %>% 
-  left_join(delisting_dates, by = "tase_id")
-
-stocks_ipo = stocks_ipo %>% 
   mutate(tase_id = recode(tase_id,
                           `456` = "259")) %>% 
   unite(c("year", "month"),col = "date", sep = "-",remove = FALSE) %>% 
@@ -129,17 +118,12 @@ stocks_ipo = stocks_ipo %>%
   select(-month)
 
 stocks_ipo = stocks_ipo %>% 
-  left_join(finrep_df,
-            by = c("tase_id","date" = "date_yearqtr")) %>% 
-  mutate(market_value = market_value * 10 ^ -3)
-
-stocks_ipo = stocks_ipo %>% 
   left_join(cpi_df, by = "date") %>% 
-  mutate(across(c("domestic_issue", "market_value"), ~ . / cpi,
+  mutate(across("domestic_issue", ~ . / cpi,
          .names = "{.col}_real")) %>% 
   select(-cpi)
 
-rm(delisting_dates)
+rm(cpi_df)
 
 ```
 
@@ -177,9 +161,12 @@ market_df = read_rds(paste0(Sys.getenv("USERPROFILE"),
                             "\\working_data\\market_data_for_ipo.rds"))
 
 clean_market_df = clean_market_df(market_df) %>% 
-  rename(id = tase_id, target_value = market_value)
+  rename(id = tase_id, target_value = market_value) %>% 
+  bind_rows(ta_125 %>% 
+              rename(price = ta_125) %>% 
+              mutate(id = "ta_125"))
 
-rm(market_df)
+rm(market_df, ta_125)
 
 ```
 
