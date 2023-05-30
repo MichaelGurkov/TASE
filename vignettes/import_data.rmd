@@ -92,8 +92,7 @@ finrep_df = finrep_df %>%
 
 finrep_df = finrep_df %>% 
   mutate(book_to_market = book_value / market_value) %>% 
-  select(tase_id, date_yearqtr,market_value, book_to_market)
-
+  select(id = tase_id, date = date_yearqtr, target_value = book_to_market)
 
 
 rm(finrep_df_raw,vladimir_mcap, complete_finrep_with_vladimir_data)
@@ -177,7 +176,8 @@ market_df = read_rds(paste0(Sys.getenv("USERPROFILE"),
                             "\\TASE liquidity\\Rdata files",
                             "\\working_data\\market_data_for_ipo.rds"))
 
-clean_market_df = clean_market_df(market_df)
+clean_market_df = clean_market_df(market_df) %>% 
+  rename(id = tase_id, target_value = market_value)
 
 rm(market_df)
 
