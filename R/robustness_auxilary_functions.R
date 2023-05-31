@@ -1,8 +1,6 @@
 
-
-
-#' This function takes returns df and mathed table and calculates
-#' benchmark performance
+#' This function calculates buy and hold returns from
+#' price df (matched ipo and control)
 #'
 #'
 #'
@@ -34,37 +32,56 @@ calculate_bhar_from_price_df = function(price_df,
 
 }
 
-
-#' This function calculates periodic returns from price df. In order to do that
-#' the frequency is reduced by taking the endpoints of the period
+#' This function calculates average abnormal returns from
+#' price df (matched ipo and control)
 #'
-calculate_period_ret_from_price_df = function(price_df,
-                                                  period_freq,
-                                                  period_thresh = NULL){
+average_abnormal_return = function(price_df){
 
-  period_df = price_df %>%
-    group_by(id,id_control) %>%
+  abnormal_df = price_df %>%
+    group_by(id, id_control) %>%
     arrange(date) %>%
-    mutate(duration = as.numeric(date - min(date))) %>%
-    mutate(period = duration %/% period_freq) %>%
-    {if(!is.null(period_thresh)) filter(., period <= period_thresh) else .} %>%
-    group_by(period) %>%
-    slice_min(duration) %>%
+    mutate(across(c("price_ipo","price_control"), ~./dplyr::lag(.) - 1)) %>%
+    ungroup() %>%
+    rename_with(~str_replace_all(.,"price","ret")) %>%
+    filter(complete.cases(.)) %>%
+    mutate(abnormal_return = ret_ipo - ret_control)
+
+  average_df = abnormal_df %>%
+    group_by(date) %>%
+    summarise(average_abnormal_return = mean(abnormal_return),
+              .groups = "drop")
+
+
+  return(average_df)
+
+
+
+}
+
+#' This function transforms price df into trading months
+#'
+convert_to_trading_months = function(price_df){
+
+  first_day_df = price_df %>%
+    group_by(id, id_control) %>%
+    filter(date == min(date)) %>%
+    mutate(date = 0)
+
+  monthly_df = price_df %>%
+    group_by(id, id_control) %>%
+    mutate(date = as.numeric(date - min(date))) %>%
+    filter(!date == 0) %>%
+    mutate(date = (date %/% 22) + 1) %>%
     ungroup()
 
+  monthly_df = monthly_df %>%
+    bind_rows(first_day_df) %>%
+    arrange(id,id_control, date)
 
-  ret_df = period_df %>%
-    group_by(id, id_control) %>%
-    arrange(period) %>%
-    mutate(across(starts_with("price"), ~. / lag(.) - 1)) %>%
-    ungroup() %>%
-    rename_with(.cols = starts_with("price"),
-                ~str_replace(.,"price","ret")) %>%
-    select(id, id_control,period, starts_with("ret")) %>%
-    filter(complete.cases(.)) %>%
-    mutate(ret_abnormal = ret_ipo - ret_control)
+  monthly_df = monthly_df %>%
+    group_by(date, id, id_control) %>%
+    summarise(across(everything(), mean), .groups = "drop")
 
-  return(ret_df)
-
+  return(monthly_df)
 
 }

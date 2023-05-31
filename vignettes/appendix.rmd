@@ -1,3 +1,8 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
 \subsection{Returns calculation}
 
 The return measures used in the paper are:

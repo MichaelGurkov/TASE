@@ -82,6 +82,50 @@ results = results %>%
 ```
 
 
+```{r add_monthly_prices}
+
+results = results %>% 
+  select(benchmark, price_df) %>% 
+  mutate(price_df_monthly = map(price_df, convert_to_trading_months))
+
+```
+
+```{r calculate_abnormal_return}
+
+results = results %>% 
+  mutate(abnormal_return = map(price_df_monthly, average_abnormal_return))
+
+```
+
+```{r calculate_monthly_bhar}
+
+results = results %>% 
+  mutate(bhar_monthly = map(price_df_monthly, function(temp_price_df){
+    
+    bhar_horizons = map_dfr(c(1,3,5), function(temp_horizon){
+      
+      temp_bhar = temp_price_df %>% 
+        calculate_bhar_from_price_df(target_duration = 12 * temp_horizon,
+                                     duration_tolerance = 0.02) %>% 
+        mutate(horizon = temp_horizon)
+      
+      return(temp_bhar)
+  
+  
+  
+  
+})
+    
+    return(bhar_horizons)
+    
+    
+    
+    
+  }))
+
+```
+
+
 \subsection{Buy-and-Hold returns}
 
 \subsection{Buy-and-Hold returns using a market index}
@@ -277,9 +321,7 @@ results %>%
 ```
 
 
-
-
-```{r}
+```{r table_bhar}
 
 results %>% 
   select(c("benchmark", "bhar")) %>% 
@@ -304,4 +346,46 @@ results %>%
 
 ```
 
+
+
+```{r table_bhar}
+
+results %>% 
+  select(c("benchmark", "bhar_monthly")) %>% 
+  unnest(cols = c("benchmark", "bhar_monthly")) %>% 
+  group_by(benchmark, horizon) %>% 
+  summarise(across("bhar_abnormal", list(mean = mean,
+                                         median = median)),
+            .groups = "drop")
+
+
+results %>% 
+  select(c("benchmark", "bhar_monthly")) %>% 
+  unnest(cols = c("benchmark", "bhar_monthly")) %>% 
+  group_by(benchmark, horizon, id) %>% 
+  summarise(bhar_abnormal = mean(bhar_abnormal),
+            .groups = "drop_last") %>% 
+  summarise(across("bhar_abnormal",
+                   list(mean = mean,
+                        t_stat = ~t.test(.)[["statistic"]])),
+            .groups = "drop") %>% 
+  rename_with(~str_remove_all(.,pattern = "bhar_abnormal_"))
+
+```
+
+```{r plot_car}
+
+results %>% 
+  select(benchmark, abnormal_return) %>% 
+  unnest(cols = c(abnormal_return)) %>% 
+  filter(date <= 60) %>% 
+  group_by(benchmark) %>% 
+  arrange(date) %>% 
+  mutate(car = cumsum(average_abnormal_return)) %>% 
+  ungroup() %>% 
+  ggplot(aes(date, car, color = benchmark)) + 
+  geom_line()
+
+
+```
 
