@@ -126,6 +126,50 @@ results = results %>%
 ```
 
 
+```{r calculate_ctar}
+
+time_index = results %>% 
+  slice(1) %>% 
+  unnest("price_df") %>% 
+  select(date) %>% 
+  mutate(date = as.yearmon(date)) %>% 
+  distinct()
+
+ipo_dates = stocks_ipo
+
+temp_price = results %>% 
+  slice(1) %>% 
+  unnest("price_df") %>% 
+  mutate(date = as.yearmon(date)) %>% 
+  group_by(date, id, id_control) %>% 
+  summarise(across(contains("price"), mean), .groups = "drop")
+
+temp_ret = temp_price %>% 
+  group_by(id, id_control) %>% 
+  arrange(date) %>% 
+  mutate(across(contains("price"), ~ . / dplyr::lag(.) - 1)) %>% 
+  ungroup() %>% 
+  mutate(ctar = price_ipo - price_control) %>% 
+  select(date, id, ctar) %>% 
+  filter(complete.cases(.))
+
+
+temp = make_time_series_ipo_list(time_index_df = time_index,
+                                 ipo_dates_df = ipo_dates_df,
+                                 ipo_duration_threshold = 36)
+
+temp %>% 
+  left_join(temp_ret, by = c("date", "id")) %>% 
+  filter(complete.cases(.)) %>% 
+  group_by(date) %>% 
+  summarise(ctar = mean(ctar), .groups = "drop") %>% 
+  ggplot(aes(x = ctar)) + 
+  geom_density()
+
+```
+
+
+
 \subsection{Buy-and-Hold returns}
 
 \subsection{Buy-and-Hold returns using a market index}
@@ -345,7 +389,6 @@ results %>%
   rename_with(~str_remove_all(.,pattern = "bhar_abnormal_"))
 
 ```
-
 
 
 ```{r table_bhar}

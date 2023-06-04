@@ -59,6 +59,30 @@ calculate_adjusted_price = function(df,
 }
 
 
+#' This functions makes a data frame with time series index of of IPO firms
+#' that issued stocks in the previous n months
+#'
+#' @param time_index_df
+#'
+#' @param ipo_dates_df
+#'
+make_time_series_ipo_list = function(time_index_df,
+                                     ipo_dates_df,
+                                     ipo_duration_threshold){
+
+  ipo_time_series_list_df = time_index_df %>%
+    crossing(ipo_dates_df) %>%
+    mutate(ipo_duration = (date - ipo_date) * 12) %>%
+    filter(ipo_duration >=0 & ipo_duration <= ipo_duration_threshold) %>%
+    select(-c("ipo_duration", "ipo_date"))
+
+
+  return(ipo_time_series_list_df)
+
+}
+
+
+
 #' This function makes price df by merging price data for securities and
 #' benchmarks
 #'

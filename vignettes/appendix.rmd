@@ -58,6 +58,24 @@ $r_{i,t}$ - the return of firm $i$ in month $t$
 $r_{m,t}$ - the return of corresponding benchmark in month $t$
 
 
+\subsection{CTAR}
+
+In order to measure the performance in calendar time I form a portfolio of IPO returns of companies that were born within the previous 36 months. I calculate the returns of this portfolio for each month in the sample and for
+each month t I get the return of this month portfolio. The abnormal
+calendar time return (CTAR) is calculated as 
+
+\begin{equation*}
+  CTAR_{t} = \sum_{i = 1}^{p}(r_{i,t} - r_{benchmark,t})
+\end{equation*}
+
+where: 
+
+$r_{p,t}$ - the of portfolio of firms that issued stock in 36 months previous
+to month $t$
+
+$r_{benchmark,t}$ - the return of corresponding benchmark in month $t$
+
+
 \subsection{Control firms matching procedure}
 In order to match a control firm for each of the `#r num_ipo` IPOs in `#r data_period` for each IPO comp I take the market value of the IPO on the end 
 of the first trading day and match it with the closest market cap company in the
