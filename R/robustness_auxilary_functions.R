@@ -71,7 +71,7 @@ convert_to_trading_months = function(price_df){
     group_by(id, id_control) %>%
     mutate(date = as.numeric(date - min(date))) %>%
     filter(!date == 0) %>%
-    mutate(date = (date %/% 22) + 1) %>%
+    mutate(date = (date %/% 21) + 1) %>%
     ungroup()
 
   monthly_df = monthly_df %>%
