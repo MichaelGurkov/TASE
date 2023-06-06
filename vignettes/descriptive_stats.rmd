@@ -16,3 +16,34 @@ clean_market_df %>%
 
 ```
 
+```{r ipo_size_table}
+
+stocks_ipo %>% 
+  mutate(size = case_when(domestic_issue_real <= 50 ~ "small",
+                          domestic_issue_real <= 200 ~ "medium",
+                          domestic_issue_real <= 1000 ~ "big",
+                          TRUE ~ "very big")) %>% 
+  mutate(size = factor(size, levels = c("small","medium","big",
+                                           "very big"))) %>% 
+  group_by(size) %>% 
+  summarise(num_ipo = length(size),
+            amount_raised = sum(domestic_issue_real), .groups = "drop") %>% 
+  write_csv(paste0("C:\\Users\\internet",
+                   "\\OneDrive - Bank Of Israel\\research",
+                   "\\tase\\article_digest\\ipo_size_table.csv"))
+
+```
+
+
+```{r ipo_industry_table}
+
+stocks_ipo %>% 
+  group_by(tase_sector) %>% 
+  summarise(num_ipo = length(tase_sector),
+            amount_raised = sum(domestic_issue_real), .groups = "drop") %>% 
+  write_csv(paste0("C:\\Users\\internet",
+                   "\\OneDrive - Bank Of Israel\\research",
+                   "\\tase\\article_digest\\ipo_industry_table.csv"))
+
+```
+
