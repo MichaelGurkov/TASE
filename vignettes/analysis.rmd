@@ -180,14 +180,18 @@ temp %>%
 
 ```{r save_bhar_results}
 
-results %>% select(benchmark, bhar) %>% 
+results %>% 
+  select(benchmark, bhar) %>% 
   unnest(bhar) %>% 
   group_by(benchmark, horizon) %>% 
-  summarise(bhar_abnormal = mean(bhar_abnormal), .groups = "drop") %>% 
-  pivot_wider(names_from = benchmark, values_from = bhar_abnormal) %>% 
-  write_csv(paste0("C:\\Users\\internet",
-                   "\\OneDrive - Bank Of Israel\\research",
-                   "\\tase\\article_digest\\bhar_table.csv"))
+  mutate(n_comps = length(unique(id))) %>% 
+  summarise(across(bhar_abnormal,
+                   .fns = list(mean = mean,
+                               se = ~sd(.) / sqrt(n_comps[1]))),
+            .groups = "drop") %>% 
+#   write_csv(paste0("C:\\Users\\internet",
+#                    "\\OneDrive - Bank Of Israel\\research",
+#                    "\\tase\\article_digest\\bhar_table.csv"))
 
 ```
 
