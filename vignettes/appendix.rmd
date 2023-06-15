@@ -1,9 +1,8 @@
 ---
 output:
   pdf_document: default
-  html_document: default
 ---
-\subsection{Returns calculation}
+\section{Returns calculation}
 
 The return measures used in the paper are:
 
@@ -17,7 +16,7 @@ The return measures used in the paper are:
 \end{itemize}
 
 
-\subsubsection{CAR}
+\subsection{CAR}
 
 The cumulative return is calculated on a monthly basis where months are defined as successive 21-trading-day periods relative to the IPO date. Thus, month 1 consists of event days 1-21, month 2 consists of event days 22-43, etc.
 
@@ -44,7 +43,7 @@ month q to event month s is the summation of the average benchmark-adjusted retu
   CAR_{q,s} = \sum_{t = q}^{s}AR_{t}
 \end{equation*}
 
-\subsubsection{BHAR}
+\subsection{BHAR}
 
 The buy-and-hold abnormal return (BHAR) is defined as follows:
 
@@ -75,6 +74,29 @@ where:
 \begin{equation*}
   \hat{\gamma} = \frac{\sum_{i = 1}^{n} (AR_{it} - \bar{AR_{t}^{3}})}{n\sigma(AR)^{3}}
 \end{equation*}
+
+\subsubsection{t statistics}
+
+Conventional t-statistic
+
+\begin{equation*}
+  t = \frac{\overline{AR}_{\tau}}{\sigma(AR_{\tau}) / \sqrt n}
+\end{equation*}
+
+
+Bootstrapped (skewness adjusted) t-statistic
+
+\begin{equation*}
+  t_{sa} = \sqrt n \left(S + \frac{1}{3} \hat{\gamma} S^{2} + \frac{1}{6n}
+  \hat{\gamma} \right)
+\end{equation*}
+
+where:
+
+$S = \frac{\overline{AR}_{\tau}}{\sigma(AR_{\tau})}$
+
+$\hat{\gamma} = \frac{\sum_{i=1}^{n}(AR_{i \tau} - \overline{AR}_{\tau}) ^ 3}{n\sigma(AR_{\tau}) ^ 3}$
+
 
 \subsection{CTAR}
 
