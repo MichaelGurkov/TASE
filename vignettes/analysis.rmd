@@ -81,13 +81,13 @@ results = results %>%
 
 ```
 
-```{r calculate_car}
+```{r calculate_car, eval=FALSE}
 
 ```
 
 
 
-```{r add_monthly_prices}
+```{r add_monthly_prices, eval=FALSE}
 
 results = results %>% 
   select(benchmark, price_df) %>% 
@@ -95,14 +95,14 @@ results = results %>%
 
 ```
 
-```{r calculate_abnormal_return}
+```{r calculate_abnormal_return, eval=FALSE}
 
 results = results %>% 
   mutate(abnormal_return = map(price_df_monthly, average_abnormal_return))
 
 ```
 
-```{r calculate_monthly_bhar}
+```{r calculate_monthly_bhar, eval=FALSE}
 
 results = results %>% 
   mutate(bhar_monthly = map(price_df_monthly, function(temp_price_df){
@@ -180,16 +180,22 @@ temp %>%
 
 ```{r save_bhar_results}
 
-results %>% 
-  select(benchmark, bhar) %>% 
-  unnest(bhar) %>% 
-  group_by(benchmark, horizon) %>% 
-  mutate(n_comps = length(unique(id))) %>% 
-  summarise(across(bhar_abnormal,
-                   .fns = list(mean = mean,
-                               se = ~sd(.) / sqrt(n_comps[1]))),
-            .groups = "drop") %>% 
-#   write_csv(paste0("C:\\Users\\internet",
+results %>%
+  select(benchmark, bhar) %>%
+  unnest(bhar) %>%
+  group_by(benchmark, horizon, id) %>%
+  summarise(bhar_abnormal = mean(bhar_abnormal), .groups = "drop_last") %>% 
+  mutate(n_comps = length(unique(id))) %>%
+  summarise(across(
+    bhar_abnormal,
+    .fns = list(
+      mean = mean,
+      t_stat = ~t_stat(., n_comps[1]),
+      t_sa = ~t_skew_adjusted(., n_comps[1])
+    )
+  ),
+  .groups = "drop") %>%
+  #   write_csv(paste0("C:\\Users\\internet",
 #                    "\\OneDrive - Bank Of Israel\\research",
 #                    "\\tase\\article_digest\\bhar_table.csv"))
 
