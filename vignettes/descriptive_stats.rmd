@@ -37,13 +37,155 @@ stocks_ipo %>%
 
 ```{r ipo_industry_table}
 
-stocks_ipo %>% 
+industry_table = stocks_ipo %>% 
   group_by(tase_sector) %>% 
   summarise(num_ipo = length(tase_sector),
-            amount_raised = sum(domestic_issue_real), .groups = "drop") %>% 
+            amount_raised = sum(domestic_issue_real), .groups = "drop")
+
+industry_table %>% 
   write_csv(paste0("C:\\Users\\internet",
                    "\\OneDrive - Bank Of Israel\\research",
                    "\\tase\\article_digest\\ipo_industry_table.csv"))
+
+rm(industry_table)
+
+```
+
+```{r import_gdp_by_industry}
+
+gdp_by_industry = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                   "\\OneDrive - Bank Of Israel\\Data",
+                   "\\BoI\\real_data\\gdp_by_industry.csv"),
+                   show_col_types = FALSE) %>% 
+  rename(industry = 1) %>% 
+  pivot_longer(-industry,names_to = "year")
+
+gdp_by_industry = gdp_by_industry %>% 
+  mutate(industry = as_factor(industry)) %>% 
+  mutate(industry = fct_collapse(industry,
+                                 real_estate = c("construction",
+                                                 "real_estate_activities"),
+                                 commerce = c("commerce", "hotels_food"),
+                                 tech = "information_communication")) %>% 
+  group_by(industry, year) %>% 
+  summarise(value = sum(value), .groups = "drop")
+
+
+
+```
+
+```{r gdp_by_sector}
+
+temp = gdp_by_industry %>% 
+  group_by(year) %>% 
+  mutate(value = value / sum(value)) %>% 
+  ungroup() %>% 
+  left_join(stocks_ipo %>% 
+              group_by(year, industry = tase_sector) %>% 
+              summarise(num_ipos = length(domestic_issue_real),
+                        issue = sum(domestic_issue_real), .groups = "drop") %>% 
+              mutate(year = as.character(year)),
+            by = c("year", "industry")) %>% 
+  mutate(across(c("num_ipos","issue"), ~replace_na(.,0)))
+
+
+temp %>%
+ggplot(aes(year, value, group = 1)) +
+geom_line() +
+geom_point(aes(size = num_ipos)) +
+facet_wrap(~industry, scales = "free")
+
+
+temp %>% 
+  select(-year) %>%
+  group_by(industry) %>%
+  summarise(across(everything(), mean), .groups = "drop") %>%
+  arrange(desc(value)) %>% 
+  rename(share_gdp = value, avg_issue_amount = issue,
+         avg_ipo_count = num_ipos)
+  filter(issue > 0 & issue < 6000) %>% 
+  ggplot(aes(issue, value)) + 
+  geom_point() + 
+  geom_smooth(method = "lm")
+
+
+```
+
+## Sector external dependence
+
+```{r calculate_external_dependence}
+
+ext_dep_df = finrep_df_raw %>% 
+  select(tase_id, date_yearqtr,tase_main_brunch,
+         investing_activities, operating_activities) %>% 
+  filter(complete.cases(.)) %>% 
+  mutate(ext_dep = investing_activities - operating_activities) %>% 
+  mutate(ext_dep = ext_dep / abs(investing_activities))  %>% 
+  filter(complete.cases(.)) %>% 
+  filter(ext_dep <= quantile(ext_dep, 0.9) & 
+           ext_dep >= quantile(ext_dep, 0.1)) %>% 
+  mutate(date_yearqtr = as.yearqtr(date_yearqtr)) %>% 
+  mutate(year = year(date_yearqtr)) %>% 
+  group_by(tase_id, year, tase_main_brunch) %>% 
+  summarise(ext_dep = mean(ext_dep), .groups = "drop")
+
+
+```
+
+```{r eda}
+
+ext_dep_df %>% 
+  group_by(tase_main_brunch, tase_id) %>% 
+  summarise(ext_dep = mean(ext_dep)) %>% 
+  ggplot(aes(y = ext_dep)) + 
+  geom_boxplot() + 
+  facet_wrap(~tase_main_brunch)
+  
+
+```
+
+```{r sector_external_dependence}
+
+tase_sector_codes = read_csv(paste0("C:\\Users\\internet",
+                                    "\\OneDrive - Bank Of Israel",
+                                    "\\Data\\BoI\\misc",
+                                    "\\TASE_sector_codes_eng.csv"))
+
+tase_sector_codes = tase_sector_codes %>% 
+  select(tase_sector_code, tase_sector_name) %>% 
+  distinct()
+
+ext_dep_by_sectors = ext_dep_df %>% 
+  group_by(tase_main_brunch) %>% 
+  summarise(across(ext_dep, list(mean = mean, median = median)),
+            .groups = "drop") %>% 
+  arrange(ext_dep_mean) %>% 
+  left_join(tase_sector_codes,
+            by = c("tase_main_brunch" = "tase_sector_code")) %>% 
+  filter(complete.cases(.))
+
+```
+
+```{r save_industry_and_ext_dep}
+
+ext_dep_by_sectors %>% 
+  rename(tase_sector = tase_sector_name) %>% 
+  mutate(tase_sector = str_replace(tase_sector,"oil_gas", "oil")) %>%
+  mutate(tase_sector = str_replace(tase_sector,"financial_services",
+                                   "fin_services")) %>% 
+  mutate(tase_sector = str_replace(tase_sector,"technology",
+                                   "tech")) %>% 
+  select(tase_sector,ext_dep_mean) %>% 
+  full_join(industry_table %>% 
+              select(tase_sector, amount_raised),
+            by = c("tase_sector")) %>% 
+  filter(complete.cases(.)) %>% 
+  mutate(across(-tase_sector, rank)) %>% 
+  rename(rank_ext_dep = ext_dep_mean, rank_ipo_issue = amount_raised) %>% 
+  write_csv(paste0("C:\\Users\\internet",
+                   "\\OneDrive - Bank Of Israel\\research",
+                   "\\tase\\article_digest\\ext_dep_table.csv"))
+
 
 ```
 
