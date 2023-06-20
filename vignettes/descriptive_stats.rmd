@@ -34,6 +34,35 @@ stocks_ipo %>%
 
 ```
 
+```{r ipo_size_market_share}
+
+market_cap_df = read_csv(paste0(Sys.getenv("USERPROFILE"),
+                                "\\OneDrive - Bank Of Israel\\Data",
+                                "\\TASE\\stats\\market_cap",
+                                "\\market_cap_2003_2022.csv"),
+                         show_col_types = FALSE) %>% 
+  mutate(market_cap = market_cap_2022_prices / 
+           cpi_df$cpi[cpi_df$date == as.yearqtr("2022 Q3")]) %>% 
+  mutate(market_cap = market_cap * 10 ^ 3)
+
+
+stocks_ipo %>% 
+  select(year, domestic_issue) %>% 
+  group_by(year) %>% 
+  summarise(domestic_issue = sum(domestic_issue), .groups = "drop") %>% 
+  left_join(market_cap_df %>% 
+              select(year, market_cap), by = "year") %>% 
+  mutate(share = (domestic_issue / market_cap) * 100) %>% 
+  select(year, ipo_cap_share = share) %>% 
+  filter(complete.cases(.)) %>% 
+  write_csv(paste0(Sys.getenv("USERPROFILE"),
+                   "\\OneDrive - Bank Of Israel\\research",
+                   "\\tase\\article_digest\\ipo_vs_market_table.csv"))
+
+
+```
+
+
 
 ```{r ipo_industry_table}
 
@@ -42,10 +71,10 @@ industry_table = stocks_ipo %>%
   summarise(num_ipo = length(tase_sector),
             amount_raised = sum(domestic_issue_real), .groups = "drop")
 
-industry_table %>% 
-  write_csv(paste0("C:\\Users\\internet",
-                   "\\OneDrive - Bank Of Israel\\research",
-                   "\\tase\\article_digest\\ipo_industry_table.csv"))
+# industry_table %>% 
+#   write_csv(paste0(Sys.getenv("USERPROFILE"),
+#                    "\\OneDrive - Bank Of Israel\\research",
+#                    "\\tase\\article_digest\\ipo_industry_table.csv"))
 
 rm(industry_table)
 
@@ -115,6 +144,13 @@ temp %>%
 
 ```{r calculate_external_dependence}
 
+finrep_df_raw = import_boi_oracle_finrep_data(paste0(Sys.getenv("USERPROFILE"),
+                                     "\\OneDrive - Bank Of Israel\\Data",
+                                     "\\BoI\\Finrep",
+                                     "\\finrep_full_data_2023-05-11.rds"),
+                              data_frequency = "quarterly")
+
+
 ext_dep_df = finrep_df_raw %>% 
   select(tase_id, date_yearqtr,tase_main_brunch,
          investing_activities, operating_activities) %>% 
@@ -146,7 +182,7 @@ ext_dep_df %>%
 
 ```{r sector_external_dependence}
 
-tase_sector_codes = read_csv(paste0("C:\\Users\\internet",
+tase_sector_codes = read_csv(paste0(Sys.getenv("USERPROFILE"),
                                     "\\OneDrive - Bank Of Israel",
                                     "\\Data\\BoI\\misc",
                                     "\\TASE_sector_codes_eng.csv"))
@@ -180,9 +216,9 @@ ext_dep_by_sectors %>%
               select(tase_sector, amount_raised),
             by = c("tase_sector")) %>% 
   filter(complete.cases(.)) %>% 
-  mutate(across(-tase_sector, rank)) %>% 
-  rename(rank_ext_dep = ext_dep_mean, rank_ipo_issue = amount_raised) %>% 
-  write_csv(paste0("C:\\Users\\internet",
+  # mutate(across(-tase_sector, rank)) %>% 
+  # rename(rank_ext_dep = ext_dep_mean, rank_ipo_issue = amount_raised) %>% 
+  write_csv(paste0(Sys.getenv("USERPROFILE"),
                    "\\OneDrive - Bank Of Israel\\research",
                    "\\tase\\article_digest\\ext_dep_table.csv"))
 
