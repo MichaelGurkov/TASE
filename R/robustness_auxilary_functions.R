@@ -97,9 +97,9 @@ t_skew_adjusted = function(ar_vec, n_comps){
 
   S = mean_ar / sd_ar
 
-  gamma_hat = (sum(ar_vec - mean_ar) ^ 3) / (n_comps * sd_ar ^ 3)
+  gamma_hat = sum((ar_vec - mean_ar) ^ 3) / (n_comps * sd_ar ^ 3)
 
-  t_sa = sqrt(n_comps) * (S + (gamma_hat * S) / 3 + gamma_hat / (6 * n_comps))
+  t_sa = sqrt(n_comps) * (S + (gamma_hat * S^2) / 3 + gamma_hat / (6 * n_comps))
 
   return(t_sa)
 
@@ -109,13 +109,15 @@ t_skew_adjusted = function(ar_vec, n_comps){
 
 #' This function calculates t statistic
 #'
-t_stat = function(ar_vec, n_comps){
+t_statistic = function(ar_vec, n_comps){
 
 mean_ar = mean(ar_vec)
 
 sd_ar = sd(ar_vec)
 
-t_stat = mean_ar / (sd_ar / sqrt(n_comps))
+se = sd_ar / sqrt(n_comps)
+
+t_stat = mean_ar / se
 
 return(t_stat)
 

@@ -86,7 +86,6 @@ results = results %>%
 ```
 
 
-
 ```{r add_monthly_prices, eval=FALSE}
 
 results = results %>% 
@@ -180,17 +179,21 @@ temp %>%
 
 ```{r save_bhar_results}
 
-results %>%
+bhar_returns = results %>%
   select(benchmark, bhar) %>%
   unnest(bhar) %>%
   group_by(benchmark, horizon, id) %>%
   summarise(bhar_abnormal = mean(bhar_abnormal), .groups = "drop_last") %>% 
   mutate(n_comps = length(unique(id))) %>%
+  ungroup()
+
+bhar_returns %>% 
+  group_by(benchmark, horizon) %>% 
   summarise(across(
     bhar_abnormal,
     .fns = list(
       mean = mean,
-      t_stat = ~t_stat(., n_comps[1]),
+      t_stat = ~t_statistic(., n_comps[1]),
       t_sa = ~t_skew_adjusted(., n_comps[1])
     )
   ),

@@ -57,7 +57,9 @@ $r_{i,t}$ - the return of firm $i$ in month $t$
 $r_{m,t}$ - the return of corresponding benchmark in month $t$
 
 
-\subsubsection{t statistics}
+\subsubsection{Statistical significance}
+
+
 
 Conventional t-statistic
 
@@ -74,6 +76,8 @@ Bootstrapped (skewness adjusted) t-statistic
 \end{equation*}
 
 where:
+
+$AR_{\tau} = BHAR_{i,\tau}$
 
 $S = \frac{\overline{AR}_{\tau}}{\sigma(AR_{\tau})}$
 
