@@ -81,51 +81,30 @@ results = results %>%
 
 ```
 
-```{r calculate_car, eval=FALSE}
-
-```
-
-
-```{r add_monthly_prices, eval=FALSE}
+```{r calculate_car}
 
 results = results %>% 
-  select(benchmark, price_df) %>% 
-  mutate(price_df_monthly = map(price_df, convert_to_trading_months))
-
-```
-
-```{r calculate_abnormal_return, eval=FALSE}
-
-results = results %>% 
-  mutate(abnormal_return = map(price_df_monthly, average_abnormal_return))
-
-```
-
-```{r calculate_monthly_bhar, eval=FALSE}
-
-results = results %>% 
-  mutate(bhar_monthly = map(price_df_monthly, function(temp_price_df){
+  mutate(car = map(price_df, function(temp_price_df){
     
-    bhar_horizons = map_dfr(c(1,3,5), function(temp_horizon){
+    car_horizons = map_dfr(c(1,3,5), function(temp_horizon){
       
-      temp_bhar = temp_price_df %>% 
-        calculate_bhar_from_price_df(target_duration = 12 * temp_horizon,
+      temp_car = temp_price_df %>% 
+        calculate_car_from_price_df(target_duration = 252 * temp_horizon,
                                      duration_tolerance = 0.02) %>% 
         mutate(horizon = temp_horizon)
       
-      return(temp_bhar)
+      return(temp_car)
   
   
   
   
 })
     
-    return(bhar_horizons)
-    
-    
-    
-    
+    return(car_horizons)
+
   }))
+
+
 
 ```
 
@@ -187,7 +166,7 @@ bhar_returns = results %>%
   mutate(n_comps = length(unique(id))) %>%
   ungroup()
 
-bhar_returns %>% 
+bhar_returns = bhar_returns %>% 
   group_by(benchmark, horizon) %>% 
   summarise(across(
     bhar_abnormal,
@@ -197,18 +176,55 @@ bhar_returns %>%
       t_sa = ~t_skew_adjusted(., n_comps[1])
     )
   ),
-  .groups = "drop") %>%
-  #   write_csv(paste0("C:\\Users\\internet",
-#                    "\\OneDrive - Bank Of Israel\\research",
-#                    "\\tase\\article_digest\\bhar_table.csv"))
+  .groups = "drop")
+
+bhar_returns %>%
+  write_csv(paste0("C:\\Users\\internet",
+                   "\\OneDrive - Bank Of Israel\\research",
+                   "\\tase\\article_digest\\bhar_table.csv"))
+
+rm(bhar_returns)
+
+```
+
+\subsection{Cumulative abnormal returns}
+
+
+```{r save_car_results}
+
+car_returns = results %>%
+  select(benchmark, car) %>%
+  unnest(car) %>%
+  group_by(benchmark, horizon, id) %>%
+  summarise(car_abnormal = mean(car_abnormal), .groups = "drop_last") %>% 
+  mutate(n_comps = length(unique(id))) %>%
+  ungroup()
+
+car_returns = car_returns %>% 
+  group_by(benchmark, horizon) %>% 
+  summarise(across(
+    car_abnormal,
+    .fns = list(
+      mean = mean,
+      t_stat = ~t_statistic(., n_comps[1]),
+      t_sa = ~t_skew_adjusted(., n_comps[1])
+    )
+  ),
+  .groups = "drop")
+
+car_returns %>%
+  write_csv(paste0("C:\\Users\\internet",
+                   "\\OneDrive - Bank Of Israel\\research",
+                   "\\tase\\article_digest\\car_table.csv"))
+
+rm(car_returns)
 
 ```
 
 
-
 \subsection{Buy-and-Hold returns using a market index}
 
-```{r sanity_check_index,eval=FALSE}
+```{r sanity_check_bhar_index,eval=FALSE}
 
 results %>% 
   filter(benchmark == "index") %>% 
@@ -372,42 +388,36 @@ results %>%
 
 ```
 
-\subsection{Cumulative abnormal returns}
 
+```{r sanity_check_car_calculation, eval=FALSE}
 
-```{r plot_car}
-
-results %>% 
-  select(benchmark, abnormal_return) %>% 
-  unnest(cols = c(abnormal_return)) %>% 
-  filter(date <= 60) %>% 
-  group_by(benchmark) %>% 
+manual_car_index = results %>% 
+  filter(benchmark == "index") %>% 
+  select(price_df) %>% 
+  unnest(cols = c(price_df)) %>% 
+  filter(id == 1240) %>% 
+  mutate(date = date - min(date)) %>% 
+  filter(date < 252) %>% 
   arrange(date) %>% 
-  mutate(car = cumsum(average_abnormal_return)) %>% 
-  ungroup() %>% 
-  ggplot(aes(date, car, color = benchmark)) + 
-  geom_line()
+  mutate(across(contains("price"), ~. / dplyr::lag(.) - 1)) %>% 
+  rename_with(~str_replace(.,"price","car")) %>% 
+  filter(complete.cases(.)) %>% 
+  mutate(car_abnormal = car_ipo - car_control) %>% 
+  group_by(id) %>% 
+  summarise(car_abnormal = sum(car_abnormal), .groups = "drop")
 
+all.equal(
+  manual_car_index,
+  results %>%
+    filter(benchmark == "index") %>%
+    select(car) %>%
+    unnest(cols = c(car)) %>%
+    filter(id == 1240) %>%
+    filter(horizon == 1) %>%
+    select(id, car_abnormal)
+)
 
-```
-
-
-```{r save_car_results}
-
-results %>%
-select(benchmark, abnormal_return) %>%
-unnest(cols = c(abnormal_return)) %>%
-filter(date <= 60) %>%
-group_by(benchmark) %>%
-arrange(date) %>%
-mutate(car = cumsum(average_abnormal_return)) %>%
-ungroup() %>%
-filter(date %in% (c(1,3,5) * 12)) %>%
-select(-average_abnormal_return) %>%
-pivot_wider(names_from = benchmark, values_from = car) %>% 
-  write_csv(paste0("C:\\Users\\internet",
-                   "\\OneDrive - Bank Of Israel\\research",
-                   "\\tase\\article_digest\\car_table.csv"))
+rm(manual_car_index)
 
 ```
 

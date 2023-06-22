@@ -18,37 +18,43 @@ The return measures used in the paper are:
 
 \subsection{CAR}
 
-The cumulative return is calculated on a monthly basis where months are defined as successive 21-trading-day periods relative to the IPO date. Thus, month 1 consists of event days 1-21, month 2 consists of event days 22-43, etc.
-
-Benchmark adjusted returns are calculated as a difference between monthly raw
-return and the monthly return of benchmark index.
-Thus, the benchmark return is defined as:
+Benchmark adjusted returns are calculated as a difference between raw return
+and the return of benchmark index.
+Thus, the abnormal return is defined as:
 
 \begin{equation*}
   ar_{i,t} = r_{i,t} - r_{benchmark,t}
 \end{equation*}
 
-and the adjusted return for the portfolio of N stocks is the simple average
-of the adjusted returns of the individual stocks.
+the benchmark return is the average return of the securities constituting
+the benchmark:
 
 \begin{equation*}
-  AR_{t} = \frac{1}{N} \sum_{i = 1}^{N}ar_{i,t}
+  r_{benchmark,t} = \sum_{j=1}^{J}{r_{j,t}}
 \end{equation*}
 
+where:
 
-The cumulative benchmark-adjusted aftermarket performance from event
-month q to event month s is the summation of the average benchmark-adjusted returns:
+$J$ - Set of benchmark companies
+
+And the cumulative abnormal return is given by:
 
 \begin{equation*}
-  CAR_{q,s} = \sum_{t = q}^{s}AR_{t}
+  CAR_{i,\tau} = \sum_{t=1}^{\tau}{ar_{i,t}}
 \end{equation*}
+
+where:
+
+$\tau - horizon$
+
 
 \subsection{BHAR}
 
 The buy-and-hold abnormal return (BHAR) is defined as follows:
 
 \begin{equation*}
-  BHAR_{i,T} = \left[\prod_{t = 1}^{T}(1 + r_{i,t}) - 1\right] - \left[\prod_{t = 1}^{T}(1 + r_{m,t}) - 1\right]= \left[\frac{P_{i,T}}{P_{i,1}} - 1\right] - \left[\frac{P_{m,T}}{P_{m,1}} - 1\right]
+  BHAR_{i,T} = \left[\prod_{t = 1}^{T}(1 + r_{i,t}) - 1\right] - 
+  \frac{1}{J}\sum_{j=1}^{J}{\left[\prod_{t = 1}^{T}(1 + r_{j,t}) - 1\right]}
 \end{equation*}
 
 Where:
