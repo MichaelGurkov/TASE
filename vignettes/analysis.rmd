@@ -473,3 +473,53 @@ results %>%
 
 ```
 
+```{r plot_car}
+
+car_plot = results %>% 
+  # filter(benchmark == "index") %>% 
+  select(benchmark, price_df) %>% 
+  mutate(car_df = map(price_df, function(temp_price_df){
+
+    first_day_df = temp_price_df %>% 
+      group_by(id, id_control) %>% 
+      filter(date == min(date)) %>% 
+      ungroup() %>% 
+      mutate(month = 0) %>% 
+      select(id,id_control,month,price_ipo,price_control)
+
+    months_df = temp_price_df %>% 
+      group_by(id, id_control) %>% 
+      filter(!date == min(date)) %>% 
+      mutate(month = as.numeric(date - min(date)) %/% 21 + 1) %>% 
+      filter(month <= 60) %>% 
+      group_by(id, id_control, month) %>% 
+      summarise(across(contains("price"), mean), .groups = "drop")
+    
+    
+    ret_df = first_day_df %>% 
+      bind_rows(months_df) %>% 
+      group_by(id, id_control) %>% 
+      arrange(month) %>% 
+      mutate(across(contains("price"), ~ . / dplyr::lag(.,1) - 1)) %>% 
+      ungroup() %>% 
+      rename_with(~str_remove_all(.,"price_")) %>% 
+      filter(complete.cases(.)) %>% 
+      mutate(abnormal = ipo - control) %>% 
+      group_by(id, id_control, month) %>% 
+      summarise(across(c("ipo","abnormal"), mean), .groups = "drop")
+    
+    
+    ret_df = ret_df %>% 
+      group_by(month) %>% 
+      summarise(across(c("ipo","abnormal"), median), .groups = "drop") %>% 
+      arrange(month) %>% 
+      mutate(across(c("ipo","abnormal"), cumsum))
+    
+    return(ret_df)
+    
+    
+  }))
+
+
+```
+
