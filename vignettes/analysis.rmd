@@ -475,8 +475,8 @@ results %>%
 
 ```{r plot_car}
 
-car_plot = results %>% 
-  # filter(benchmark == "index") %>% 
+cumret_df_target = results %>% 
+  filter(benchmark == "index") %>%
   select(benchmark, price_df) %>% 
   mutate(car_df = map(price_df, function(temp_price_df){
 
@@ -491,6 +491,7 @@ car_plot = results %>%
       group_by(id, id_control) %>% 
       filter(!date == min(date)) %>% 
       mutate(month = as.numeric(date - min(date)) %/% 21 + 1) %>% 
+      ungroup() %>% 
       filter(month <= 60) %>% 
       group_by(id, id_control, month) %>% 
       summarise(across(contains("price"), mean), .groups = "drop")
@@ -505,21 +506,90 @@ car_plot = results %>%
       rename_with(~str_remove_all(.,"price_")) %>% 
       filter(complete.cases(.)) %>% 
       mutate(abnormal = ipo - control) %>% 
-      group_by(id, id_control, month) %>% 
-      summarise(across(c("ipo","abnormal"), mean), .groups = "drop")
-    
-    
-    ret_df = ret_df %>% 
-      group_by(month) %>% 
-      summarise(across(c("ipo","abnormal"), median), .groups = "drop") %>% 
+      group_by(id, month) %>% 
       arrange(month) %>% 
       mutate(across(c("ipo","abnormal"), cumsum))
     
+
     return(ret_df)
     
     
-  }))
+  })) %>% 
+  select(benchmark, car_df) %>% 
+  unnest(c(benchmark, car_df))
 
+
+cumret_df_target %>% 
+  filter(id == 1062) %>% 
+  select(month, ipo, abnormal) %>% 
+  pivot_longer(-month) %>% 
+  ggplot(aes(month, value, color = name)) + 
+  geom_line()
+
+
+car_plot %>% 
+  select(benchmark, car_df) %>% 
+  unnest(c(benchmark, car_df)) %>% 
+  group_by(benchmark, month) %>% 
+  summarise(across(c("ipo", "abnormal"), mean)) %>% 
+  pivot_longer(-c(benchmark, month)) %>% 
+  ggplot(aes(month, value)) + 
+  geom_line(aes(color = name)) + 
+  facet_wrap(~benchmark)
+
+
+```
+
+```{r sanity_check_car_monthly_calc}
+
+temp_price_df = results$price_df[results$benchmark == "index"][[1]] %>% 
+  group_by(id) %>% 
+  mutate(duration = as.numeric(date - min(date))) %>% 
+  ungroup() %>% 
+  select(-id_control)
+
+months_df = temp_price_df %>%
+  group_by(id) %>%
+  filter(date == min(date)) %>%
+  select(id, contains("price")) %>%
+  mutate(month = 0) %>%
+  ungroup() %>%
+  bind_rows(
+    temp_price_df %>%
+      group_by(id) %>%
+      filter(!date == min(date)) %>%
+      ungroup() %>% 
+      mutate(month = duration %/% 21 + 1) %>%
+      filter(month <= 60) %>%
+      group_by(id, month) %>%
+      summarise(across(contains("price"), mean), .groups = "drop")
+  )
+
+
+months_df = months_df %>% 
+  rename_with(~str_remove(., "price_")) %>% 
+  group_by(id) %>% 
+  arrange(month) %>% 
+  mutate(across(c("ipo","control"), ~. / dplyr::lag(.,1) - 1)) %>% 
+  ungroup() %>% 
+  filter(complete.cases(.)) %>% 
+  mutate(abnormal = ipo - control)
+
+cumret_df = months_df %>% 
+  group_by(id) %>% 
+  arrange(month) %>% 
+  select(id, month,ipo,abnormal) %>% 
+  mutate(across(c(ipo,abnormal), cumsum)) %>% 
+  ungroup()
+
+  
+  
+cumret_df %>% 
+  filter(id == 1062) %>% 
+  select(-id) %>% 
+  pivot_longer(-month) %>% 
+  ggplot(aes(month, value, color = name)) + 
+  geom_line()
 
 ```
 
