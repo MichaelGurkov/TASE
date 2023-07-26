@@ -32,7 +32,7 @@ results = list(index = index_match_table,
                         size =  size_match_table,
                         book_to_market = book_to_market_match_table) %>% 
   bind_rows(.id = "benchmark") %>% 
-  nest(.by = benchmark,.key = "matching_table")
+  nest(matching_table = c(id_ipo,id_control))
 
 rm(list = c(str_subset(ls(), "match"), "ipo_comps"))
 
@@ -53,7 +53,7 @@ rm(my_price_df, clean_market_df, finrep_df)
 
 ```
 
-```{r calculate_bhar}
+```{r calculate_bhar, eval=FALSE}
 
 results = results %>% 
   mutate(bhar = map(price_df, function(temp_price_df){
@@ -81,7 +81,7 @@ results = results %>%
 
 ```
 
-```{r calculate_car}
+```{r calculate_car, eval=FALSE}
 
 results = results %>% 
   mutate(car = map(price_df, function(temp_price_df){
@@ -156,7 +156,7 @@ temp %>%
 \subsection{Buy-and-Hold returns}
 
 
-```{r save_bhar_results}
+```{r save_bhar_results, eval=FALSE}
 
 bhar_returns = results %>%
   select(benchmark, bhar) %>%
@@ -190,7 +190,7 @@ rm(bhar_returns)
 \subsection{Cumulative abnormal returns}
 
 
-```{r save_car_results}
+```{r save_car_results, eval=FALSE}
 
 car_returns = results %>%
   select(benchmark, car) %>%
@@ -213,7 +213,7 @@ car_returns = car_returns %>%
   .groups = "drop")
 
 car_returns %>%
-  write_csv(paste0("C:\\Users\\internet",
+  write_csv(paste0(Sys.getenv("USERPROFILE"),
                    "\\OneDrive - Bank Of Israel\\research",
                    "\\tase\\article_digest\\car_table.csv"))
 
@@ -271,7 +271,7 @@ rm(manual_bhar_index)
 
 ```
 
-```{r plot_bhar_index_dist}
+```{r plot_bhar_index_dist, eval=FALSE}
 
 results %>%
   filter(benchmark == "index") %>%
@@ -319,7 +319,7 @@ rm(manual_bhar_size)
 ```
 
 
-```{r plot_bhar_size_dist}
+```{r plot_bhar_size_dist, eval=FALSE}
 
 results %>%
   filter(benchmark == "size") %>%
@@ -371,7 +371,7 @@ rm(manual_bhar_book_to_market)
 ```
 
 
-```{r plot_bhar_book_to_market_dist}
+```{r plot_bhar_book_to_market_dist, eval=FALSE}
 
 results %>%
   filter(benchmark == "book_to_market") %>%
@@ -424,7 +424,7 @@ rm(manual_car_index)
 
 \subsection{Results}
 
-```{r plot_bhar_by_year}
+```{r plot_bhar_by_year, eval=FALSE}
 
 results %>% 
   filter(benchmark == "index") %>% 
@@ -448,7 +448,7 @@ results %>%
 ```
 
 
-```{r table_bhar}
+```{r table_bhar, eval=FALSE}
 
 results %>% 
   select(c("benchmark", "bhar")) %>% 
@@ -473,122 +473,75 @@ results %>%
 
 ```
 
-```{r plot_car}
+```{r monthly_car}
 
 cumret_df_target = results %>% 
-  filter(benchmark == "index") %>%
   select(benchmark, price_df) %>% 
-  mutate(car_df = map(price_df, function(temp_price_df){
-
-    first_day_df = temp_price_df %>% 
-      group_by(id, id_control) %>% 
-      filter(date == min(date)) %>% 
-      ungroup() %>% 
-      mutate(month = 0) %>% 
-      select(id,id_control,month,price_ipo,price_control)
-
-    months_df = temp_price_df %>% 
-      group_by(id, id_control) %>% 
-      filter(!date == min(date)) %>% 
-      mutate(month = as.numeric(date - min(date)) %/% 21 + 1) %>% 
-      ungroup() %>% 
-      filter(month <= 60) %>% 
-      group_by(id, id_control, month) %>% 
-      summarise(across(contains("price"), mean), .groups = "drop")
+  mutate(cumret_df = map(price_df, function(temp_price_df){
+    
+    temp_cumret_df = temp_price_df %>% 
+      convert_to_trading_months() %>% 
+      filter(date <= 60) %>% 
+      calculate_car_from_price_df()
+    
+    return(temp_cumret_df)
     
     
-    ret_df = first_day_df %>% 
-      bind_rows(months_df) %>% 
-      group_by(id, id_control) %>% 
-      arrange(month) %>% 
-      mutate(across(contains("price"), ~ . / dplyr::lag(.,1) - 1)) %>% 
-      ungroup() %>% 
-      rename_with(~str_remove_all(.,"price_")) %>% 
-      filter(complete.cases(.)) %>% 
-      mutate(abnormal = ipo - control) %>% 
-      group_by(id, month) %>% 
-      arrange(month) %>% 
-      mutate(across(c("ipo","abnormal"), cumsum))
-    
-
-    return(ret_df)
-    
-    
-  })) %>% 
-  select(benchmark, car_df) %>% 
-  unnest(c(benchmark, car_df))
+  }))
 
 
-cumret_df_target %>% 
-  filter(id == 1062) %>% 
-  select(month, ipo, abnormal) %>% 
-  pivot_longer(-month) %>% 
-  ggplot(aes(month, value, color = name)) + 
-  geom_line()
-
-
-car_plot %>% 
-  select(benchmark, car_df) %>% 
-  unnest(c(benchmark, car_df)) %>% 
-  group_by(benchmark, month) %>% 
-  summarise(across(c("ipo", "abnormal"), mean)) %>% 
-  pivot_longer(-c(benchmark, month)) %>% 
-  ggplot(aes(month, value)) + 
-  geom_line(aes(color = name)) + 
-  facet_wrap(~benchmark)
 
 
 ```
 
+```{r save_monthly_car, eval=FALSE}
+
+cumret_df_target %>% 
+  select(benchmark, cumret_df) %>% 
+  unnest(c(benchmark, cumret_df)) %>% 
+  group_by(benchmark, date) %>% 
+  summarise(across(c(cum_ret_ipo,cum_ret_abnormal), mean),
+            .groups = "drop") %>%
+  write_csv(paste0(Sys.getenv("USERPROFILE"),
+                   "\\OneDrive - Bank Of Israel\\research",
+                   "\\tase\\article_digest\\monthly_car_plot.csv"))
+
+```
+
+
+
+```{r plot_car}
+
+cumret_df_target %>% 
+  select(benchmark, cumret_df) %>% 
+  unnest(c(benchmark, cumret_df)) %>% 
+  group_by(benchmark, date) %>% 
+  summarise(across(c(cum_ret_ipo,cum_ret_abnormal), mean),
+            .groups = "drop") %>% 
+  pivot_longer(-c(benchmark, date)) %>% 
+  ggplot(aes(date, value, color = name)) + 
+  geom_line() + 
+  facet_wrap(~benchmark)
+
+```
+
+
+
 ```{r sanity_check_car_monthly_calc}
 
-temp_price_df = results$price_df[results$benchmark == "index"][[1]] %>% 
-  group_by(id) %>% 
-  mutate(duration = as.numeric(date - min(date))) %>% 
-  ungroup() %>% 
-  select(-id_control)
+temp_price_df = results$price_df[results$benchmark == "index"][[1]]
 
-months_df = temp_price_df %>%
-  group_by(id) %>%
-  filter(date == min(date)) %>%
-  select(id, contains("price")) %>%
-  mutate(month = 0) %>%
-  ungroup() %>%
-  bind_rows(
-    temp_price_df %>%
-      group_by(id) %>%
-      filter(!date == min(date)) %>%
-      ungroup() %>% 
-      mutate(month = duration %/% 21 + 1) %>%
-      filter(month <= 60) %>%
-      group_by(id, month) %>%
-      summarise(across(contains("price"), mean), .groups = "drop")
-  )
+temp_cumret_df = temp_price_df %>% 
+  convert_to_trading_months() %>% 
+  filter(date <= 60) %>% 
+  calculate_car_from_price_df()
 
-
-months_df = months_df %>% 
-  rename_with(~str_remove(., "price_")) %>% 
-  group_by(id) %>% 
-  arrange(month) %>% 
-  mutate(across(c("ipo","control"), ~. / dplyr::lag(.,1) - 1)) %>% 
-  ungroup() %>% 
-  filter(complete.cases(.)) %>% 
-  mutate(abnormal = ipo - control)
-
-cumret_df = months_df %>% 
-  group_by(id) %>% 
-  arrange(month) %>% 
-  select(id, month,ipo,abnormal) %>% 
-  mutate(across(c(ipo,abnormal), cumsum)) %>% 
-  ungroup()
-
-  
-  
-cumret_df %>% 
-  filter(id == 1062) %>% 
-  select(-id) %>% 
-  pivot_longer(-month) %>% 
-  ggplot(aes(month, value, color = name)) + 
+temp_cumret_df %>% 
+  group_by(date) %>% 
+  summarise(across(c(cum_ret_ipo, cum_ret_abnormal), mean),
+            .groups = "drop") %>% 
+  pivot_longer(-date) %>% 
+  ggplot(aes(date, value, color = name)) + 
   geom_line()
 
 ```

@@ -42,46 +42,31 @@ calculate_bhar_from_price_df = function(price_df,
 #' @return an abnormal return for each ipo firm and each of the
 #'  control group firms for this ipo firm for three horizons
 
-calculate_car_from_price_df = function(price_df,
-                                        target_duration,
-                                        duration_tolerance = 0.05){
-
-  price_df = price_df %>%
-    group_by(id, id_control) %>%
-    mutate(duration = as.numeric(date - min(date))) %>%
-    ungroup() %>%
-    filter(duration < target_duration)
-
-
-  valid_duration_secs = price_df %>%
-    group_by(id, id_control) %>%
-    summarise(max_duration = max(duration), .groups = "drop") %>%
-    filter(target_duration / max_duration - 1 <= duration_tolerance) %>%
-    select(id, id_control)
+calculate_car_from_price_df = function(price_df){
 
 
   ret_df = price_df %>%
-    inner_join(valid_duration_secs, by = c("id", "id_control")) %>%
     group_by(id, id_control) %>%
     arrange(date) %>%
-    mutate(across(c("price_ipo","price_control"), ~./dplyr::lag(.) - 1)) %>%
+    mutate(across(c("price_ipo", "price_control"),
+                  ~ . / dplyr::lag(.,1) - 1)) %>%
     ungroup() %>%
+    filter(complete.cases(.)) %>%
     rename_with(~str_replace_all(.,"price","ret")) %>%
-    filter(complete.cases(.))
-
-
-  ar_df = ret_df %>%
-    group_by(id, duration) %>%
-    summarise(across(contains("ret"), mean), .groups = "drop") %>%
     mutate(ret_abnormal = ret_ipo - ret_control)
 
-  car_df = ar_df %>%
-    group_by(id) %>%
-    summarise(car_abnormal = sum(ret_abnormal), .groups = "drop")
+  cumret_df = ret_df %>%
+    group_by(id, id_control) %>%
+    arrange(date) %>%
+    mutate(across(contains("ret"),cumsum)) %>%
+    ungroup() %>%
+    rename_with(~str_replace_all(.,"ret","cum_ret"))
 
+  cumret_df = cumret_df %>%
+    group_by(date, id) %>%
+    summarise(across(contains("cum_ret"),mean), .groups = "drop")
 
-  return(car_df)
-
+  return(cumret_df)
 
 
 }
